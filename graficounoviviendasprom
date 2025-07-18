@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Gráfico de Proyectos</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      margin: 0;
+      background: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    canvas {
+      max-width: 90%;
+      max-height: 80vh;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="myChart"></canvas>
+  <script>
+    const ctx = document.getElementById('myChart').getContext('2d');
+    const myChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: ['Lima', 'Cusco', 'Piura', 'Arequipa', 'Loreto'],
+        datasets: [{
+          label: 'N° de proyectos',
+          data: [25, 18, 12, 30, 15],
+          backgroundColor: '#4e79a7'
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: 'top' },
+          title: {
+            display: true,
+            text: 'Número de Proyectos por Región'
+          }
+        }
+      }
+    });
+  </script>
+</body>
+</html>
