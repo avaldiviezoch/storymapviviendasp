@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Gráfico de Déficit Habitacional por Ámbito</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f8f8f8;
+      padding: 30px;
+    }
+
+    .chart-container {
+      width: 100%;
+      max-width: 1000px;
+      margin: auto;
+    }
+
+    canvas {
+      width: 100% !important;
+      height: 500px !important;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="chart-container">
+    <h2>Déficit Habitacional por Tipo y Ámbito (2023)</h2>
+    <canvas id="lineChart"></canvas>
+  </div>
+
+  <script>
+    const labels = ['Déficit Cuantitativo', 'Déficit Habitacional', 'Déficit cualitativo'];
+
+    const data = {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Total',
+          data: [5868805, 1906298, 1279419],
+          borderColor: 'rgb(255, 99, 132)',
+          backgroundColor: 'rgba(255, 99, 132, 0.3)',
+          tension: 0,
+          pointRadius: 5
+        },
+        {
+          label: 'Urbano
