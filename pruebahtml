@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Bubble Chart - StoryMap</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
+  #chart-container { width: 95%; height: 90vh; margin: auto; }
+</style>
+</head>
+<body>
+<div id="chart-container">
+  <canvas id="myChart"></canvas>
+</div>
+
+<script>
+function getParam(name) {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get(name);
+}
+
+const serviceUrl = getParam('service');
+const labelField = getParam('labelField') || 'label';
+const xField = getParam('xField') || 'x';
+const yField = getParam('yField') || 'y';
+const rField = getParam('rField') || 'r';
+const rMin = parseFloat(getParam('rMin') || 5);
+const rMax = parseFloat(getParam('rMax') || 20);
+const where = getParam('where') || '1=1';
+const orderBy = getParam('orderBy') || '';
+const limit = getParam('limit') || 50;
+const chartType = getParam('ctype') || 'bubble';
+const title = getParam('title') || '';
+const subtitle = getParam('subtitle') || '';
+
+async function fetchData() {
+    let url = `${serviceUrl}?f=json&where=${encodeURIComponent(where)}&outFields=${labelField},${xField},${yField},${rField}&resultRecordCount=${limit}`;
+    if (orderBy) url += `&orderByFields=${encodeURIComponent(orderBy)}`;
+    const response = await fetch(url);
+    const data = await response.json();
+
+    const features = data.features || [];
+    const values = features.map(f => f.attributes[rField]);
+    const minVal = Math.min(...values);
+    const maxVal = Math.max(...values);
+
+    const chartData = features.map(f => {
+        const attrs = f.attributes;
+        const scaledR = scaleRadius(attrs[rField], minVal, maxVal, rMin, rMax);
+        return {
+            x: attrs[xField],
+            y: attrs[yField],
+            r: scaledR,
+            label: attrs[labelField]
+        };
+    });
+
+    renderChart(chartData);
+}
+
+function scaleRadius(value, minVal, maxVal, minR, maxR) {
+    if (maxVal === minVal) return (minR + maxR) / 2;
+    return minR + ((value - minVal) / (maxVal - minVal)) * (maxR - minR);
+}
+
+function renderChart(dataPoints) {
+    const ctx = document.getElementById('myChart').getContext('2d');
+    new Chart(ctx, {
+        type: chartType,
+        data: {
+            datasets: [{
+                label: title,
+                data: dataPoints,
+                backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: { display: !!title, text: title },
+                subtitle: { display: !!subtitle, text: subtitle },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const p = context.raw;
+                            return `${p.label}: X=${p.x}, Y=${p.y}, Valor=${p.r}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: { title: { display: true, text: xField } },
+                y: { title: { display: true, text: yField } }
+            }
+        }
+    });
+}
+
+fetchData();
+</script>
+</body>
+</html>
