@@ -10,13 +10,12 @@
     html, body { height:100%; margin:0; background:#fff; font-family:system-ui, Arial; }
     .wrap { min-height:100%; display:flex; align-items:center; justify-content:center; padding:16px; }
     canvas { width:100%; max-width:1100px; max-height:80vh; }
-    .note { position:fixed; left:8px; right:8px; bottom:8px; background:#f6f8fa; border:1px solid #e5e7eb; padding:8px 12px; border-radius:8px; font-size:12px; color:#374151; }
-    .error { color:#b91c1c; }
+    .error { color:#b91c1c; font-size:14px; text-align:center; margin-top:10px; }
   </style>
 </head>
 <body>
   <div class="wrap"><canvas id="chart"></canvas></div>
-  <div id="msg" class="note">Cargando…</div>
+  <div id="msg" class="error"></div>
 
   <script>
     const LAYER_URL   = "https://pportalgis.vivienda.gob.pe/pfdserver1/rest/services/OGEI/tablero_viviendas_sociales_promovidas/FeatureServer/0";
@@ -63,7 +62,6 @@
 
     async function main() {
       try {
-        msg.textContent = "Consultando servicio…";
         const feats = await fetchGrouped();
         if (!feats.length) throw new Error(`No hay registros con ${FILTER_FIELD} = "${FILTER_VALUE}".`);
 
@@ -90,7 +88,7 @@
           options: {
             responsive: true,
             plugins: {
-              title: { display: false }, // Sin título
+              title: { display: false },
               legend: { display: false },
               tooltip: { mode: 'index', intersect: false },
               datalabels: {
@@ -102,17 +100,15 @@
               }
             },
             scales: {
-              y: { beginAtZero: true, title: { display: false } }, // Sin texto eje Y
-              x: { title: { display: false } } // Sin texto eje X
+              y: { beginAtZero: true, title: { display: false } },
+              x: { title: { display: false } }
             }
           },
           plugins: [ChartDataLabels]
         });
 
-        msg.textContent = `OK. Categorías: ${labels.length}. Filtro aplicado: ${FILTER_FIELD} = "${FILTER_VALUE}".`;
       } catch (e) {
         console.error(e);
-        msg.classList.add('error');
         msg.textContent = "Error: " + e.message;
       }
     }
