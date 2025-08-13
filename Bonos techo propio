@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Recuento por modalidad (filtrado modalidad_2)</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+  <style>
+    html, body { height:100%; margin:0; background:#fff; font-family:system-ui, Arial; }
+    .wrap { min-height:100%; display:flex; align-items:center; justify-content:center; padding:16px; }
+    canvas { width:100%; max-width:1100px; max-height:80vh; }
+    .note { position:fixed; left:8px; right:8px; bottom:8px; background:#f6f8fa; border:1px solid #e5e7eb; padding:8px 12px; border-radius:8px; font-size:12px; color:#374151; }
+    .error { color:#b91c1c; }
+  </style>
+</head>
+<body>
+  <div class="wrap"><canvas id="chart"></canvas></div>
+  <div id="msg" class="note">Cargando…</div>
+
+  <script>
+    const LAYER_URL   = "https://pportalgis.vivienda.gob.pe/pfdserver1/rest/services/OGEI/tablero_viviendas_sociales_promovidas/FeatureServer/0";
+    const GROUP_FIELD = "modalidad";
+    const FILTER_FIELD = "modalidad_2";
+    const FILTER_VALUE = "Bonos Techo Propio";
+    const msg = document.getElementById('msg');
+
+    async function getObjectIdField() {
+      const r = await fetch(`${LAYER_URL}?f=pjson`);
+      if (!r.ok) throw new Error("No se pudo leer metadata de la capa.");
+      const info = await r.json();
+      return info.objectIdField || (info.fields?.find(f => f.type === 'esriFieldTypeOID')?.name) || 'OBJECTID';
+    }
+
+    function makeQueryUrl(objectIdField) {
+      const where = `${FILTER_FIELD} = '${FILTER_VALUE.replace(/'/g, "''")}'`;
+      const stats = [{
+        statisticType: "count",
+        onStatisticField: objectIdField,
+        outStatisticFieldName: "recuento"
+      }];
+      const p = new URLSearchParams({
+        where,
+        outFields: GROUP_FIELD,
+        groupByFieldsForStatistics: GROUP_FIELD,
+        outStatistics: JSON.stringify(stats),
+        orderByFields: "recuento DESC",
+        returnGeometry: "false",
+        f: "json"
+      });
+      return `${LAYER_URL}/query?${p.toString()}`;
+    }
+
+    async function fetchGrouped() {
+      const oid = await getObjectIdField();
+      const url = makeQueryUrl(oid);
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Error HTTP al consultar el servicio.");
+      const json = await res.json();
+      if (json.error) throw new Error(json.error.message || "Error del servicio.");
+      return json.features || [];
+    }
+
+    async function main() {
+      try {
+        msg.textContent = "Consultando servicio…";
+        const feats = await fetchGrouped();
+        if (!feats.length) throw new Error(`No hay registros con ${FILTER_FIELD} = "${FILTER_VALUE}".`);
+
+        const labels = [];
+        const data = [];
+        for (const f of feats) {
+          const a = f.attributes || {};
+          const label = a[GROUP_FIELD] ?? 'N/D';
+          const count = Number(a.recuento) || 0;
+          labels.push(String(label));
+          data.push(count);
+        }
+
+        const ctx = document.getElementById("chart");
+        new Chart(ctx, {
+          type: "bar",
+          data: {
+            labels,
+            datasets: [{
+              data,
+              backgroundColor: 'rgba(54, 162, 235, 0.7)'
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              title: { display: false }, // Sin título
+              legend: { display: false },
+              tooltip: { mode: 'index', intersect: false },
+              datalabels: {
+                color: '#000',
+                anchor: 'end',
+                align: 'top',
+                font: { weight: 'bold' },
+                formatter: val => val.toLocaleString()
+              }
+            },
+            scales: {
+              y: { beginAtZero: true, title: { display: false } }, // Sin texto eje Y
+              x: { title: { display: false } } // Sin texto eje X
+            }
+          },
+          plugins: [ChartDataLabels]
+        });
+
+        msg.textContent = `OK. Categorías: ${labels.length}. Filtro aplicado: ${FILTER_FIELD} = "${FILTER_VALUE}".`;
+      } catch (e) {
+        console.error(e);
+        msg.classList.add('error');
+        msg.textContent = "Error: " + e.message;
+      }
+    }
+
+    window.addEventListener("DOMContentLoaded", main);
+  </script>
+</body>
+</html>
