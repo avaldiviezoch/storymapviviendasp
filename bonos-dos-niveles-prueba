@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>ECharts Drilldown modalidad → nom_dep</title>
+  <script src="https://unpkg.com/echarts@5.5.0/dist/echarts.min.js"></script>
+  <style>
+    html,body{height:100%;margin:0;font-family:system-ui,Arial;background:#fff}
+    #chart{width:100%;height:86vh}
+    .topbar{display:flex;gap:8px;align-items:center;padding:10px 12px}
+    .btn{padding:6px 10px;border:1px solid #d1d5db;background:#f9fafb;border-radius:8px;cursor:pointer}
+    .btn[disabled]{opacity:.5;cursor:not-allowed}
+    .path{font-size:14px;color:#374151}
+    .err{color:#b91c1c;font-size:14px;padding:6px 12px}
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <button id="backBtn" class="btn" disabled>Volver</button>
+    <div class="path" id="pathLabel"></div>
+  </div>
+  <div id="chart"></div>
+  <div id="msg" class="err"></div>
+
+<script>
+/* ===== Config ===== */
+const LAYER_URL    = "https://pportalgis.vivienda.gob.pe/pfdserver1/rest/services/OGEI/tablero_viviendas_sociales_promovidas/FeatureServer/0";
+const FILTER_FIELD = "modalidad_2";
+const FILTER_VALUE = "Bonos Techo Propio";
+
+/* Jerarquía: 1) modalidad → 2) nom_dep */
+const DRILL_FIELDS = ["modalidad", "nom_dep"];
+
+/* ===== Helpers ===== */
+const msgEl   = document.getElementById('msg');
+const pathEl  = document.getElementById('pathLabel');
+const backBtn = document.getElementById('backBtn');
+const chartEl = document.getElementById('chart');
+const myChart = echarts.init(chartEl);
+
+const optionCache = new Map(); // optionId -> option
+const stack = [];              // historial de optionId
+const path = [];               // [{field, label, whereSafeValue}]
+let OID_FIELD = "OBJECTID";    // se ajusta leyendo metadata
+
+const fmtNum = (n) => Number(n).toLocaleString('es-PE');
+const escQuotes = (s) => String(s).replace(/'/g, "''");
+
+/* Detecta el campo OID real por si no se llama OBJECTID */
+async function getOidField() {
+  const r = await fetch(`${LAYER_URL}?f=pjson`);
+  if (!r.ok) throw new Error("No se pudo leer metadata de la capa.");
+  const info = await r.json();
+  OID_FIELD = info.objectIdField || (info.fields?.find(f => f.type === 'esriFieldTypeOID')?.name) || "OBJECTID";
+}
+
+/* WHERE con filtro global + camino */
+function buildWhere() {
+  const parts = ["1=1"];
+  if (FILTER_FIELD && FILTER_VALUE !== undefined && FILTER_VALUE !== null) {
+    parts.push(`${FILTER_FIELD}='${escQuotes(FILTER_VALUE)}'`);
+  }
+  for (const p of path) {
+    if (p.label === 'N/D') parts.push(`${p.field} IS NULL`);
+    else parts.push(`${p.field}='${escQuotes(p.whereSafeValue ?? p.label)}'`);
+  }
+  return parts.join(" AND ");
+}
+
+/* Consulta: agrupa por groupField y cuenta registros */
+async function queryGroupCount(groupField) {
+  const stats = [{
+    statisticType: "count",
+    onStatisticField: OID_FIELD,
+    outStatisticFieldName: "recuento"
+  }];
+
+  const qs = new URLSearchParams({
+    where: buildWhere(),
+    outFields: groupField,
+    groupByFieldsForStatistics: groupField,
+    outStatistics: JSON.stringify(stats),
+    orderByFields: "recuento DESC",
+    returnGeometry: "false",
+    f: "json"
+  });
+
+  const url = `${LAYER_URL}/query?${qs.toString()}`;
+  const res = await fetch(url, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`HTTP ${res.status} al consultar el servicio.`);
+  const json = await res.json();
+  if (json.error) throw new Error(json.error.message || "Error del servicio.");
+  return (json.features || []).map(f => f.attributes || {});
+}
+
+function makeOptionId(level) {
+  const labels = path.map(p => p.label).join(" / ");
+  return `lvl${level}:${labels}`;
+}
+
+/* Construye la opción ECharts para un nivel */
+function buildOption(optionId, level, rows) {
+  const currField = DRILL_FIELDS[level];
+  const hasNext   = level < (DRILL_FIELDS.length - 1);
+
+  // Normaliza a: [x(label), y(value), groupId, childId]
+  const data = rows.map(r => {
+    const label = (r[currField] ?? 'N/D');
+    const value = Number(r.recuento) || 0;
+    const childId = hasNext ? `${optionId} » ${label}` : null;
+    return [String(label), value, optionId, childId];
+  });
+
+  return {
+    id: optionId,
+    grid: { top: 60, left: 64, right: 24, bottom: 64 },
+    xAxis: { type: 'category' },
+    yAxis: { 
+      minInterval: 1,
+      axisLabel: { formatter: (v) => fmtNum(v) }
+    },
+    animationDurationUpdate: 500,
+    series: {
+      type: 'bar',
+      dimensions: ['x','y','groupId','childGroupId'],
+      encode: { x:'x', y:'y', itemGroupId:'groupId', itemChildGroupId:'childGroupId' },
+      data,
+      // Etiquetas SOLO en el nivel raíz (modalidad)
+      label: {
+        show: level === 0,
+        position: 'top',
+        formatter: (p) => {
+          const val = Array.isArray(p.data) ? p.data[1] :
+                      (Array.isArray(p.value) ? p.value[1] : p.value);
+          return fmtNum(val);
+        }
+      },
+      universalTransition: { enabled:true, divideShape:'clone' },
+      emphasis: { focus: 'series' }
+    },
+    graphic: [{
+      type: 'text',
+      left: 16, top: 8,
+      style: { text: 'Volver', fontSize: 16, fill: '#6b7280', fontWeight: 600, cursor: 'pointer' },
+      onclick: () => goBack()
+    }],
+    tooltip: {
+      trigger: 'item',
+      formatter: ({ name, data }) => `${name}: ${fmtNum(Array.isArray(data) ? data[1] : 0)}`
+    },
+    title: {
+      left: 'center',
+      text: `Nivel ${level+1}: ${currField}${path.length ? ' │ ' + path.map(p=>p.label).join(' / ') : ''}`
+    }
+  };
+}
+
+/* ===== Navegación ===== */
+async function goRoot() {
+  msgEl.textContent = '';
+  path.length = 0; stack.length = 0;
+  backBtn.disabled = true;
+  pathEl.textContent = '';
+
+  const level = 0;
+  const optionId = makeOptionId(level);
+  const rows = await queryGroupCount(DRILL_FIELDS[level]);
+  if (!rows.length) throw new Error('Sin datos para el nivel raíz.');
+  const opt = buildOption(optionId, level, rows);
+  optionCache.set(optionId, opt);
+  myChart.setOption(opt);
+}
+
+async function goForward(labelClicked) {
+  const currId    = myChart.getOption()?.id;
+  const currLevel = path.length;
+  const nextLevel = currLevel + 1;
+  if (nextLevel >= DRILL_FIELDS.length) return;
+
+  const field = DRILL_FIELDS[currLevel];
+  path.push({ field, label: String(labelClicked), whereSafeValue: String(labelClicked) });
+
+  if (currId) stack.push(currId);
+  backBtn.disabled = false;
+  pathEl.textContent = path.map(p => p.label).join(' / ');
+
+  const nextId = makeOptionId(nextLevel);
+  if (!optionCache.has(nextId)) {
+    const rows = await queryGroupCount(DRILL_FIELDS[nextLevel]);
+    const opt = buildOption(nextId, nextLevel, rows);
+    optionCache.set(nextId, opt);
+  }
+  myChart.setOption(optionCache.get(nextId));
+}
+
+function goBack() {
+  if (!stack.length) return;
+  path.pop();
+  const prevId = stack.pop();
+  backBtn.disabled = stack.length === 0;
+  pathEl.textContent = path.map(p => p.label).join(' / ');
+  myChart.setOption(optionCache.get(prevId));
+}
+
+/* Click en barra → baja un nivel */
+myChart.on('click', 'series', (params) => {
+  const label = params?.data?.[0];
+  if (label != null) {
+    goForward(label).catch(e => { console.error(e); msgEl.textContent = 'Error: ' + e.message; });
+  }
+});
+backBtn.addEventListener('click', () => goBack());
+
+/* Init */
+(async function init(){
+  try {
+    await getOidField();
+    await goRoot();
+  } catch(e){
+    console.error(e);
+    msgEl.textContent = 'Error: ' + e.message;
+  }
+})();
+window.addEventListener('resize', () => myChart.resize());
+</script>
+</body>
+</html>
