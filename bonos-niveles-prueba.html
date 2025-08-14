@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>ECharts Drilldown modalidad → nom_dep</title>
+  <title>ECharts Drilldown modalidad → nom_dep → nom_prov → nom_dist</title>
   <script src="https://unpkg.com/echarts@5.5.0/dist/echarts.min.js"></script>
   <style>
     html,body{height:100%;margin:0;font-family:system-ui,Arial;background:#fff}
@@ -29,8 +29,8 @@ const LAYER_URL    = "https://pportalgis.vivienda.gob.pe/pfdserver1/rest/service
 const FILTER_FIELD = "modalidad_2";
 const FILTER_VALUE = "Bonos Techo Propio";
 
-/* Jerarquía: 1) modalidad → 2) nom_dep */
-const DRILL_FIELDS = ["modalidad", "nom_dep"];
+/* Jerarquía: modalidad → departamento → provincia → distrito */
+const DRILL_FIELDS = ["modalidad", "nom_dep", "nom_prov", "nom_dist"];
 
 /* ===== Helpers ===== */
 const msgEl   = document.getElementById('msg');
@@ -114,8 +114,14 @@ function buildOption(optionId, level, rows) {
 
   return {
     id: optionId,
-    grid: { top: 60, left: 64, right: 24, bottom: 64 },
-    xAxis: { type: 'category' },
+    grid: { top: 60, left: 64, right: 24, bottom: 88 },
+    xAxis: { 
+      type: 'category',
+      axisLabel: { 
+        rotate: level >= 1 ? 30 : 0, // gira etiquetas desde nivel 2 para legibilidad
+        interval: 0                  // muestra todas
+      }
+    },
     yAxis: { 
       minInterval: 1,
       axisLabel: { formatter: (v) => fmtNum(v) }
