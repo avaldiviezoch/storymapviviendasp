@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Perú — Drilldown DEP → PROV → DIST (Portal GIS)</title>
+
+  <!-- Highcharts Maps + Drilldown -->
+  <script src="https://code.highcharts.com/maps/highmaps.js"></script>
+  <script src="https://code.highcharts.com/maps/modules/drilldown.js"></script>
+  <script src="https://code.highcharts.com/modules/accessibility.js"></script>
+
+  <style>
+    html,body { height:100%; margin:0; font-family:system-ui, Arial; background:#fff; }
+    #container { width:100%; height:92vh; }
+    #err { padding:8px 12px; color:#b91c1c; font-size:14px; }
+  </style>
+</head>
+<body>
+  <div id="container"></div>
+  <div id="err"></div>
+
+<script>
+/* ============================================================
+   CONFIG (tus capas del Portal GIS)
+   ============================================================ */
+const BASE = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/COES/Limites_Pol%C3%ADticos/MapServer";
+const LYR = {
+  dep:  `${BASE}/0`,
+  prov: `${BASE}/1`,
+  dist: `${BASE}/2`
+};
+
+// Campos por nivel (códigos, nombres y relaciones)
+const FIELDS = {
+  dep:  { code: 'id_dpto', name: 'nom_dep' },
+  prov: { code: 'id_prov', name: 'nom_prov', parentDep: 'id_dep' },
+  dist: { code: 'id_dist', name: 'nom_dist', parentProv: 'id_prov' }
+};
+
+/* ============================================================
+   HELPERS
+   ============================================================ */
+
+// Construye URL de consulta GeoJSON a un layer del MapServer
+function arcgisQueryGeoJSON(layerUrl, { where = '1=1', outFields = '*', outSR = '4326' } = {}) {
+  const p = new URLSearchParams({
+    where,
+    outFields,
+    returnGeometry: 'true',
+    outSR,
+    f: 'geojson'
+  });
+  return `${layerUrl}/query?${p.toString()}`;
+}
+
+// Carga GeoJSON desde un layer (opcionalmente con WHERE)
+async function loadGeo(layerUrl, where = '1=1', fields = '*') {
+  const url = arcgisQueryGeoJSON(layerUrl, { where, outFields: fields });
+  const res = await fetch(url, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`HTTP ${res.status} al consultar ${layerUrl}`);
+  const json = await res.json();
+  if (json.error) throw new Error(json.error.message || 'Error del servicio');
+  if (!json.features || !json.features.length) return { type:'FeatureCollection', features: [] };
+  return json;
+}
+
+// Convierte GeoJSON a arreglo de datos para Highcharts
+// Devuelve [{ key, value, drilldown, name }]
+function makeSeriesDataFromGeo(geojson, codeField, nameField) {
+  return (geojson.features || []).map((f, i) => {
+    const props = f.properties || {};
+    const code  = String(props[codeField]);
+    const name  = props[nameField] ?? code;
+    return { key: code, value: i, drilldown: code, name };
+  });
+}
+
+// Utilidad segura para leer propiedades
+function getProp(point, propName) {
+  // Highcharts copia properties a point.properties
+  return point?.properties?.[propName] ?? point?.[propName] ?? point?.options?.[propName];
+}
+
+/* ============================================================
+   APP
+   ============================================================ */
+const errEl = document.getElementById('err');
+
+(async function init() {
+  try {
+    errEl.textContent = '';
+
+    // 1) Carga DEPARTAMENTOS
+    const geoDep  = await loadGeo(LYR.dep);
+    const dataDep = makeSeriesDataFromGeo(geoDep, FIELDS.dep.code, FIELDS.dep.name);
+
+    Highcharts.mapChart('container', {
+      chart: {
+        map: geoDep, // GeoJSON directo
+        events: {
+          // Drilldown: DEP -> PROV, PROV -> DIST
+          drilldown: async function (e) {
+            if (!e.point || e.seriesOptions) return;
+            this.showLoading('Cargando...');
+
+            try {
+              const currentSeriesName = e.point.series?.name || '';
+              if (currentSeriesName === 'Departamentos') {
+                // ===== Pasar a PROVINCIAS del DEP seleccionado =====
+                const depCode = getProp(e.point, FIELDS.dep.code) || e.point.key;
+                const depName = getProp(e.point, FIELDS.dep.name) || e.point.name;
+
+                // WHERE por relación provincia.id_dep = depCode
+                const where   = `${FIELDS.prov.parentDep}='${String(depCode).replace(/'/g,"''")}'`;
+                const fields  = [FIELDS.prov.code, FIELDS.prov.name, FIELDS.prov.parentDep].join(',');
+                const geoProv = await loadGeo(LYR.prov, where, fields);
+                const dataProv= makeSeriesDataFromGeo(geoProv, FIELDS.prov.code, FIELDS.prov.name);
+
+                this.addSeriesAsDrilldown(e.point, {
+                  mapData: geoProv,
+                  data: dataProv,
+                  name: `Provincias de ${depName}`,
+                  joinBy: [FIELDS.prov.code, 'key'],
+                  dataLabels: { enabled: false },
+                  custom: { parentDepCode: String(depCode) } // lo guardamos para el siguiente nivel
+                });
+
+              } else {
+                // ===== Pasar a DISTRITOS de la PROV seleccionada =====
+                const provCode = getProp(e.point, FIELDS.prov.code) || e.point.key;
+                const provName = getProp(e.point, FIELDS.prov.name) || e.point.name;
+
+                // WHERE por relación distrito.id_prov = provCode
+                const where    = `${FIELDS.dist.parentProv}='${String(provCode).replace(/'/g,"''")}'`;
+                const fields   = [FIELDS.dist.code, FIELDS.dist.name, FIELDS.dist.parentProv].join(',');
+                const geoDist  = await loadGeo(LYR.dist, where, fields);
+                const dataDist = makeSeriesDataFromGeo(geoDist, FIELDS.dist.code, FIELDS.dist.name);
+
+                this.addSeriesAsDrilldown(e.point, {
+                  mapData: geoDist,
+                  data: dataDist,
+                  name: `Distritos de ${provName}`,
+                  joinBy: [FIELDS.dist.code, 'key'],
+                  dataLabels: { enabled: false }
+                });
+              }
+            } catch (err) {
+              console.error(err);
+              this.showLoading('No se pudo cargar el siguiente nivel');
+              setTimeout(() => this.hideLoading(), 1200);
+              errEl.textContent = 'Error: ' + err.message;
+            } finally {
+              this.hideLoading();
+            }
+          },
+          afterDrilldown: function () { this.credits.update(); },
+          afterDrillUp:   function () { this.credits.update(); }
+        }
+      },
+
+      title: { text: 'Perú — Drilldown Departamento → Provincia → Distrito (MapServer)' },
+
+      mapNavigation: {
+        enabled: true,
+        buttonOptions: { verticalAlign: 'bottom' }
+      },
+
+      colorAxis: { min: 0 },
+
+      // Serie inicial: DEPARTAMENTOS
+      series: [{
+        name: 'Departamentos',
+        mapData: geoDep,
+        data: dataDep,
+        joinBy: [FIELDS.dep.code, 'key'],
+        dataLabels: { enabled: false },
+        tooltip: {
+          pointFormatter: function () {
+            const p = this.properties || {};
+            return `<b>${p[FIELDS.dep.name] || this.name}</b>`;
+          }
+        }
+      }],
+
+      // Breadcrumbs (volver)
+      drilldown: {
+        breadcrumbs: { position: { align: 'left' } },
+        activeDataLabelStyle: { color: '#fff', textOutline: 'none', fontWeight: 'normal' }
+      },
+
+      responsive: {
+        rules: [{
+          condition: { maxWidth: 720 },
+          chartOptions: {
+            mapNavigation: { buttonOptions: { verticalAlign: 'bottom' } }
+          }
+        }]
+      }
+    });
+
+  } catch (e) {
+    console.error(e);
+    errEl.textContent = 'Error inicial: ' + e.message;
+  }
+})();
+</script>
+</body>
+</html>
