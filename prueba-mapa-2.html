@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Distritos del Perú – Conteo por Departamento (ECharts)</title>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+  <style>
+    html, body { height:100%; margin:0; background:#fff; font-family:system-ui, Arial; }
+    #app { height:100vh; width:100vw; }
+    .note {
+      position:fixed; left:8px; right:8px; bottom:8px;
+      background:#f6f8fa; border:1px solid #e5e7eb; padding:8px 12px; border-radius:8px; font-size:13px; z-index: 10;
+    }
+    .badge {
+      position: fixed; left: 8px; top: 8px; background:#111827; color:#fff; padding:6px 10px; border-radius:999px; font-size:12px;
+      opacity:.85; z-index: 10;
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <div class="badge">ECharts + ArcGIS REST</div>
+  <div class="note">
+    Fuente: COES / Limites_Políticos / Distritos. Colorea cada distrito según el total de distritos en su departamento (conteo de <code>id_dist</code>). Alterna mapa &lt;↔&gt; barra.
+  </div>
+
+  <script>
+    // ====== Endpoints ======
+    const DIST_URL = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/COES/Limites_Pol%C3%ADticos/MapServer/2";
+    const DPTO_URL = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/COES/Limites_Pol%C3%ADticos/MapServer/0";
+
+    // ====== Campos (según tu captura) ======
+    const FIELD_ID_DIST = "id_dist";   // 6 dígitos (UBIGEO distrito)
+    const FIELD_NOM_DIST = "nom_dist"; // nombre distrito
+    const FIELD_ID_PROV = "id_prov";   // 4 dígitos (UBIGEO provincia)
+    // En departamentos:
+    const FIELD_ID_DPTO = "id_dpto";   // 2 dígitos
+    const FIELD_NOM_DPTO = "nom_dep";  // nombre departamento
+
+    // ====== Init ECharts ======
+    const dom = document.getElementById('app');
+    const myChart = echarts.init(dom, null, { renderer: 'canvas' });
+    myChart.showLoading();
+
+    // ====== Helpers ======
+    function groupCounts(items, keyFn) {
+      const m = new Map();
+      for (const it of items) {
+        const k = keyFn(it);
+        m.set(k, (m.get(k) || 0) + 1);
+      }
+      return m;
+    }
+
+    function uniqueBy(arr, keyFn) {
+      const seen = new Set();
+      const out = [];
+      for (const x of arr) {
+        const k = keyFn(x);
+        if (!seen.has(k)) { seen.add(k); out.push(x); }
+      }
+      return out;
+    }
+
+    // Conversor mínimo de EsriJSON -> GeoJSON (sólo Polygon/MultiPolygon)
+    function esriPolygonToGeo(geom) {
+      if (!geom) return null;
+      // geom.rings: array de anillos (cada anillo: [[x,y],...])
+      if (geom.rings) {
+        // MultiPolygon si hay múltiples “islas” => lo dejamos como MultiPolygon con 1 polígono por ring
+        // (suficiente para ECharts)
+        const polys = geom.rings.map(ring => [ ring.map(([x,y]) => [x,y]) ]);
+        if (polys.length === 1) {
+          return { type: "Polygon", coordinates: polys[0] };
+        } else {
+          return { type: "MultiPolygon", coordinates: polys };
+        }
+      }
+      return null;
+    }
+
+    function esriToGeoJSON(esri) {
+      const features = (esri.features || []).map(f => {
+        const geom = esriPolygonToGeo(f.geometry);
+        return {
+          type: "Feature",
+          geometry: geom,
+          properties: f.attributes || {}
+        };
+      }).filter(f => f.geometry);
+      return { type: "FeatureCollection", features };
+    }
+
+    async function fetchEsriJSON(url, params) {
+      const qs = new URLSearchParams(params);
+      const res = await fetch(url + "/query?" + qs.toString(), { credentials: "omit" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    }
+
+    (async function run() {
+      try {
+        // 1) Distritos (EsriJSON)
+        const distEsri = await fetchEsriJSON(DIST_URL, {
+          where: "1=1",
+          outFields: [FIELD_ID_DIST, FIELD_NOM_DIST, FIELD_ID_PROV].join(","),
+          returnGeometry: "true",
+          outSR: "4326",
+          f: "json"
+        });
+        const distGeo = esriToGeoJSON(distEsri);
+        if (!distGeo.features?.length) throw new Error("La capa de distritos devolvió 0 features.");
+
+        // 2) Departamentos (solo atributos, para nombre)
+        const dptoEsri = await fetchEsriJSON(DPTO_URL, {
+          where: "1=1",
+          outFields: [FIELD_ID_DPTO, FIELD_NOM_DPTO].join(","),
+          returnGeometry: "false",
+          f: "json"
+        });
+        const dptoMap = new Map(); // id_dpto(2) -> nom_dep
+        for (const f of (dptoEsri.features || [])) {
+          const a = f.attributes || {};
+          const code = String(a[FIELD_ID_DPTO] ?? "").padStart(2, "0");
+          const name = a[FIELD_NOM_DPTO] ?? code;
+          if (code) dptoMap.set(code, name);
+        }
+
+        // 3) Registrar mapa (distritos)
+        echarts.registerMap("PERU_DISTRITOS", distGeo);
+
+        // 4) Derivar id_dpto (2 dígitos) y contar distritos por dpto
+        const feats = distGeo.features;
+        const withDept = feats.map(ft => {
+          const p = ft.properties || {};
+          const idDist = String(p[FIELD_ID_DIST] ?? "").padStart(6, "0");
+          const idProv = String(p[FIELD_ID_PROV] ?? "").padStart(4, "0");
+          const idDpto = idDist ? idDist.slice(0,2) : idProv.slice(0,2); // fallback
+          return { p, idDist, idDpto };
+        });
+
+        const countByDept = groupCounts(withDept, x => x.idDpto);
+
+        // 5) Datos para mapa (valor = # distritos del departamento del distrito)
+        const mapData = withDept.map(x => ({
+          name: x.idDist,                // vinculado por nameProperty
+          value: countByDept.get(x.idDpto) || 0
+        }));
+
+        // 6) Datos para barra (por departamento)
+        const deptExamples = uniqueBy(withDept, x => x.idDpto);
+        const barPairs = deptExamples.map(x => ({
+          name: dptoMap.get(x.idDpto) || x.idDpto,
+          value: countByDept.get(x.idDpto) || 0
+        })).sort((a,b) => a.value - b.value);
+
+        const minV = Math.min(...barPairs.map(x => x.value));
+        const maxV = Math.max(...barPairs.map(x => x.value));
+        const SUBTITULO = 'Fuente: COES / Limites_Políticos / Distritos. Colorea cada distrito según el total de distritos en su departamento (conteo de id_dist). Alterna mapa ↔ barra.';
+
+        const mapOption = {
+          title: {
+            text: 'Distritos del Perú – coloreados por # de distritos en su Departamento',
+            left: 'center',
+            subtext: SUBTITULO,
+            subtextStyle: { fontSize: 12 }
+          },
+          tooltip: {
+            trigger: 'item',
+            formatter: params => {
+              // Buscar props del distrito por id_dist
+              const hit = withDept.find(x => x.idDist === String(params.name));
+              const nomDist = hit?.p?.[FIELD_NOM_DIST] ?? params.name;
+              const nomDep = dptoMap.get(hit?.idDpto || '') || (hit?.idDpto || '—');
+              return `<b>${nomDist}</b><br/>Departamento: ${nomDep}<br/># distritos en dpto: <b>${params.value ?? '—'}</b>`;
+            }
+          },
+          visualMap: {
+            left: 'right',
+            min: Number.isFinite(minV) ? minV : 0,
+            max: Number.isFinite(maxV) ? maxV : 1,
+            text: ['Más', 'Menos'],
+            calculable: true,
+            inRange: {
+              color: ['#313695', '#4575b4', '#74add1', '#abd9e9', '#e0f3f8', '#ffffbf', '#fee090', '#fdae61', '#f46d43', '#d73027', '#a50026']
+            }
+          },
+          series: [{
+            id: 'serieDistritos',
+            name: 'Distritos',
+            type: 'map',
+            roam: true,
+            map: 'PERU_DISTRITOS',
+            nameProperty: FIELD_ID_DIST, // id_dist de la feature
+            universalTransition: true,
+            animationDurationUpdate: 800,
+            itemStyle: {
+              areaColor: '#eef2ff',
+              borderColor: '#94a3b8',
+              borderWidth: 0.6
+            },
+            emphasis: {
+              itemStyle: { areaColor: '#c7d2fe' },
+              label: { show: false }
+            },
+            data: mapData
+          }]
+        };
+
+        const barOption = {
+          title: {
+            text: 'Número de distritos por departamento',
+            left: 'center',
+            subtext: SUBTITULO,
+            subtextStyle: { fontSize: 12 }
+          },
+          tooltip: { trigger: 'item' },
+          grid: { left: 120, right: 24, top: 56, bottom: 24 },
+          xAxis: { type: 'value' },
+          yAxis: { type: 'category', data: barPairs.map(d => d.name) },
+          series: [{
+            id: 'serieDistritos',
+            type: 'bar',
+            universalTransition: true,
+            animationDurationUpdate: 800,
+            data: barPairs.map(d => d.value)
+          }]
+        };
+
+        myChart.hideLoading();
+        let current = 'map';
+        myChart.setOption(mapOption);
+        setInterval(() => {
+          current = current === 'map' ? 'bar' : 'map';
+          myChart.setOption(current === 'map' ? mapOption : barOption, true);
+        }, 3000);
+
+        window.addEventListener('resize', () => myChart.resize());
+
+      } catch (err) {
+        console.error(err);
+        myChart.hideLoading();
+        myChart.setOption({
+          title: { text: 'Error al cargar distritos', left: 'center' },
+          graphic: {
+            type: 'text', left: 'center', top: 'middle',
+            style: { text: (err && err.message) ? err.message : 'Fallo de carga.\nRevisa CORS / URL / campos.', fontSize: 16, lineHeight: 22, width: 420 }
+          }
+        });
+      }
+    })();
+  </script>
+</body>
+</html>
