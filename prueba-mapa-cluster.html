@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Mapa con Marker Clusters - Proyectos Priorizados</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.10.0/proj4.js" integrity="sha512-e3rsOu6v8lmVnZylXpOq3DO/UxrCgoEMqosQxGygrgHlves9HTwQzVQ/dLO+nwSbOSAecjRD7Y/c4onmiBVo6w==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="https://code.highcharts.com/maps/highmaps.js"></script>
+  <script src="https://code.highcharts.com/modules/marker-clusters.js"></script>
+  <script src="https://code.highcharts.com/modules/coloraxis.js"></script>
+  <style>
+    #container {
+      height: 90vh;
+      width: 100%;
+      margin: 0 auto;
+    }
+  </style>
+</head>
+<body>
+
+<div id="container"></div>
+
+<script>
+(async () => {
+    // 🔹 1. Cargar el TopoJSON de Departamentos
+    const topology = await fetch(
+        "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/COES/Limites_Pol%C3%ADticos/MapServer/0/query?where=1%3D1&outFields=*&f=geojson"
+    ).then(response => response.json());
+
+    // 🔹 2. Cargar los puntos desde el servicio de Proyectos Priorizados
+    const proyectos = await fetch(
+        "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/OGEI/Proyectos_Priorizados/FeatureServer/0/query?where=1%3D1&outFields=coord_x,coord_y&f=geojson"
+    ).then(response => response.json());
+
+    // Transformamos a formato Highcharts
+    const puntos = proyectos.features.map(f => ({
+        lat: f.geometry.coordinates[1],
+        lon: f.geometry.coordinates[0]
+    }));
+
+    // 🔹 3. Construir el mapa
+    Highcharts.mapChart('container', {
+        chart: {
+            map: topology
+        },
+        title: {
+            text: 'Proyectos Priorizados - Clusters'
+        },
+        mapNavigation: {
+            enabled: true
+        },
+        tooltip: {
+            formatter: function () {
+                if (this.point.clusteredData) {
+                    return 'Número de proyectos: <b>' + this.point.clusterPointsAmount + '</b>';
+                }
+                return null; // ❌ No mostrar nada para puntos individuales
+            }
+        },
+        plotOptions: {
+            mappoint: {
+                cluster: {
+                    enabled: true,
+                    allowOverlap: false,
+                    animation: { duration: 400 },
+                    layoutAlgorithm: {
+                        type: 'grid',
+                        gridSize: 70
+                    },
+                    zones: [{
+                        from: 1, to: 10, marker: { radius: 13 }
+                    }, {
+                        from: 11, to: 50, marker: { radius: 17 }
+                    }, {
+                        from: 51, to: 100, marker: { radius: 20 }
+                    }, {
+                        from: 101, to: 500, marker: { radius: 25 }
+                    }]
+                }
+            }
+        },
+        series: [{
+            name: 'Departamentos',
+            borderColor: '#707070',
+            nullColor: 'rgba(200,200,200,0.3)',
+            showInLegend: false
+        }, {
+            type: 'mappoint',
+            name: 'Proyectos',
+            colorKey: 'clusterPointsAmount',
+            color: Highcharts.getOptions().colors[2],
+            data: puntos
+        }]
+    });
+
+})();
+</script>
+
+</body>
+</html>
