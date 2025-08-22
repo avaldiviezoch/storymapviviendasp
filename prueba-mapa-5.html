@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Perú (Departamentos) + Clusters de Proyectos</title>
+
+  <!-- Highcharts Maps + módulos -->
+  <script src="https://code.highcharts.com/maps/highmaps.js"></script>
+  <script src="https://code.highcharts.com/modules/marker-clusters.js"></script>
+  <script src="https://code.highcharts.com/modules/coloraxis.js"></script>
+
+  <style>
+    html,body{height:100%;margin:0;font-family:system-ui,Arial;}
+    #container{min-width:320px;max-width:1200px;height:80vh;margin:12px auto;}
+  </style>
+</head>
+<body>
+<div id="container"></div>
+
+<script>
+/* ==========================
+   ENDPOINTS (tus servicios)
+   ========================== */
+const DEP_URL = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/COES/Limites_Pol%C3%ADticos/MapServer/0";
+const PTS_URL = "https://pportalgis.vivienda.gob.pe/pfdserver1/rest/services/OGEI/proyectos_destrabados_cartera/MapServer/0";
+
+/* ==========================
+   Helpers ArcGIS REST
+   ========================== */
+const qs = (url, params) => url + "/query?" + new URLSearchParams(params).toString();
+
+/** Carga GeoJSON desde ArcGIS MapServer/FeatureServer */
+async function loadGeoJSON(layerUrl, { where="1=1", fields="*", outSR="4326" } = {}) {
+  const url = qs(layerUrl, {
+    where,
+    outFields: fields,
+    returnGeometry: "true",
+    outSR,
+    f: "geojson"
+  });
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error(`HTTP ${res.status} al consultar ${layerUrl}`);
+  const json = await res.json();
+  if (json.error) throw new Error(json.error.message || "Error del servicio");
+  return json;
+}
+
+/** Convierte GeoJSON de puntos -> arreglo [{lat,lon, name?}] para Highcharts mappoint */
+function geoPointsToLatLon(geojson) {
+  const out = [];
+  for (const f of (geojson.features || [])) {
+    const g = f.geometry;
+    if (!g) continue;
+    // Puede venir como Point o MultiPoint; tomamos cada coord
+    if (g.type === "Point") {
+      const [x,y] = g.coordinates; // lon, lat
+      if (Number.isFinite(x) && Number.isFinite(y)) {
+        out.push({ lon: x, lat: y });
+      }
+    } else if (g.type === "MultiPoint") {
+      for (const [x,y] of g.coordinates) {
+        if (Number.isFinite(x) && Number.isFinite(y)) {
+          out.push({ lon: x, lat: y });
+        }
+      }
+    }
+  }
+  return out;
+}
+
+(async function init(){
+  try {
+    // 1) Basemap: departamentos (GeoJSON directo)
+    const depGeo = await loadGeoJSON(DEP_URL, {
+      fields: "id_dpto,nom_dep"
+    });
+
+    // 2) Puntos: proyectos (GeoJSON -> lat/lon)
+    const ptsGeo = await loadGeoJSON(PTS_URL, {
+      // Solo necesitamos geometría; si luego quieres mostrar un atributo en el tooltip,
+      // añade ese campo aquí, por ejemplo: "objectid,nombre"
+      fields: "objectid"
+    });
+    const points = geoPointsToLatLon(ptsGeo);
+
+    // 3) Armar el mapa con clusters
+    Highcharts.mapChart('container', {
+      chart: { map: depGeo },
+      title: { text: 'Proyectos destrabados — Clusters sobre Departamentos (Perú)' },
+      mapNavigation: { enabled: true, buttonOptions: { verticalAlign: 'bottom' } },
+
+      tooltip: {
+        formatter: function () {
+          // Si es cluster
+          if (this.point && this.point.clusteredData) {
+            return 'Proyectos en cluster: <b>' + this.point.clusterPointsAmount + '</b>';
+          }
+          // Punto individual
+          const p = this.point || {};
+          if (Number.isFinite(p.lat) && Number.isFinite(p.lon)) {
+            return 'Proyecto<br>Lat: ' + p.lat.toFixed(4) + '<br>Lon: ' + p.lon.toFixed(4);
+          }
+          return 'Proyecto';
+        }
+      },
+
+      colorAxis: { min: 0 },
+
+      series: [
+        // Capa base (departamentos)
+        {
+          name: 'Departamentos',
+          borderColor: '#A0A0A0',
+          nullColor: 'rgba(200,200,200,0.25)',
+          showInLegend: false
+        },
+        // Capa puntos con CLUSTERS
+        {
+          type: 'mappoint',
+          name: 'Proyectos',
+          data: points,
+          enableMouseTracking: true,
+          colorKey: 'clusterPointsAmount',
+          color: Highcharts.getOptions().colors[1], // color base para clusters
+          cluster: {
+            enabled: true,
+            allowOverlap: false,
+            animation: { duration: 450 },
+            layoutAlgorithm: {
+              type: 'grid',
+              gridSize: 70
+            },
+            // radios por cantidad de puntos
+            zones: [
+              { from: 1,  to: 4,  marker: { radius: 13 } },
+              { from: 5,  to: 9,  marker: { radius: 15 } },
+              { from: 10, to: 15, marker: { radius: 17 } },
+              { from: 16, to: 20, marker: { radius: 19 } },
+              { from: 21, to: 10000, marker: { radius: 21 } }
+            ]
+          },
+          // Opcional: estilo de los puntos individuales cuando ya no están clusterizados
+          marker: { radius: 4, symbol: 'circle' }
+        }
+      ]
+    });
+
+  } catch (e) {
+    console.error(e);
+    const div = document.getElementById('container');
+    div.innerHTML = '<div style="color:#b91c1c;padding:12px">Error: ' + (e && e.message ? e.message : 'Fallo al cargar datos') + '</div>';
+  }
+})();
+</script>
+</body>
+</html>
