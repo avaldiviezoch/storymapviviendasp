@@ -15,44 +15,47 @@
 
 <script>
 const SERVICE_BASE = "https://pportalgis.vivienda.gob.pe/phtserver/rest/services/Hosted/Mapa_coropletico_2/FeatureServer";
-
-/* ==== IDs de capas (ajusta si cambian) ==== 
-   Antes: LYR_X=5 (acceso), LYR_Y=3 (gasto) => se cruzaban con las etiquetas.
-   Ahora lo hacemos explícito: */
-const LYR_GASTO  = 3;  // S/
-const LYR_ACCESO = 5;  // Población con acceso a agua
-const LYR_SIZE   = 4;  // Tamaño de burbuja (población ENAPRES, miles)
-
+const LYR_X    = 5; 
+const LYR_Y    = 3; 
+const LYR_SIZE = 4; 
 const YEAR_START = 2011;
 const YEAR_END   = 2024;
 
 const REGION_COLS = [
-  { key:'amazonas', display:'Amazonas' },
-  { key:'ancash', display:'Áncash' },
-  { key:'apurimac', display:'Apurímac' },
-  { key:'arequipa', display:'Arequipa' },
-  { key:'ayacucho', display:'Ayacucho' },
-  { key:'cajamarca', display:'Cajamarca' },
-  { key:'provincia_constitucional_del_ca', display:'Callao' },
-  { key:'cusco', display:'Cusco' },
-  { key:'huancavelica', display:'Huancavelica' },
-  { key:'huanuco', display:'Huánuco' },
-  { key:'ica', display:'Ica' },
-  { key:'junin', display:'Junín' },
-  { key:'la_libertad', display:'La Libertad' },
-  { key:'lambayeque', display:'Lambayeque' },
-  { key:'lima', display:'Lima' },
-  { key:'loreto', display:'Loreto' },
-  { key:'madre_de_dios', display:'Madre de Dios' },
-  { key:'moquegua', display:'Moquegua' },
-  { key:'pasco', display:'Pasco' },
-  { key:'piura', display:'Piura' },
-  { key:'puno', display:'Puno' },
-  { key:'san_martin', display:'San Martín' },
-  { key:'tacna', display:'Tacna' },
-  { key:'tumbes', display:'Tumbes' },
-  { key:'ucayali', display:'Ucayali' }
+  { key:'amazonas', display:'Amazonas', macro:'NORTE' },
+  { key:'ancash', display:'Áncash', macro:'CENTRO' },
+  { key:'apurimac', display:'Apurímac', macro:'SUR' },
+  { key:'arequipa', display:'Arequipa', macro:'SUR' },
+  { key:'ayacucho', display:'Ayacucho', macro:'SUR' },
+  { key:'cajamarca', display:'Cajamarca', macro:'NORTE' },
+  { key:'provincia_constitucional_del_ca', display:'Callao', macro:'LIMA Y CALLAO' },
+  { key:'cusco', display:'Cusco', macro:'SUR' },
+  { key:'huancavelica', display:'Huancavelica', macro:'SUR' },
+  { key:'huanuco', display:'Huánuco', macro:'CENTRO' },
+  { key:'ica', display:'Ica', macro:'SUR' },
+  { key:'junin', display:'Junín', macro:'CENTRO' },
+  { key:'la_libertad', display:'La Libertad', macro:'NORTE' },
+  { key:'lambayeque', display:'Lambayeque', macro:'NORTE' },
+  { key:'lima', display:'Lima', macro:'LIMA Y CALLAO' },
+  { key:'loreto', display:'Loreto', macro:'NORTE' },
+  { key:'madre_de_dios', display:'Madre de Dios', macro:'SUR' },
+  { key:'moquegua', display:'Moquegua', macro:'SUR' },
+  { key:'pasco', display:'Pasco', macro:'CENTRO' },
+  { key:'piura', display:'Piura', macro:'NORTE' },
+  { key:'puno', display:'Puno', macro:'SUR' },
+  { key:'san_martin', display:'San Martín', macro:'NORTE' },
+  { key:'tacna', display:'Tacna', macro:'SUR' },
+  { key:'tumbes', display:'Tumbes', macro:'NORTE' },
+  { key:'ucayali', display:'Ucayali', macro:'NORTE' }
 ];
+
+// colores por macrozona
+const MACRO_COLORS = {
+  'NORTE': '#1f77b4',
+  'CENTRO': '#2ca02c',
+  'SUR': '#d62728',
+  'LIMA Y CALLAO': '#ff7f0e'
+};
 
 const chart = echarts.init(document.getElementById('chart'));
 
@@ -60,7 +63,7 @@ function qs(url, params) {
   return url + "?" + new URLSearchParams(params).toString();
 }
 async function fetchTable(layerId) {
-  const url = qs(${SERVICE_BASE}/${layerId}/query, {
+  const url = qs(`${SERVICE_BASE}/${layerId}/query`, {
     where: "1=1",
     outFields: "*",
     returnGeometry: "false",
@@ -68,9 +71,9 @@ async function fetchTable(layerId) {
     f: "json"
   });
   const res = await fetch(url, { cache: 'no-store' });
-  if (!res.ok) throw new Error(HTTP ${res.status} al consultar layer ${layerId});
+  if (!res.ok) throw new Error(`HTTP ${res.status} al consultar layer ${layerId}`);
   const json = await res.json();
-  if (json.error) throw new Error(json.error.message || Error del servicio en layer ${layerId});
+  if (json.error) throw new Error(json.error.message || `Error del servicio en layer ${layerId}`);
   const feats = json.features || [];
   const byYear = new Map();
   for (const f of feats) {
@@ -102,49 +105,39 @@ function makeSizeFn(values) {
 (async function run(){
   try {
     chart.showLoading({ text: 'Cargando datos…' });
-    // Cargamos por concepto explícito
-    const [gastoByYear, accesoByYear, sizeByYear] = await Promise.all([
-      fetchTable(LYR_GASTO),
-      fetchTable(LYR_ACCESO),
+    const [xByYear, yByYear, sByYear] = await Promise.all([
+      fetchTable(LYR_X),
+      fetchTable(LYR_Y),
       fetchTable(LYR_SIZE)
     ]);
 
     const years = [];
     for (let y = YEAR_START; y <= YEAR_END; y++) years.push(y);
 
-    // Recolectamos para escalas
-    const allGastos = [];
     const allSizes = [];
     years.forEach(y => {
-      const rowG = gastoByYear.get(y) || {};
-      const rowS = sizeByYear.get(y) || {};
+      const rowS = sByYear.get(y) || {};
       for (const {key} of REGION_COLS) {
-        const vG = Number(rowG[key]);
-        const vS = Number(rowS[key]);
-        if (Number.isFinite(vG) && vG > 0) allGastos.push(vG); // log necesita >0
-        if (Number.isFinite(vS)) allSizes.push(vS);
+        const valS = Number(rowS[key]);
+        if (Number.isFinite(valS)) allSizes.push(valS);
       }
     });
     const sizeFn = makeSizeFn(allSizes);
 
-    // Escala eje X (Gasto)
-    let [minX, maxX] = extent(allGastos);
-    // Asegurar mínimo positivo para escala log
-    if (!(minX > 0)) minX = Math.min(...allGastos.filter(v=>v>0)) || 1;
-    if (!(maxX > 0)) maxX = 1;
-
     const options = [];
     for (const y of years) {
-      const rowG = gastoByYear.get(y) || {};
-      const rowA = accesoByYear.get(y) || {};
-      const rowS = sizeByYear.get(y) || {};
-
-      const points = REGION_COLS.map(({key, display}) => {
-        const gasto  = Number(rowG[key]);
-        const acceso = Number(rowA[key]);
-        const tam    = Number(rowS[key]);
-        return [gasto, acceso, tam, display];
-      }).filter(d => Number.isFinite(d[0]) && d[0] > 0 && Number.isFinite(d[1]));
+      const rowX = xByYear.get(y) || {};
+      const rowY = yByYear.get(y) || {};
+      const rowS = sByYear.get(y) || {};
+      const points = REGION_COLS.map(({key, display, macro}) => {
+        const xVal = Number(rowX[key]);
+        const yVal = Number(rowY[key]);
+        const sVal = Number(rowS[key]);
+        return {
+          value: [xVal, yVal, sVal, display, macro],
+          itemStyle: { color: MACRO_COLORS[macro] }
+        };
+      }).filter(d => Number.isFinite(d.value[0]) && Number.isFinite(d.value[1]));
 
       options.push({
         title: { show: true, text: String(y) },
@@ -153,7 +146,7 @@ function makeSizeFn(values) {
           type: 'scatter',
           data: points,
           itemStyle: { opacity: 0.85 },
-          symbolSize: (val) => sizeFn(val[2]),
+          symbolSize: function (val) { return sizeFn(val[2]); },
           label: {
             show: true,
             formatter: p => p.value[3],
@@ -164,13 +157,6 @@ function makeSizeFn(values) {
         }]
       });
     }
-
-    const categories = REGION_COLS.map(r => r.display);
-    const colorPalette = ['#51689b','#ce5c5c','#fbc357','#8fbf8f','#659d84','#fb8e6a','#c77288','#786090','#91c4c5','#6890ba'];
-    const regionColors = [];
-    while (regionColors.length < categories.length) regionColors.push(...colorPalette);
-
-    const nf = new Intl.NumberFormat('es-PE');
 
     const option = {
       baseOption: {
@@ -205,3 +191,59 @@ function makeSizeFn(values) {
           }
         ],
         tooltip: {
+          padding: 6,
+          borderWidth: 1,
+          formatter: function (obj) {
+            const v = obj.value;
+            return (
+              `<b>${v[3]}</b> (${v[4]})<br>` +
+              `Acceso a agua: <b>${Number(v[1]).toLocaleString('es-PE')}</b><br>` +
+              `Gasto (S/): <b>${Number(v[0]).toLocaleString('es-PE')}</b><br>` +
+              `Población (miles): <b>${Number(v[2]).toLocaleString('es-PE')}</b>`
+            );
+          }
+        },
+        grid: { top: 80, left: 40, right: 110, bottom: 40, containLabel: true },
+        xAxis: {
+          type: 'log',
+          name: 'Gasto (S/)',
+          min: 300, 
+          max: 20000,   // 🔹 Ajustado a un rango más razonable
+          nameGap: 25,
+          nameLocation: 'middle',
+          nameTextStyle: { fontSize: 14 },
+          splitLine: { show: false },
+          axisLabel: { formatter: (v) => new Intl.NumberFormat('es-PE').format(v) }
+        },
+        yAxis: {
+          type: 'value',
+          name: 'Población con acceso al agua',
+          nameTextStyle: { fontSize: 14 },
+          splitLine: { show: true },
+          axisLabel: { formatter: (v) => new Intl.NumberFormat('es-PE').format(v) }
+        },
+        series: [ { type: 'scatter', data: [] } ],
+        animationDurationUpdate: 1000,
+        animationEasingUpdate: 'quinticInOut'
+      },
+      options
+    };
+
+    chart.hideLoading();
+    chart.setOption(option);
+    window.addEventListener('resize', () => chart.resize());
+  } catch (err) {
+    console.error(err);
+    chart.hideLoading();
+    chart.setOption({
+      title: { text:'Error al cargar datos', left:'center' },
+      graphic: {
+        type:'text', left:'center', top:'middle',
+        style:{ text: (err && err.message) ? err.message : 'Fallo de carga.\nRevisa URL, permisos (token) o campos.', fontSize: 14 }
+      }
+    });
+  }
+})();
+</script>
+</body>
+</html>
