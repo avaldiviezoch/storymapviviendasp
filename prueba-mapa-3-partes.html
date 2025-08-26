@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Pestañas embebidas — Total / Urbano / Rural</title>
+  <style>
+    :root{
+      --bg:#0f172a;       /* fondo barra */
+      --bg2:#111827;      /* hover */
+      --fg:#e5e7eb;       /* texto */
+      --accent:#22d3ee;   /* indicador */
+      --shadow:0 2px 10px rgba(0,0,0,.25);
+    }
+    html,body{height:100%;margin:0;background:#0b1220;font-family:system-ui,Arial}
+
+    /* ===== Barra de pestañas (solo tabs) ===== */
+    .tabs-wrap{
+      position:fixed; inset:0 0 auto 0; height:64px;
+      background: linear-gradient(180deg, #0b1220 0%, var(--bg) 100%);
+      box-shadow: var(--shadow);
+      z-index:10;
+    }
+    .tabs{
+      display:flex; height:100%; max-width:1200px; margin:0 auto; position:relative;
+      border-bottom:1px solid rgba(255,255,255,.06);
+      padding:0 8px;
+    }
+    .tab{
+      flex:1; display:flex; align-items:center; justify-content:center; gap:.5rem;
+      color:var(--fg); background:transparent; border:0; cursor:pointer;
+      font-size:16px; font-weight:700; letter-spacing:.2px;
+      transition: background .20s ease, color .20s ease, opacity .20s ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .tab:hover{ background:var(--bg2); color:#fff; }
+    .tab[aria-selected="true"]{ color:#fff; }
+    .tab .dot{
+      width:6px; height:6px; border-radius:999px; background:transparent;
+      transition: transform .20s ease, background .20s ease;
+      transform: scale(0);
+    }
+    .tab[aria-selected="true"] .dot{ background:var(--accent); transform: scale(1); }
+
+    .indicator{
+      position:absolute; left:0; bottom:0; height:3px; width:33.3333%;
+      background: var(--accent);
+      box-shadow:0 0 10px rgba(34,211,238,.6);
+      transition: transform .26s cubic-bezier(.2,.8,.2,1), width .26s;
+    }
+
+    /* ===== Viewer (iframe) ===== */
+    .viewer{
+      position:absolute; top:64px; bottom:0; left:0; right:0;
+      background:#0b1220;
+    }
+    .viewer iframe{
+      position:absolute; inset:0; width:100%; height:100%; border:0;
+      background:#0b1220;
+    }
+
+    /* ===== Loading overlay y fallback ===== */
+    .loading{
+      position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+      pointer-events:none; background:linear-gradient(180deg, rgba(11,18,32,.0), rgba(11,18,32,.25));
+      transition: opacity .2s ease; opacity:1;
+    }
+    .loading.hidden{ opacity:0; }
+
+    .spinner{
+      width:38px; height:38px; border:3px solid rgba(255,255,255,.25);
+      border-top-color: var(--accent); border-radius:50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin{ to{ transform: rotate(360deg);} }
+
+    .fallback{
+      position:absolute; right:14px; bottom:14px;
+      display:inline-flex; align-items:center; gap:.5rem;
+      padding:10px 12px; border-radius:10px; text-decoration:none;
+      background:#0ea5e9; color:white; font-weight:700;
+      box-shadow:0 6px 14px rgba(2,6,23,.25);
+    }
+
+    @media (max-width:640px){ .tab{ font-size:15px; } }
+  </style>
+</head>
+<body>
+
+  <!-- Barra superior: SOLO pestañas -->
+  <div class="tabs-wrap">
+    <div class="tabs" role="tablist" aria-label="Vista">
+      <button class="tab" role="tab" aria-selected="true"  data-key="total"><span class="dot"></span>Total</button>
+      <button class="tab" role="tab" aria-selected="false" data-key="urbano"><span class="dot"></span>Urbano</button>
+      <button class="tab" role="tab" aria-selected="false" data-key="rural"><span class="dot"></span>Rural</button>
+      <div class="indicator" id="indicator"></div>
+    </div>
+  </div>
+
+  <!-- Viewer embebido -->
+  <div class="viewer" id="viewer">
+    <iframe id="frame" title="Experience Builder" allow="fullscreen" loading="eager"></iframe>
+    <div class="loading" id="loading"><div class="spinner" aria-hidden="true"></div></div>
+    <a class="fallback" id="fallback" target="_blank" rel="noopener">Abrir en pestaña nueva</a>
+  </div>
+
+  <script>
+    // Coloca aquí los enlaces definitivos si luego cambian; por ahora los tres apuntan al mismo.
+    const TEST_URL = "https://pportalgis.vivienda.gob.pe/pportal/apps/experiencebuilder/experience/?id=b2008a43253749879f06706e0dfdf183&draft=true";
+    const LINKS = {
+      total:  TEST_URL,
+      urbano: TEST_URL,
+      rural:  TEST_URL
+    };
+
+    const tabs = Array.from(document.querySelectorAll('.tab'));
+    const indicator = document.getElementById('indicator');
+    const frame = document.getElementById('frame');
+    const loading = document.getElementById('loading');
+    const fallback = document.getElementById('fallback');
+
+    function moveIndicator(){
+      const idx = tabs.findIndex(t => t.getAttribute('aria-selected')==='true');
+      const tab = tabs[idx];
+      const { left: L, width: W } = tab.getBoundingClientRect();
+      const { left: L0 } = tab.parentElement.getBoundingClientRect();
+      const x = L - L0;
+      indicator.style.width = W + 'px';
+      indicator.style.transform = `translateX(${x}px)`;
+    }
+
+    function setActiveTab(idx){
+      tabs.forEach((t,i)=> t.setAttribute('aria-selected', i===idx ? 'true' : 'false'));
+      moveIndicator();
+      const key = tabs[idx].dataset.key;
+      const url = LINKS[key];
+
+      // Mostrar loader y actualizar SRC
+      loading.classList.remove('hidden');
+      frame.src = url;
+      fallback.href = url;
+    }
+
+    // Quitar loader cuando el iframe "carga"
+    frame.addEventListener('load', ()=>{
+      // Pequeño delay visual
+      setTimeout(()=> loading.classList.add('hidden'), 200);
+    });
+
+    tabs.forEach((t,i)=>{
+      t.addEventListener('click', ()=> setActiveTab(i));
+      t.addEventListener('keydown', (ev)=>{
+        if(ev.key==='ArrowRight'){ ev.preventDefault(); setActiveTab((i+1)%tabs.length); tabs[(i+1)%tabs.length].focus(); }
+        if(ev.key==='ArrowLeft'){  ev.preventDefault(); setActiveTab((i-1+tabs.length)%tabs.length); tabs[(i-1+tabs.length)%tabs.length].focus(); }
+      });
+    });
+
+    // Init
+    window.addEventListener('resize', moveIndicator, { passive:true });
+    setActiveTab(0);
+  </script>
+</body>
+</html>
