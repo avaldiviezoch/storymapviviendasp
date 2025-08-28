@@ -39,20 +39,31 @@
     }
     .btn:hover{ transform: translateY(-2px); filter: brightness(1.05) }
     .btn:focus-visible{ outline:3px solid color-mix(in oklab, var(--btn1) 50%, transparent) }
-
-    /* Variantes sutiles para variedad visual */
     .v2{ background: linear-gradient(135deg, color-mix(in oklab, var(--btn2) 38%, transparent), color-mix(in oklab, var(--panel) 85%, transparent)); }
     .v3{ background: linear-gradient(135deg, color-mix(in oklab, var(--btn3) 38%, transparent), color-mix(in oklab, var(--panel) 85%, transparent)); }
     .v4{ background: linear-gradient(135deg, color-mix(in oklab, var(--btn4) 38%, transparent), color-mix(in oklab, var(--panel) 85%, transparent)); }
 
-    /* Nota */
     .note{ color:var(--muted); font-size:.9rem; margin-top:12px }
+
+    /* ===== Vista previa flotante ===== */
+    .preview {
+      position: fixed; z-index: 1000; display: none;
+      width: 360px; max-width: 46vw;
+      background: var(--panel); color: var(--ink);
+      border: 1px solid var(--stroke); border-radius: 12px;
+      box-shadow: var(--shadow); padding: 8px;
+      pointer-events: none; /* evita parpadeo al pasar por encima */
+    }
+    .preview img {
+      display: block; width: 100%; height: auto; border-radius: 8px; background: #00000012;
+    }
+    .preview .cap { font-size: .85rem; color: var(--muted); margin-top: 6px; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <h1>📊 Biblioteca — Botones simples</h1>
-    <div class="sub">Interfaz de visualizaciones para Storymaps.</div>
+    <div class="sub">Interfaz de visualizaciones para Storymaps (con vista previa al pasar el mouse).</div>
 
     <!-- Sección: Gráficos -->
     <details>
@@ -72,7 +83,7 @@
           <a class="btn v3" href="prueba-christian-4.html" target="_blank">Prueba Christian 4</a>
           <a class="btn v4" href="prueba-christian-6.html" target="_blank">Prueba Christian 6</a>
         </div>
-        <div class="note">Consejo: duplica una línea <code>&lt;a class="btn" ...&gt;</code> para añadir otra estadística.</div>
+        <div class="note">Consejo: pon miniaturas en <code>/thumbs/</code> con el mismo nombre del HTML (o usa <code>data-thumb</code> por botón).</div>
       </div>
     </details>
 
@@ -91,14 +102,126 @@
           <a class="btn" href="prueba-mapa-cluster.html" target="_blank">Mapa Cluster</a>
           <a class="btn v2" href="prueba-mapa-5.html" target="_blank">Mapa Cluster 2</a>
           <a class="btn v3" href="prueba-mapa-3-partes.html" target="_blank">Mapa 3 partes</a>
-          <!-- NUEVO -->
           <a class="btn v4" href="lista-indicadores-mapa.html" target="_blank">Lista de Indicadores — Mapa</a>
-          <!-- /NUEVO -->
         </div>
       </div>
     </details>
-
   </div>
+
+  <!-- Contenedor de vista previa -->
+  <div id="preview" class="preview" role="status" aria-live="polite" aria-hidden="true">
+    <img id="pvimg" alt="Vista previa" />
+    <div id="pvcap" class="cap"></div>
+  </div>
+
+  <script>
+    // Desactiva vista previa en dispositivos con puntero "coarse" (táctil)
+    const isCoarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+
+    const preview = document.getElementById('preview');
+    const pvimg = document.getElementById('pvimg');
+    const pvcap = document.getElementById('pvcap');
+
+    // Placeholder SVG embebido
+    const PLACEHOLDER =
+      'data:image/svg+xml;charset=utf-8,' +
+      encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
+        <defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#cbd5e1" offset="0"/><stop stop-color="#94a3b8" offset="1"/></linearGradient></defs>
+        <rect width="640" height="360" fill="url(#g)"/>
+        <g fill="#0f172a" opacity=".55">
+          <rect x="96" y="96" width="448" height="200" rx="12" fill="#0f172a" opacity=".18"/>
+          <path d="M140 260h360M140 210h280M140 170h320" stroke="#0f172a" stroke-width="8" opacity=".25"/>
+        </g>
+        <text x="50%" y="50%" font-family="system-ui,Arial" font-size="28" text-anchor="middle" fill="#0f172a" opacity=".6">Sin vista previa</text>
+      </svg>`);
+
+    function deriveThumbFromHref(href) {
+      // Usa data-thumb si existe; si no, construye thumbs/<archivo>.png
+      try {
+        const url = href.split('?')[0].split('#')[0];
+        const base = url.substring(url.lastIndexOf('/') + 1).replace(/\\.html?$/i, '');
+        return 'thumbs/' + base + '.png';
+      } catch {
+        return PLACEHOLDER;
+      }
+    }
+
+    function showPreviewFor(anchor, fromEvent = null) {
+      if (isCoarse) return; // no preview en táctil
+      const caption = anchor.textContent.trim();
+      const custom = anchor.getAttribute('data-thumb');
+      const src = custom || deriveThumbFromHref(anchor.getAttribute('href'));
+
+      pvcap.textContent = caption;
+      pvimg.src = src;
+      pvimg.onerror = () => { pvimg.src = PLACEHOLDER; };
+
+      // Posición
+      let x, y;
+      if (fromEvent && 'clientX' in fromEvent) {
+        x = fromEvent.clientX + window.scrollX;
+        y = fromEvent.clientY + window.scrollY;
+      } else {
+        const r = anchor.getBoundingClientRect();
+        x = r.left + r.width / 2 + window.scrollX;
+        y = r.bottom + window.scrollY;
+      }
+
+      preview.style.display = 'block';
+      preview.setAttribute('aria-hidden', 'false');
+
+      // Colocar con seguridad dentro de la ventana
+      const pad = 16;
+      const w = preview.offsetWidth || 360;
+      const h = preview.offsetHeight || 220;
+      let left = x + pad;
+      let top = y + pad;
+      const vw = window.scrollX + window.innerWidth;
+      const vh = window.scrollY + window.innerHeight;
+      if (left + w > vw - 8) left = x - w - pad;
+      if (top + h > vh - 8) top = y - h - pad;
+
+      preview.style.left = left + 'px';
+      preview.style.top = top + 'px';
+    }
+
+    function hidePreview() {
+      preview.style.display = 'none';
+      preview.setAttribute('aria-hidden', 'true');
+      pvimg.removeAttribute('src');
+    }
+
+    // Delegación de eventos: hover/focus en todos los .btn
+    document.addEventListener('mouseover', (e) => {
+      const a = e.target.closest('a.btn');
+      if (!a) return;
+      showPreviewFor(a, e);
+    });
+    document.addEventListener('mousemove', (e) => {
+      if (preview.style.display === 'block') {
+        // Reposiciona suavemente siguiendo el cursor
+        showPreviewFor(e.target.closest('a.btn') || document.querySelector('a.btn:focus'), e);
+      }
+    });
+    document.addEventListener('mouseout', (e) => {
+      if (e.relatedTarget && (e.relatedTarget.closest && e.relatedTarget.closest('#preview'))) return;
+      const leavingBtn = e.target.closest('a.btn');
+      if (leavingBtn) hidePreview();
+    });
+
+    // Accesible con teclado
+    document.addEventListener('focusin', (e) => {
+      const a = e.target.closest && e.target.closest('a.btn');
+      if (a) showPreviewFor(a, null);
+    });
+    document.addEventListener('focusout', (e) => {
+      const a = e.target.closest && e.target.closest('a.btn');
+      if (a) hidePreview();
+    });
+
+    // Ocultar al hacer scroll para evitar posiciones raras
+    window.addEventListener('scroll', () => { if (preview.style.display === 'block') hidePreview(); });
+  </script>
 </body>
 </html>
 
