@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Dos gráficos lado a lado (embebidos)</title>
+  <style>
+    :root{
+      --bg:#ffffff;
+      --fg:#111827;
+      --muted:#6b7280;
+      --border:#e5e7eb;
+      --shadow:0 6px 20px rgba(17,24,39,.06);
+      --radius:14px;
+      --gap:20px;
+    }
+    html,body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,Arial}
+    .wrap{
+      max-width:1200px; margin:0 auto; padding:18px;
+    }
+    .grid{
+      display:grid; grid-template-columns: 1fr 1fr; gap: var(--gap);
+    }
+    @media (max-width: 900px){
+      .grid{ grid-template-columns: 1fr; }
+    }
+    .card{
+      background:#fff; border:1px solid var(--border); border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      overflow:hidden; display:flex; flex-direction:column;
+    }
+    .card h3{
+      margin:0; padding:14px 16px; text-align:center; font-size:18px; line-height:1.25;
+      border-bottom:1px solid var(--border);
+    }
+    .frame-wrap{
+      position:relative; aspect-ratio: 16 / 10; /* ajusta si deseas otra proporción */
+      background:#fff;
+    }
+    .frame-wrap iframe{
+      position:absolute; inset:0; width:100%; height:100%; border:0; background:#fff;
+    }
+    .caption{
+      padding:10px 14px; font-size:12px; color:var(--muted); border-top:1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="grid">
+      <!-- Tarjeta izquierda -->
+      <section class="card">
+        <h3 id="title-left"></h3>
+        <div class="frame-wrap">
+          <iframe
+            src="https://avaldiviezoch.github.io/storymapviviendasp/grafica-lineas-joseruben.html"
+            title="Gráfico 1"
+            loading="eager"
+            allowfullscreen>
+          </iframe>
+        </div>
+        <!-- Quita esta línea si no quieres la fuente -->
+        <div class="caption">Fuente: gráfico embebido</div>
+      </section>
+
+      <!-- Tarjeta derecha -->
+      <section class="card">
+        <h3 id="title-right"></h3>
+        <div class="frame-wrap">
+          <iframe
+            src="https://avaldiviezoch.github.io/storymapviviendasp/grafica-lineas-joseruben.html"
+            title="Gráfico 2"
+            loading="eager"
+            allowfullscreen>
+          </iframe>
+        </div>
+        <div class="caption">Fuente: gráfico embebido</div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    // ==== Edita aquí los títulos ====
+    const TITLE_LEFT  = "Gráfico Nº 01: Brecha acceso agua<br>A.L. vs Perú";
+    const TITLE_RIGHT = "Gráfico Nº 02: Brecha acceso saneamiento<br>A.L. vs Perú";
+    // ==== No tocar debajo (solo asigna los títulos) ====
+    document.getElementById('title-left').innerHTML  = TITLE_LEFT;
+    document.getElementById('title-right').innerHTML = TITLE_RIGHT;
+  </script>
+</body>
+</html>
