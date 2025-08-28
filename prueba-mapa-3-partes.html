@@ -3,72 +3,68 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Pestañas embebidas — Total / Urbano / Rural</title>
+  <title>Pestañas embebidas — Total / Urbano / Rural (Light)</title>
   <style>
     :root{
-      --bg:#0f172a;       /* fondo barra */
-      --bg2:#111827;      /* hover */
-      --fg:#e5e7eb;       /* texto */
-      --accent:#22d3ee;   /* indicador */
-      --shadow:0 2px 10px rgba(0,0,0,.25);
+      --bg:#ffffff;          /* fondo barra */
+      --fg:#111827;          /* texto */
+      --muted:#6b7280;       /* texto secundario */
+      --border:#e5e7eb;      /* bordes suaves */
+      --hover:#f3f4f6;       /* hover claro */
+      --accent:#3b82f6;      /* indicador */
+      --shadow:0 4px 16px rgba(17,24,39,.06);
     }
-    html,body{height:100%;margin:0;background:#0b1220;font-family:system-ui,Arial}
+    html,body{height:100%;margin:0;background:#fff;font-family:system-ui,Arial;color:var(--fg)}
 
     /* ===== Barra de pestañas (solo tabs) ===== */
     .tabs-wrap{
-      position:fixed; inset:0 0 auto 0; height:64px;
-      background: linear-gradient(180deg, #0b1220 0%, var(--bg) 100%);
-      box-shadow: var(--shadow);
-      z-index:10;
+      position:fixed; inset:0 0 auto 0; height:64px; background:var(--bg);
+      border-bottom:1px solid var(--border); box-shadow:var(--shadow); z-index:10;
     }
     .tabs{
       display:flex; height:100%; max-width:1200px; margin:0 auto; position:relative;
-      border-bottom:1px solid rgba(255,255,255,.06);
       padding:0 8px;
     }
     .tab{
       flex:1; display:flex; align-items:center; justify-content:center; gap:.5rem;
       color:var(--fg); background:transparent; border:0; cursor:pointer;
-      font-size:16px; font-weight:700; letter-spacing:.2px;
-      transition: background .20s ease, color .20s ease, opacity .20s ease;
-      -webkit-tap-highlight-color: transparent;
+      font-size:15px; font-weight:700; letter-spacing:.2px;
+      transition: background .18s ease, color .18s ease; -webkit-tap-highlight-color: transparent;
+      border-radius:10px; margin:8px 6px;
     }
-    .tab:hover{ background:var(--bg2); color:#fff; }
-    .tab[aria-selected="true"]{ color:#fff; }
+    .tab:hover{ background:var(--hover); }
+    .tab[aria-selected="true"]{ color:var(--fg); background:#eef2ff; }
     .tab .dot{
       width:6px; height:6px; border-radius:999px; background:transparent;
-      transition: transform .20s ease, background .20s ease;
-      transform: scale(0);
+      transition: transform .18s ease, background .18s ease; transform: scale(0);
     }
     .tab[aria-selected="true"] .dot{ background:var(--accent); transform: scale(1); }
 
     .indicator{
       position:absolute; left:0; bottom:0; height:3px; width:33.3333%;
       background: var(--accent);
-      box-shadow:0 0 10px rgba(34,211,238,.6);
+      box-shadow:0 0 8px rgba(59,130,246,.45);
       transition: transform .26s cubic-bezier(.2,.8,.2,1), width .26s;
     }
 
     /* ===== Viewer (iframe) ===== */
     .viewer{
-      position:absolute; top:64px; bottom:0; left:0; right:0;
-      background:#0b1220;
+      position:absolute; top:64px; bottom:0; left:0; right:0; background:#fff;
     }
     .viewer iframe{
-      position:absolute; inset:0; width:100%; height:100%; border:0;
-      background:#0b1220;
+      position:absolute; inset:0; width:100%; height:100%; border:0; background:#fff;
     }
 
     /* ===== Loading overlay y fallback ===== */
     .loading{
       position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-      pointer-events:none; background:linear-gradient(180deg, rgba(11,18,32,.0), rgba(11,18,32,.25));
+      pointer-events:none; background:linear-gradient(180deg, rgba(255,255,255,.0), rgba(255,255,255,.6));
       transition: opacity .2s ease; opacity:1;
     }
     .loading.hidden{ opacity:0; }
 
     .spinner{
-      width:38px; height:38px; border:3px solid rgba(255,255,255,.25);
+      width:34px; height:34px; border:3px solid rgba(17,24,39,.12);
       border-top-color: var(--accent); border-radius:50%;
       animation: spin 1s linear infinite;
     }
@@ -78,11 +74,11 @@
       position:absolute; right:14px; bottom:14px;
       display:inline-flex; align-items:center; gap:.5rem;
       padding:10px 12px; border-radius:10px; text-decoration:none;
-      background:#0ea5e9; color:white; font-weight:700;
-      box-shadow:0 6px 14px rgba(2,6,23,.25);
+      background:var(--accent); color:white; font-weight:700;
+      box-shadow:0 6px 14px rgba(17,24,39,.12);
     }
 
-    @media (max-width:640px){ .tab{ font-size:15px; } }
+    @media (max-width:640px){ .tab{ font-size:14px; } }
   </style>
 </head>
 <body>
@@ -105,7 +101,7 @@
   </div>
 
   <script>
-    // Coloca aquí los enlaces definitivos si luego cambian; por ahora los tres apuntan al mismo.
+    // Pon aquí los enlaces finales; ahora los tres apuntan al mismo de ejemplo.
     const TEST_URL = "https://pportalgis.vivienda.gob.pe/pportal/apps/experiencebuilder/experience/?id=b2008a43253749879f06706e0dfdf183&draft=true";
     const LINKS = {
       total:  TEST_URL,
@@ -141,9 +137,7 @@
       fallback.href = url;
     }
 
-    // Quitar loader cuando el iframe "carga"
     frame.addEventListener('load', ()=>{
-      // Pequeño delay visual
       setTimeout(()=> loading.classList.add('hidden'), 200);
     });
 
