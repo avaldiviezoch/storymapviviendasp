@@ -6,17 +6,17 @@
   <title>Pestañas embebidas — Total / Urbano / Rural (Light)</title>
   <style>
     :root{
-      --bg:#ffffff;          /* fondo barra */
-      --fg:#111827;          /* texto */
-      --muted:#6b7280;       /* texto secundario */
-      --border:#e5e7eb;      /* bordes suaves */
-      --hover:#f3f4f6;       /* hover claro */
-      --accent:#3b82f6;      /* indicador */
+      --bg:#ffffff;
+      --fg:#111827;
+      --muted:#6b7280;
+      --border:#e5e7eb;
+      --hover:#f3f4f6;
+      --accent:#3b82f6;
       --shadow:0 4px 16px rgba(17,24,39,.06);
     }
     html,body{height:100%;margin:0;background:#fff;font-family:system-ui,Arial;color:var(--fg)}
 
-    /* ===== Barra de pestañas (solo tabs) ===== */
+    /* ===== Barra de pestañas ===== */
     .tabs-wrap{
       position:fixed; inset:0 0 auto 0; height:64px; background:var(--bg);
       border-bottom:1px solid var(--border); box-shadow:var(--shadow); z-index:10;
@@ -29,7 +29,7 @@
       flex:1; display:flex; align-items:center; justify-content:center; gap:.5rem;
       color:var(--fg); background:transparent; border:0; cursor:pointer;
       font-size:15px; font-weight:700; letter-spacing:.2px;
-      transition: background .18s ease, color .18s ease; -webkit-tap-highlight-color: transparent;
+      transition: background .18s ease, color .18s ease;
       border-radius:10px; margin:8px 6px;
     }
     .tab:hover{ background:var(--hover); }
@@ -47,7 +47,7 @@
       transition: transform .26s cubic-bezier(.2,.8,.2,1), width .26s;
     }
 
-    /* ===== Viewer (iframe) ===== */
+    /* ===== Viewer ===== */
     .viewer{
       position:absolute; top:64px; bottom:0; left:0; right:0; background:#fff;
     }
@@ -55,7 +55,7 @@
       position:absolute; inset:0; width:100%; height:100%; border:0; background:#fff;
     }
 
-    /* ===== Loading overlay y fallback ===== */
+    /* ===== Loading overlay ===== */
     .loading{
       position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
       pointer-events:none; background:linear-gradient(180deg, rgba(255,255,255,.0), rgba(255,255,255,.6));
@@ -69,21 +69,11 @@
       animation: spin 1s linear infinite;
     }
     @keyframes spin{ to{ transform: rotate(360deg);} }
-
-    .fallback{
-      position:absolute; right:14px; bottom:14px;
-      display:inline-flex; align-items:center; gap:.5rem;
-      padding:10px 12px; border-radius:10px; text-decoration:none;
-      background:var(--accent); color:white; font-weight:700;
-      box-shadow:0 6px 14px rgba(17,24,39,.12);
-    }
-
-    @media (max-width:640px){ .tab{ font-size:14px; } }
   </style>
 </head>
 <body>
 
-  <!-- Barra superior: SOLO pestañas -->
+  <!-- Barra superior: pestañas -->
   <div class="tabs-wrap">
     <div class="tabs" role="tablist" aria-label="Vista">
       <button class="tab" role="tab" aria-selected="true"  data-key="total"><span class="dot"></span>Total</button>
@@ -97,23 +87,17 @@
   <div class="viewer" id="viewer">
     <iframe id="frame" title="Experience Builder" allow="fullscreen" loading="eager"></iframe>
     <div class="loading" id="loading"><div class="spinner" aria-hidden="true"></div></div>
-    <a class="fallback" id="fallback" target="_blank" rel="noopener">Abrir en pestaña nueva</a>
   </div>
 
   <script>
-    // Pon aquí los enlaces finales; ahora los tres apuntan al mismo de ejemplo.
+    // URLs por pestaña (ejemplo: los 3 apuntan al mismo)
     const TEST_URL = "https://pportalgis.vivienda.gob.pe/pportal/apps/experiencebuilder/experience/?id=b2008a43253749879f06706e0dfdf183&draft=true";
-    const LINKS = {
-      total:  TEST_URL,
-      urbano: TEST_URL,
-      rural:  TEST_URL
-    };
+    const LINKS = { total: TEST_URL, urbano: TEST_URL, rural: TEST_URL };
 
     const tabs = Array.from(document.querySelectorAll('.tab'));
     const indicator = document.getElementById('indicator');
     const frame = document.getElementById('frame');
     const loading = document.getElementById('loading');
-    const fallback = document.getElementById('fallback');
 
     function moveIndicator(){
       const idx = tabs.findIndex(t => t.getAttribute('aria-selected')==='true');
@@ -130,17 +114,11 @@
       moveIndicator();
       const key = tabs[idx].dataset.key;
       const url = LINKS[key];
-
-      // Mostrar loader y actualizar SRC
       loading.classList.remove('hidden');
       frame.src = url;
-      fallback.href = url;
     }
 
-    frame.addEventListener('load', ()=>{
-      setTimeout(()=> loading.classList.add('hidden'), 200);
-    });
-
+    frame.addEventListener('load', ()=> setTimeout(()=> loading.classList.add('hidden'), 200));
     tabs.forEach((t,i)=>{
       t.addEventListener('click', ()=> setActiveTab(i));
       t.addEventListener('keydown', (ev)=>{
@@ -149,7 +127,6 @@
       });
     });
 
-    // Init
     window.addEventListener('resize', moveIndicator, { passive:true });
     setActiveTab(0);
   </script>
