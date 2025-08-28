@@ -6,38 +6,12 @@
   <title>Evolución (PORCENTAJE) por ámbito — NACIONAL</title>
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
   <style>
-    :root { --bg:#0f172a; --fg:#e5e7eb; --chip:#111827; --chip-on:#1f2937; }
+    /* Todo blanco para que flote bien en StoryMap */
     html,body{height:100%;margin:0;background:#fff;font-family:system-ui,Arial}
-    #topbar{
-      position:fixed; inset:0 0 auto 0; height:56px; display:flex; align-items:center; gap:12px;
-      padding:0 16px; background:var(--bg); color:var(--fg); z-index:9;
-      box-shadow:0 2px 8px rgba(0,0,0,.15);
-    }
-    #chart{ position:absolute; top:56px; bottom:0; left:0; right:0; }
-    .seg { display:inline-flex; border:1px solid #334155; border-radius:12px; overflow:hidden }
-    .chip{
-      display:flex; align-items:center; gap:8px; padding:6px 12px; cursor:pointer;
-      background:var(--chip); color:#cbd5e1; user-select:none;
-    }
-    .chip input{ appearance:none; width:18px; height:18px; border:2px solid #64748b; border-radius:4px; display:inline-block; }
-    .chip input:checked{ background:#22c55e; border-color:#22c55e; }
-    .chip.on{ background:var(--chip-on); color:#fff; }
-    .spacer{ flex:1; }
-    .hint{ font-size:13px; opacity:.85 }
+    #chart{position:fixed; inset:0; } /* ocupa todo el contenedor */
   </style>
 </head>
 <body>
-  <div id="topbar">
-    <div class="hint">Mostrar series:</div>
-    <div id="seriesToggles" class="seg">
-      <label class="chip on"><input type="checkbox" data-ser="RURAL" checked> RURAL</label>
-      <label class="chip on"><input type="checkbox" data-ser="URBANO" checked> URBANO</label>
-      <label class="chip on"><input type="checkbox" data-ser="TOTAL" checked> TOTAL</label>
-    </div>
-    <div class="spacer"></div>
-    <div class="hint">Fuente: FS/4 • Filtros: cod_var=1, unidad='PORCENTAJE', región='NACIONAL'</div>
-  </div>
-
   <div id="chart"></div>
 
 <script>
@@ -65,29 +39,27 @@ async function fetchRows(){
 (function main(){
   const chart = echarts.init(document.getElementById('chart'));
   const colorMap = { RURAL: '#ef4444', URBANO: '#3b82f6', TOTAL: '#10b981' };
-  const legendSelected = { RURAL: true, URBANO: true, TOTAL: true };
 
   (async()=>{
     try{
       chart.showLoading({ text: "Cargando datos…" });
       const rows = await fetchRows();
 
-      // Años disponibles (orden ascendente y únicos)
+      // Años disponibles (únicos y ordenados)
       const years = Array.from(
         new Set(rows.map(r => Number(r.anio)).filter(v => Number.isFinite(v)))
       ).sort((a,b)=>a-b);
 
-      // Índice rápido de año -> posición en eje
       const yearIdx = new Map(years.map((y,i)=>[y,i]));
 
-      // Estructuras de datos alineadas por año
+      // Series alineadas por año
       const seriesVals = {
         RURAL:  new Array(years.length).fill(null),
         URBANO: new Array(years.length).fill(null),
         TOTAL:  new Array(years.length).fill(null)
       };
 
-      // Poblar valores
+      // Poblar
       for(const r of rows){
         const a = Number(r.anio);
         const amb = String(r.ambito || '').toUpperCase().trim(); // RURAL/URBANO/TOTAL
@@ -98,18 +70,19 @@ async function fetchRows(){
       }
 
       const option = {
+        backgroundColor: '#ffffff',
         title: {
           text: "Evolución (PORCENTAJE) por ámbito — NACIONAL",
           left: "center",
-          top: 10
+          top: 6,
+          textStyle: { fontSize: 16, fontWeight: 600 }
         },
         color: [colorMap.RURAL, colorMap.URBANO, colorMap.TOTAL],
         legend: {
-          top: 42,
-          selected: legendSelected,
+          top: 36,
           data: ["RURAL","URBANO","TOTAL"]
         },
-        grid: { top: 80, left: 60, right: 24, bottom: 48 },
+        grid: { top: 72, left: 56, right: 24, bottom: 44 },
         tooltip: {
           trigger: "axis",
           valueFormatter: v => (v == null ? "—" : v.toFixed(2) + " %")
@@ -119,13 +92,15 @@ async function fetchRows(){
           name: "Año",
           nameGap: 20,
           nameLocation: "middle",
+          axisTick: { alignWithLabel: true },
           data: years.map(String)
         },
         yAxis: {
           type: "value",
           name: "Valor (PORCENTAJE)",
-          min: 60, max: 100,
-          axisLabel: { formatter: v => v + " %" }
+          min: 60, max: 100,    /* ajusta si deseas */
+          axisLabel: { formatter: v => v + " %" },
+          splitLine: { show: true }
         },
         series: [
           {
@@ -160,21 +135,6 @@ async function fetchRows(){
 
       chart.hideLoading();
       chart.setOption(option);
-
-      // Switch UI: mostrar/ocultar series
-      const toggles = document.getElementById('seriesToggles');
-      toggles.addEventListener('change', (e)=>{
-        const inp = e.target.closest('input[data-ser]');
-        if(!inp) return;
-        const key = inp.dataset.ser;
-        legendSelected[key] = inp.checked;
-        // efecto visual del chip
-        const chip = inp.parentElement;
-        chip.classList.toggle('on', inp.checked);
-        // actualizar leyenda seleccionada (es la forma más limpia de ocultar series)
-        chart.setOption({ legend: { selected: legendSelected } });
-      });
-
       window.addEventListener('resize', ()=> chart.resize());
     }catch(err){
       console.error(err);
@@ -190,5 +150,8 @@ async function fetchRows(){
   })();
 })();
 </script>
+</body>
+</html>
+
 </body>
 </html>
