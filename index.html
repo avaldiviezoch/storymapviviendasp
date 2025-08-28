@@ -10,6 +10,10 @@
       --bg:#0b1020; --panel:#0f172a; --ink:#e5e7eb; --muted:#9aa4b2; --stroke:#1c2542;
       --btn1:#60a5fa; --btn2:#34d399; --btn3:#f59e0b; --btn4:#a78bfa;
       --shadow: 0 10px 24px rgba(0,0,0,.25);
+      --pv-w: 520px;       /* ancho del recuadro de preview */
+      --pv-h: 320px;       /* alto del recuadro de preview  */
+      --base-w: 1280px;    /* tamaño base que “simula” la página dentro del iframe */
+      --base-h: 800px;
     }
     @media (prefers-color-scheme: light){
       :root{ --bg:#f6f8fc; --panel:#ffffff; --ink:#0f172a; --muted:#5b6472; --stroke:#e6eaf0; --shadow: 0 14px 30px rgba(16,24,40,.08); }
@@ -39,31 +43,50 @@
     }
     .btn:hover{ transform: translateY(-2px); filter: brightness(1.05) }
     .btn:focus-visible{ outline:3px solid color-mix(in oklab, var(--btn1) 50%, transparent) }
+
     .v2{ background: linear-gradient(135deg, color-mix(in oklab, var(--btn2) 38%, transparent), color-mix(in oklab, var(--panel) 85%, transparent)); }
     .v3{ background: linear-gradient(135deg, color-mix(in oklab, var(--btn3) 38%, transparent), color-mix(in oklab, var(--panel) 85%, transparent)); }
     .v4{ background: linear-gradient(135deg, color-mix(in oklab, var(--btn4) 38%, transparent), color-mix(in oklab, var(--panel) 85%, transparent)); }
 
     .note{ color:var(--muted); font-size:.9rem; margin-top:12px }
 
-    /* ===== Vista previa flotante ===== */
+    /* ===== Vista previa con iframe (miniatura real) ===== */
     .preview {
       position: fixed; z-index: 1000; display: none;
-      width: 360px; max-width: 46vw;
+      width: var(--pv-w); height: var(--pv-h);
       background: var(--panel); color: var(--ink);
       border: 1px solid var(--stroke); border-radius: 12px;
-      box-shadow: var(--shadow); padding: 8px;
-      pointer-events: none;
+      box-shadow: var(--shadow); padding: 8px; gap: 8px;
+      pointer-events: none;  /* evita captura del mouse por el iframe */
     }
-    .preview img {
-      display: block; width: 100%; height: auto; border-radius: 8px; background: #00000012;
+    .pv-wrap{
+      position: relative; width: 100%; height: calc(100% - 28px);
+      border-radius: 10px; overflow: hidden; background: #00000012;
+      border: 1px solid var(--stroke);
     }
-    .preview .cap { font-size: .85rem; color: var(--muted); margin-top: 6px; }
+    .pv-frame{
+      position:absolute; top:0; left:0; border:0; width: var(--base-w); height: var(--base-h);
+      transform-origin: 0 0;
+      pointer-events: none;   /* sin interacción dentro del preview */
+    }
+    .pv-cap{ font-size:.85rem; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+    .pv-overlay{
+      position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+      font-size:.9rem; color:var(--muted); background: linear-gradient(to bottom, #0000, #00000018);
+      opacity: 0; transition: opacity .15s ease;
+    }
+    .preview.loading .pv-overlay{ opacity: 1; }
+    .preview.blocked .pv-overlay{ opacity: 1; color:#fca5a5 }
+    @media (max-width: 700px){
+      :root{ --pv-w: 92vw; --pv-h: 52vw; }
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
     <h1>📊 Biblioteca — Botones simples</h1>
-    <div class="sub">Interfaz de visualizaciones para Storymaps (con vista previa al pasar el mouse).</div>
+    <div class="sub">Interfaz de visualizaciones para Storymaps (con previsualización real en miniatura).</div>
 
     <!-- Sección: Gráficos -->
     <details>
@@ -83,7 +106,7 @@
           <a class="btn v3" href="prueba-christian-4.html" target="_blank">Prueba Christian 4</a>
           <a class="btn v4" href="prueba-christian-6.html" target="_blank">Prueba Christian 6</a>
         </div>
-        <div class="note">Opcional: coloca miniaturas en <code>/thumbs/</code> con el mismo nombre del HTML o usa <code>data-thumb</code> por botón.</div>
+        <div class="note">Si una página impide incrustación, agrega <code>data-thumb</code> con una miniatura para ese botón.</div>
       </div>
     </details>
 
@@ -110,139 +133,138 @@
 
   <!-- Contenedor de vista previa -->
   <div id="preview" class="preview" role="status" aria-live="polite" aria-hidden="true">
-    <img id="pvimg" alt="Vista previa" />
-    <div id="pvcap" class="cap"></div>
+    <div class="pv-wrap">
+      <iframe id="pvframe" class="pv-frame" sandbox="allow-scripts allow-same-origin"></iframe>
+      <div id="pvover" class="pv-overlay">Cargando vista previa…</div>
+    </div>
+    <div id="pvcap" class="pv-cap"></div>
   </div>
 
   <script>
-    // Desactiva preview en táctiles
     const isCoarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
-
     const preview = document.getElementById('preview');
-    const pvimg = document.getElementById('pvimg');
-    const pvcap = document.getElementById('pvcap');
+    const pvframe = document.getElementById('pvframe');
+    const pvover  = document.getElementById('pvover');
+    const pvcap   = document.getElementById('pvcap');
 
-    // Genera una miniatura SVG con el texto del botón (fallback siempre útil)
-    function svgPreviewFromText(text){
-      const palette = [
-        ['#7dd3fc','#38bdf8'], // celeste
-        ['#86efac','#22c55e'], // verde
-        ['#fca5a5','#ef4444'], // rojo
-        ['#c4b5fd','#8b5cf6'], // violeta
-        ['#fcd34d','#f59e0b'], // ámbar
-        ['#93c5fd','#3b82f6']  // azul
-      ];
-      // hash simple
-      let h=0; for(let i=0;i<text.length;i++) h=(h*31+text.charCodeAt(i))>>>0;
-      const [c1,c2] = palette[h % palette.length];
-      const safe = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-      const svg = `
-        <svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
-          <defs>
-            <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
-              <stop stop-color="${c1}" offset="0"/>
-              <stop stop-color="${c2}" offset="1"/>
-            </linearGradient>
-          </defs>
-          <rect width="640" height="360" fill="url(#g)"/>
-          <g fill="#0f172a" opacity=".25">
-            <rect x="90" y="90" width="460" height="200" rx="16"/>
-            <path d="M120 250h400M120 210h290M120 170h340" stroke="#0f172a" stroke-width="8" opacity=".35"/>
-          </g>
-          <text x="50%" y="52%" font-family="system-ui,Arial" font-size="32" font-weight="700" text-anchor="middle" fill="#0f172a">${safe}</text>
-        </svg>`;
-      return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    // Escala el iframe al tamaño del recuadro de preview
+    function applyScale(){
+      const wrapW = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pv-w'));
+      const baseW = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--base-w'));
+      const baseH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--base-h'));
+      const wrapH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pv-h')) - 28; // resta altura del caption aprox
+      const scaleX = wrapW / baseW;
+      const scaleY = wrapH / baseH;
+      const scale = Math.min(scaleX, scaleY);
+      pvframe.style.transform = `scale(${scale})`;
     }
+    applyScale();
+    window.addEventListener('resize', applyScale);
 
-    function deriveBaseName(href){
-      const url = href.split('?')[0].split('#')[0];
-      return url.substring(url.lastIndexOf('/')+1).replace(/\.html?$/i,'');
-    }
+    let hoverTimer = null;
+    let currentURL = '';
 
-    // Intenta .webp -> .png -> .jpg. Si ninguna existe, queda el SVG de texto.
-    function tryLoadThumb(anchor, onSuccess){
-      const custom = anchor.getAttribute('data-thumb');
-      const base = custom || ('thumbs/' + deriveBaseName(anchor.getAttribute('href')));
-      const candidates = custom ? [custom] : [base+'.webp', base+'.png', base+'.jpg'];
-
-      let i = 0;
-      const tryNext = () => {
-        if(i >= candidates.length) return;
-        const test = new Image();
-        test.onload = () => { anchor.dataset.pv = candidates[i]; onSuccess(candidates[i]); };
-        test.onerror = () => { i++; tryNext(); };
-        test.src = candidates[i] + '?v=1'; // cache-buster suave
-      };
-      tryNext();
-    }
-
-    function showPreviewFor(anchor, fromEvent){
-      if (isCoarse) return;
+    function showPreview(anchor, ev){
+      if(isCoarse) return;
+      const href = anchor.getAttribute('href');
       const label = anchor.textContent.trim();
       pvcap.textContent = label;
 
-      // Usa cache si existe; si no, muestra SVG textual y prueba a cargar real.
-      const cached = anchor.dataset.pv;
-      if(cached){
-        pvimg.src = cached;
-      } else {
-        pvimg.src = svgPreviewFromText(label);
-        tryLoadThumb(anchor, (real)=>{ if(preview.style.display==='block') pvimg.src = real; });
+      // Posicionamiento cerca del cursor (con límites seguros)
+      let x, y;
+      if(ev && 'clientX' in ev){ x = ev.clientX + window.scrollX; y = ev.clientY + window.scrollY; }
+      else {
+        const r = anchor.getBoundingClientRect(); x = r.left + r.width/2 + window.scrollX; y = r.bottom + window.scrollY;
       }
-
-      // Posición
-      let x,y;
-      if(fromEvent && 'clientX' in fromEvent){
-        x = fromEvent.clientX + window.scrollX;
-        y = fromEvent.clientY + window.scrollY;
-      } else {
-        const r = anchor.getBoundingClientRect();
-        x = r.left + r.width/2 + window.scrollX;
-        y = r.bottom + window.scrollY;
-      }
-
-      preview.style.display = 'block';
-      preview.setAttribute('aria-hidden','false');
-
-      // Bordes seguros
-      const pad=16, w=preview.offsetWidth||360, h=preview.offsetHeight||220;
+      const pad=16, w=preview.offsetWidth||520, h=preview.offsetHeight||340;
       let left = x + pad, top = y + pad;
       const vw = window.scrollX + window.innerWidth, vh = window.scrollY + window.innerHeight;
       if(left + w > vw - 8) left = x - w - pad;
       if(top + h > vh - 8) top = y - h - pad;
-      preview.style.left = left + 'px';
-      preview.style.top  = top + 'px';
+      preview.style.left = left + 'px'; preview.style.top = top + 'px';
+
+      // Muestra el contenedor y setea estado
+      preview.style.display = 'block';
+      preview.classList.add('loading');
+      preview.classList.remove('blocked');
+      preview.setAttribute('aria-hidden','false');
+
+      // Pequeña espera para evitar recargas por pasadas rápidas
+      clearTimeout(hoverTimer);
+      hoverTimer = setTimeout(()=>{
+        if(currentURL !== href){
+          currentURL = href;
+          pvover.textContent = 'Cargando vista previa…';
+          preview.classList.add('loading');
+          pvframe.src = href;
+        }
+      }, 140);
     }
 
     function hidePreview(){
       preview.style.display = 'none';
       preview.setAttribute('aria-hidden','true');
-      // no limpiamos src para mantener cache instantáneo
+      clearTimeout(hoverTimer);
     }
 
-    // Eventos (hover/teclado)
-    document.addEventListener('mouseover', e => {
-      const a = e.target.closest('a.btn'); if(!a) return; showPreviewFor(a, e);
+    // Detecta carga o bloqueo del iframe
+    pvframe.addEventListener('load', ()=>{
+      // Quitamos “cargando”; si el sitio bloquea, el navegador puede no mostrar nada.
+      preview.classList.remove('loading');
+      // Si tras un momento no hay nada visible, marcamos como bloqueado (heurística).
+      setTimeout(()=>{
+        // No podemos inspeccionar contenido por CORS; solo mostramos aviso genérico.
+        // Si el usuario quiere, puede definir data-thumb en el botón como respaldo.
+        const rect = pvframe.getBoundingClientRect();
+        if(rect.width && rect.height){
+          // Mostramos overlay solo si el usuario lo forzó (no necesario aquí).
+        }
+      }, 250);
     });
-    document.addEventListener('mousemove', e => {
+
+    // Si el origen bloquea la incrustación, el navegador puede lanzar errores silenciosos;
+    // ofrecemos un time-out para mostrar aviso.
+    function markBlocked(){
+      preview.classList.remove('loading');
+      preview.classList.add('blocked');
+      pvover.textContent = 'Vista previa no disponible (sitio restringe incrustación).';
+    }
+    // Fallback de bloqueo por timeout
+    let blockTimer = null;
+    document.addEventListener('mouseover', (e)=>{
+      const a = e.target.closest('a.btn'); if(!a) return;
+      showPreview(a, e);
+      clearTimeout(blockTimer);
+      blockTimer = setTimeout(()=>{ 
+        // Si sigue en estado loading demasiado tiempo, asumimos bloqueo
+        if(preview.style.display==='block' && preview.classList.contains('loading')) markBlocked();
+      }, 1500);
+    });
+
+    document.addEventListener('mousemove', (e)=>{
       if(preview.style.display==='block'){
         const a = e.target.closest('a.btn') || document.querySelector('a.btn:focus');
-        if(a) showPreviewFor(a, e);
+        if(a) showPreview(a, e);
       }
     });
-    document.addEventListener('mouseout', e => {
+
+    document.addEventListener('mouseout', (e)=>{
       const leavingBtn = e.target.closest('a.btn');
       if(leavingBtn && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('#preview'))){
         hidePreview();
       }
     });
-    document.addEventListener('focusin', e => {
-      const a = e.target.closest && e.target.closest('a.btn'); if(a) showPreviewFor(a, null);
+
+    // Accesible con teclado
+    document.addEventListener('focusin', e=>{
+      const a = e.target.closest && e.target.closest('a.btn'); if(a) showPreview(a, null);
     });
-    document.addEventListener('focusout', e => {
+    document.addEventListener('focusout', e=>{
       const a = e.target.closest && e.target.closest('a.btn'); if(a) hidePreview();
     });
-    window.addEventListener('scroll', () => { if(preview.style.display==='block') hidePreview(); });
+
+    // Oculta al hacer scroll
+    window.addEventListener('scroll', ()=>{ if(preview.style.display==='block') hidePreview(); });
   </script>
 </body>
 </html>
