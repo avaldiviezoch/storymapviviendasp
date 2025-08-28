@@ -52,7 +52,7 @@
       background: var(--panel); color: var(--ink);
       border: 1px solid var(--stroke); border-radius: 12px;
       box-shadow: var(--shadow); padding: 8px;
-      pointer-events: none; /* evita parpadeo al pasar por encima */
+      pointer-events: none;
     }
     .preview img {
       display: block; width: 100%; height: auto; border-radius: 8px; background: #00000012;
@@ -83,7 +83,7 @@
           <a class="btn v3" href="prueba-christian-4.html" target="_blank">Prueba Christian 4</a>
           <a class="btn v4" href="prueba-christian-6.html" target="_blank">Prueba Christian 6</a>
         </div>
-        <div class="note">Consejo: pon miniaturas en <code>/thumbs/</code> con el mismo nombre del HTML (o usa <code>data-thumb</code> por botón).</div>
+        <div class="note">Opcional: coloca miniaturas en <code>/thumbs/</code> con el mismo nombre del HTML o usa <code>data-thumb</code> por botón.</div>
       </div>
     </details>
 
@@ -115,113 +115,134 @@
   </div>
 
   <script>
-    // Desactiva vista previa en dispositivos con puntero "coarse" (táctil)
+    // Desactiva preview en táctiles
     const isCoarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
 
     const preview = document.getElementById('preview');
     const pvimg = document.getElementById('pvimg');
     const pvcap = document.getElementById('pvcap');
 
-    // Placeholder SVG embebido
-    const PLACEHOLDER =
-      'data:image/svg+xml;charset=utf-8,' +
-      encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
-        <defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#cbd5e1" offset="0"/><stop stop-color="#94a3b8" offset="1"/></linearGradient></defs>
-        <rect width="640" height="360" fill="url(#g)"/>
-        <g fill="#0f172a" opacity=".55">
-          <rect x="96" y="96" width="448" height="200" rx="12" fill="#0f172a" opacity=".18"/>
-          <path d="M140 260h360M140 210h280M140 170h320" stroke="#0f172a" stroke-width="8" opacity=".25"/>
-        </g>
-        <text x="50%" y="50%" font-family="system-ui,Arial" font-size="28" text-anchor="middle" fill="#0f172a" opacity=".6">Sin vista previa</text>
-      </svg>`);
-
-    function deriveThumbFromHref(href) {
-      // Usa data-thumb si existe; si no, construye thumbs/<archivo>.png
-      try {
-        const url = href.split('?')[0].split('#')[0];
-        const base = url.substring(url.lastIndexOf('/') + 1).replace(/\\.html?$/i, '');
-        return 'thumbs/' + base + '.png';
-      } catch {
-        return PLACEHOLDER;
-      }
+    // Genera una miniatura SVG con el texto del botón (fallback siempre útil)
+    function svgPreviewFromText(text){
+      const palette = [
+        ['#7dd3fc','#38bdf8'], // celeste
+        ['#86efac','#22c55e'], // verde
+        ['#fca5a5','#ef4444'], // rojo
+        ['#c4b5fd','#8b5cf6'], // violeta
+        ['#fcd34d','#f59e0b'], // ámbar
+        ['#93c5fd','#3b82f6']  // azul
+      ];
+      // hash simple
+      let h=0; for(let i=0;i<text.length;i++) h=(h*31+text.charCodeAt(i))>>>0;
+      const [c1,c2] = palette[h % palette.length];
+      const safe = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      const svg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
+          <defs>
+            <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+              <stop stop-color="${c1}" offset="0"/>
+              <stop stop-color="${c2}" offset="1"/>
+            </linearGradient>
+          </defs>
+          <rect width="640" height="360" fill="url(#g)"/>
+          <g fill="#0f172a" opacity=".25">
+            <rect x="90" y="90" width="460" height="200" rx="16"/>
+            <path d="M120 250h400M120 210h290M120 170h340" stroke="#0f172a" stroke-width="8" opacity=".35"/>
+          </g>
+          <text x="50%" y="52%" font-family="system-ui,Arial" font-size="32" font-weight="700" text-anchor="middle" fill="#0f172a">${safe}</text>
+        </svg>`;
+      return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
     }
 
-    function showPreviewFor(anchor, fromEvent = null) {
-      if (isCoarse) return; // no preview en táctil
-      const caption = anchor.textContent.trim();
-      const custom = anchor.getAttribute('data-thumb');
-      const src = custom || deriveThumbFromHref(anchor.getAttribute('href'));
+    function deriveBaseName(href){
+      const url = href.split('?')[0].split('#')[0];
+      return url.substring(url.lastIndexOf('/')+1).replace(/\.html?$/i,'');
+    }
 
-      pvcap.textContent = caption;
-      pvimg.src = src;
-      pvimg.onerror = () => { pvimg.src = PLACEHOLDER; };
+    // Intenta .webp -> .png -> .jpg. Si ninguna existe, queda el SVG de texto.
+    function tryLoadThumb(anchor, onSuccess){
+      const custom = anchor.getAttribute('data-thumb');
+      const base = custom || ('thumbs/' + deriveBaseName(anchor.getAttribute('href')));
+      const candidates = custom ? [custom] : [base+'.webp', base+'.png', base+'.jpg'];
+
+      let i = 0;
+      const tryNext = () => {
+        if(i >= candidates.length) return;
+        const test = new Image();
+        test.onload = () => { anchor.dataset.pv = candidates[i]; onSuccess(candidates[i]); };
+        test.onerror = () => { i++; tryNext(); };
+        test.src = candidates[i] + '?v=1'; // cache-buster suave
+      };
+      tryNext();
+    }
+
+    function showPreviewFor(anchor, fromEvent){
+      if (isCoarse) return;
+      const label = anchor.textContent.trim();
+      pvcap.textContent = label;
+
+      // Usa cache si existe; si no, muestra SVG textual y prueba a cargar real.
+      const cached = anchor.dataset.pv;
+      if(cached){
+        pvimg.src = cached;
+      } else {
+        pvimg.src = svgPreviewFromText(label);
+        tryLoadThumb(anchor, (real)=>{ if(preview.style.display==='block') pvimg.src = real; });
+      }
 
       // Posición
-      let x, y;
-      if (fromEvent && 'clientX' in fromEvent) {
+      let x,y;
+      if(fromEvent && 'clientX' in fromEvent){
         x = fromEvent.clientX + window.scrollX;
         y = fromEvent.clientY + window.scrollY;
       } else {
         const r = anchor.getBoundingClientRect();
-        x = r.left + r.width / 2 + window.scrollX;
+        x = r.left + r.width/2 + window.scrollX;
         y = r.bottom + window.scrollY;
       }
 
       preview.style.display = 'block';
-      preview.setAttribute('aria-hidden', 'false');
+      preview.setAttribute('aria-hidden','false');
 
-      // Colocar con seguridad dentro de la ventana
-      const pad = 16;
-      const w = preview.offsetWidth || 360;
-      const h = preview.offsetHeight || 220;
-      let left = x + pad;
-      let top = y + pad;
-      const vw = window.scrollX + window.innerWidth;
-      const vh = window.scrollY + window.innerHeight;
-      if (left + w > vw - 8) left = x - w - pad;
-      if (top + h > vh - 8) top = y - h - pad;
-
+      // Bordes seguros
+      const pad=16, w=preview.offsetWidth||360, h=preview.offsetHeight||220;
+      let left = x + pad, top = y + pad;
+      const vw = window.scrollX + window.innerWidth, vh = window.scrollY + window.innerHeight;
+      if(left + w > vw - 8) left = x - w - pad;
+      if(top + h > vh - 8) top = y - h - pad;
       preview.style.left = left + 'px';
-      preview.style.top = top + 'px';
+      preview.style.top  = top + 'px';
     }
 
-    function hidePreview() {
+    function hidePreview(){
       preview.style.display = 'none';
-      preview.setAttribute('aria-hidden', 'true');
-      pvimg.removeAttribute('src');
+      preview.setAttribute('aria-hidden','true');
+      // no limpiamos src para mantener cache instantáneo
     }
 
-    // Delegación de eventos: hover/focus en todos los .btn
-    document.addEventListener('mouseover', (e) => {
-      const a = e.target.closest('a.btn');
-      if (!a) return;
-      showPreviewFor(a, e);
+    // Eventos (hover/teclado)
+    document.addEventListener('mouseover', e => {
+      const a = e.target.closest('a.btn'); if(!a) return; showPreviewFor(a, e);
     });
-    document.addEventListener('mousemove', (e) => {
-      if (preview.style.display === 'block') {
-        // Reposiciona suavemente siguiendo el cursor
-        showPreviewFor(e.target.closest('a.btn') || document.querySelector('a.btn:focus'), e);
+    document.addEventListener('mousemove', e => {
+      if(preview.style.display==='block'){
+        const a = e.target.closest('a.btn') || document.querySelector('a.btn:focus');
+        if(a) showPreviewFor(a, e);
       }
     });
-    document.addEventListener('mouseout', (e) => {
-      if (e.relatedTarget && (e.relatedTarget.closest && e.relatedTarget.closest('#preview'))) return;
+    document.addEventListener('mouseout', e => {
       const leavingBtn = e.target.closest('a.btn');
-      if (leavingBtn) hidePreview();
+      if(leavingBtn && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('#preview'))){
+        hidePreview();
+      }
     });
-
-    // Accesible con teclado
-    document.addEventListener('focusin', (e) => {
-      const a = e.target.closest && e.target.closest('a.btn');
-      if (a) showPreviewFor(a, null);
+    document.addEventListener('focusin', e => {
+      const a = e.target.closest && e.target.closest('a.btn'); if(a) showPreviewFor(a, null);
     });
-    document.addEventListener('focusout', (e) => {
-      const a = e.target.closest && e.target.closest('a.btn');
-      if (a) hidePreview();
+    document.addEventListener('focusout', e => {
+      const a = e.target.closest && e.target.closest('a.btn'); if(a) hidePreview();
     });
-
-    // Ocultar al hacer scroll para evitar posiciones raras
-    window.addEventListener('scroll', () => { if (preview.style.display === 'block') hidePreview(); });
+    window.addEventListener('scroll', () => { if(preview.style.display==='block') hidePreview(); });
   </script>
 </body>
 </html>
-
