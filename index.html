@@ -98,6 +98,9 @@
         <div class="grid">
           <a class="btn" href="grafico-urbano-rural.html" target="_blank">Urbano vs Rural</a>
           <a class="btn v2" href="grafica-lineas-joseruben.html" target="_blank">Gráfica de Líneas — Jose Rubén</a>
+          <!-- NUEVO -->
+          <a class="btn v3" href="doble-grafico-1.html" target="_blank">Doble Gráfico 1</a>
+          <!-- /NUEVO -->
           <a class="btn v2" href="bonos-techo-propio.html" target="_blank">Bonos Techo Propio</a>
           <a class="btn v3" href="bonos-niveles-prueba.html" target="_blank">Bonos Niveles (Prueba)</a>
           <a class="btn v4" href="prueba-christian-1.html" target="_blank">Prueba Christian 1</a>
@@ -214,11 +217,6 @@
       // Si tras un momento no hay nada visible, marcamos como bloqueado (heurística).
       setTimeout(()=>{
         // No podemos inspeccionar contenido por CORS; solo mostramos aviso genérico.
-        // Si el usuario quiere, puede definir data-thumb en el botón como respaldo.
-        const rect = pvframe.getBoundingClientRect();
-        if(rect.width && rect.height){
-          // Mostramos overlay solo si el usuario lo forzó (no necesario aquí).
-        }
       }, 250);
     });
 
