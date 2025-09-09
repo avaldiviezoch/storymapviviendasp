@@ -34,24 +34,24 @@
     font-weight: 800;
     letter-spacing: .2px;
     color: #062e2b;
-    /* Escala fluida con el tamaño de pantalla */
     font-size: clamp(18px, 3.2vw, 40px);
   }
 
   /* Zona central: símbolo y monto en una fila */
   .center {
-    display: flex;
+    display: inline-flex;
     align-items: flex-end;
-    gap: clamp(10px, 2.2vw, 22px);
+    gap: clamp(10px, 2vw, 20px);
+    transform-origin: center bottom; /* para el auto-fit */
   }
 
+  /* MISMO color que el número */
   .prefix {
     font-weight: 900;
-    color: #0a766c;
+    color: #043a36;
     line-height: 1;
     transform: translateY(-6%);
-    /* Proporción grande pero controlada por alto y ancho */
-    font-size: clamp(26px, 8vw, 12vh);
+    font-size: clamp(26px, 7vw, 10.5vh);
     opacity: 0;
     transition: .35s ease;
   }
@@ -60,11 +60,10 @@
     font-weight: 900;
     color: #043a36;
     line-height: 1.05;
-    /* Haz que llene realmente la pantalla: depende de vw y vh */
-    font-size: clamp(40px, 18vw, 22vh);
+    /* límites afinados para que encaje sin salirse */
+    font-size: clamp(40px, 16.5vw, 20vh);
     letter-spacing: .02em;
     white-space: nowrap;
-    /* aparición suave */
     opacity: 0;
     transform: translateY(8px);
     transition: .35s ease;
@@ -98,7 +97,7 @@
     <h2 class="title">Presupuesto Devengado 2025</h2>
 
     <div style="display:grid;place-items:center">
-      <div class="center">
+      <div class="center" id="row">
         <div class="prefix" id="cur">S/.</div>
         <div class="amount" id="val">0</div>
       </div>
@@ -149,15 +148,28 @@ function animateNumber(el, target, ms=1700){
   requestAnimationFrame(tick);
 }
 
+/* Pequeño auto-fit por si el ancho se pasa en pantallas estrechas */
+function fitRow(){
+  const row = document.getElementById('row');
+  row.style.transform = 'scale(1)';
+  const pad = Math.max(8, Math.min(window.innerWidth*0.02, 24)); // igual al clamp del padding
+  const available = window.innerWidth - pad*2;
+  const needed = row.scrollWidth;
+  if (needed > available) {
+    const s = Math.max(0.85, available / needed);
+    row.style.transform = `scale(${s})`;
+  }
+}
+
 (async function init(){
   const val = document.getElementById('val');
   const cur = document.getElementById('cur');
   try{
     const total = await fetchDevengadoSum();
-    // Mostrar transición del símbolo y el número
     requestAnimationFrame(()=>{
       val.classList.add('ready');
       cur.classList.add('ready');
+      fitRow();
     });
     animateNumber(val, total);
   }catch(e){
@@ -165,8 +177,11 @@ function animateNumber(el, target, ms=1700){
     val.textContent = "—";
     val.classList.add('ready');
     cur.classList.add('ready');
+    fitRow();
   }
 })();
+
+window.addEventListener('resize', fitRow);
 </script>
 </body>
 </html>
