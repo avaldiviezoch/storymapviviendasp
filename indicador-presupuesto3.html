@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Devengado 2025 — MVCS</title>
+  <style>
+    :root{
+      --ink:#053c35;           /* verde oscuro para el número */
+      --muted:#6b7280;         /* gris texto secundario */
+    }
+    html,body{
+      height:100%;
+      margin:0;
+      background:#ffffff;      /* fondo blanco, sin marco */
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Helvetica Neue", sans-serif;
+      color:#0f172a;
+      overflow:hidden;         /* evita cualquier scroll */
+    }
+    .page{
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:2.5rem 1.25rem;  /* respira en móviles */
+      box-sizing:border-box;
+    }
+    .card{
+      width:min(1200px, 100%);
+      text-align:center;
+    }
+    .title{
+      font-weight:800;
+      letter-spacing:.2px;
+      margin:0 0 1.2rem 0;
+      font-size:clamp(20px, 2.6vw, 34px);
+    }
+    .amountLine{
+      display:flex;
+      align-items:baseline;
+      justify-content:center;
+      gap:.35rem;
+      flex-wrap:wrap;
+    }
+    .currency{
+      font-weight:800;
+      color:var(--ink);
+      font-size:clamp(32px, 6vw, 64px);
+      line-height:1;
+      margin-right:.25rem;
+    }
+    .amount{
+      font-weight:800;
+      color:var(--ink);
+      line-height:1;
+      /* gigante pero responsivo: ocupa bien el alto disponible */
+      font-size:clamp(40px, 10vw, 120px);
+      letter-spacing:.02em;
+      white-space:nowrap;
+    }
+    .subtitle{
+      margin:.9rem 0 0;
+      font-size:clamp(18px, 2.6vw, 34px);
+      font-weight:700;
+      color:#111827;
+    }
+    .source{
+      margin-top:2.0rem;       /* más arriba que antes para aprovechar altura */
+      font-size:clamp(12px, 1.6vw, 14px);
+      color:var(--muted);
+    }
+    .source b{ color:#111827; }
+    .dot{
+      display:inline-block; width:.55rem; height:.55rem; border-radius:999px;
+      background:#16a34a; margin-right:.45rem; position:relative; top:.05rem;
+    }
+    .sr-only{ position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden; }
+  </style>
+</head>
+<body>
+  <main class="page" role="main" aria-labelledby="t1">
+    <section class="card">
+      <h1 id="t1" class="title">Presupuesto Institucional Modificado – MVCS</h1>
+
+      <div class="amountLine" aria-live="polite">
+        <span class="currency" aria-hidden="true">S/.</span>
+        <span id="amount" class="amount">0</span>
+      </div>
+
+      <div class="subtitle">Devengado 2025</div>
+
+      <div class="source">
+        <span class="dot" aria-hidden="true"></span>
+        <b>Fuente:</b> Ministerio de Economía y Finanzas — MEF · Portal de Datos Abiertos
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // === Configuración de servicio y filtros ===
+    const LAYER_URL =
+      "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/OGEI/Mapa_Inversiones_MEF/FeatureServer/13/query";
+
+    const WHERE =
+      "sector_nombre = 'VIVIENDA CONSTRUCCION Y SANEAMIENTO' AND ano_eje = 2025";
+
+    // Usamos outStatistics en el servidor para sumar monto_devengado
+    const outStats = [{
+      "statisticType":"sum",
+      "onStatisticField":"monto_devengado",
+      "outStatisticFieldName":"total_dev"
+    }];
+
+    function buildURL() {
+      const params = new URLSearchParams({
+        where: WHERE,
+        outFields: "sector_nombre,ano_eje",
+        returnGeometry: "false",
+        f: "json",
+        outStatistics: JSON.stringify(outStats)
+      });
+      return `${LAYER_URL}?${params.toString()}`;
+    }
+
+    // === Utilidad de formato ===
+    const fmt = new Intl.NumberFormat("es-PE");
+
+    // === Animación suave del contador ===
+    function animateValue(el, toValue, duration = 1600) {
+      const start = performance.now();
+      const from = 0;
+      function frame(now) {
+        const t = Math.min(1, (now - start) / duration);
+        const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
+        const current = Math.round(from + (toValue - from) * eased);
+        el.textContent = fmt.format(current);
+        if (t < 1) requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+    }
+
+    async function main() {
+      const amountEl = document.getElementById("amount");
+      try {
+        const res = await fetch(buildURL(), { cache: "no-store", credentials: "omit" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        const total = Number(json.features?.[0]?.attributes?.total_dev ?? 0);
+        animateValue(amountEl, Math.max(0, Math.round(total)));
+      } catch (err) {
+        console.error(err);
+        amountEl.textContent = "—";
+      }
+    }
+    main();
+  </script>
+</body>
+</html>
