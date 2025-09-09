@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Tabla MVCS — PIM/Devengado por Ejecutora y Unidad Ejecutora</title>
+<style>
+  :root{
+    --bg:#ffffff;
+    --ink:#0f172a;
+    --muted:#6b7280;
+    --line:#e5e7eb;
+    --hdr:#ef4444;     /* rojo encabezado base (se usa como banda) */
+    --hdr2:#f97316;    /* naranja */
+    --hdr3:#d946ef;    /* fucsia */
+    --chip-ok:#16a34a;
+    --chip-mid:#f59e0b;
+    --chip-bad:#ef4444;
+  }
+  html,body{height:100%;margin:0;background:transparent;font-family:system-ui,Segoe UI,Roboto,Arial;color:var(--ink)}
+  .wrap{
+    min-height:100vh; box-sizing:border-box; padding:10px clamp(6px,2vw,18px);
+    display:flex; align-items:flex-start; justify-content:center;
+  }
+  .card{
+    width:min(1400px,100%); background:var(--bg);
+    border-radius:14px; box-shadow:0 10px 30px rgba(2,6,23,.06);
+    overflow:hidden;
+  }
+  .title{
+    margin:0; padding:14px 18px; font-weight:800; font-size:clamp(16px,2.4vw,22px);
+    letter-spacing:.2px; border-bottom:1px solid var(--line);
+  }
+  .note{
+    padding:0 18px 10px; color:var(--muted); font-size:12px;
+  }
+
+  .table{
+    width:100%; border-collapse:separate; border-spacing:0; table-layout:fixed;
+    font-size:14px;
+  }
+  thead th{
+    position:sticky; top:0; z-index:5;
+    background:linear-gradient(180deg,#111827 0%, #374151 100%);
+    color:#fff; text-align:center; font-weight:800; padding:10px 6px;
+    border-bottom:2px solid #0b1220;
+  }
+  thead th:first-child{ text-align:left; }
+  tbody td, tbody th{
+    padding:8px 8px; border-bottom:1px solid var(--line); background:#fff;
+  }
+  tbody tr.group > th{
+    background: #f8fafc; position:sticky; left:0; z-index:3;
+    font-weight:800; color:#0b1220; border-bottom:1px solid var(--line);
+  }
+  tbody tr.item > td:first-child{
+    position:sticky; left:0; background:#fff; z-index:2;
+  }
+
+  .num{ text-align:right; white-space:nowrap; }
+  .pct{ text-align:center; white-space:nowrap; }
+  .dot{
+    display:inline-block; width:.62rem; height:.62rem; border-radius:999px; margin-right:.45rem; vertical-align:-.08rem;
+  }
+  .ok{ background:var(--chip-ok); }
+  .mid{ background:var(--chip-mid); }
+  .bad{ background:var(--chip-bad); }
+
+  .btn{
+    border:0; background:transparent; font-weight:800; cursor:pointer; padding:6px 8px; border-radius:8px;
+  }
+  .btn .chev{ display:inline-block; transition:transform .18s ease; }
+  .btn[aria-expanded="true"] .chev{ transform:rotate(90deg); }
+  .subtle{ color:#0b1220; }
+  .subtle small{ color:var(--muted); font-weight:600; letter-spacing:.2px; }
+
+  tfoot td{
+    background:#f8fafc; font-weight:800; border-top:2px solid #94a3b8;
+  }
+
+  /* Responsive */
+  @media (max-width:900px){
+    .table{ font-size:13px; }
+    thead th{ padding:8px 4px; }
+    tbody td, tbody th{ padding:6px 6px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h2 class="title">Ejecución presupuestal — MVCS (2025) por Ejecutora y Unidad Ejecutora</h2>
+    <div class="note">Fuente: Ministerio de Economía y Finanzas — MEF · Portal de Datos Abiertos.  
+      Filtros: <code>sector_nombre = 'VIVIENDA CONSTRUCCION Y SANEAMIENTO'</code>, <code>ano_eje = 2025</code>.
+    </div>
+
+    <div style="overflow:auto;">
+      <table class="table" id="tbl">
+        <thead>
+          <tr>
+            <th style="min-width:300px; width:300px;">EJECUTORAS</th>
+            <th>PIM ACTIVIDADES<br/>Y PROYECTOS</th>
+            <th>DEVENGADO</th>
+            <th>AVANCE %</th>
+            <th>PIM PROYECTO</th>
+            <th>DEVENGADO<br/>PROYECTO</th>
+            <th>AVANCE<br/>PROYECTO</th>
+            <th>PIM ACTIVIDAD</th>
+            <th>DEVENGADO<br/>ACTIVIDAD</th>
+            <th>AVANCE<br/>ACTIVIDAD</th>
+          </tr>
+        </thead>
+        <tbody id="tbody">
+          <!-- contenido dinámico -->
+        </tbody>
+        <tfoot id="tfoot">
+          <!-- total -->
+        </tfoot>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+const SERVICE = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/OGEI/Mapa_Inversiones_MEF/FeatureServer/13/query";
+const BASE_WHERE = "sector_nombre = 'VIVIENDA CONSTRUCCION Y SANEAMIENTO' AND ano_eje = 2025";
+
+const fmt = new Intl.NumberFormat('es-PE');
+const pct = (v)=> (isFinite(v) && v>0 ? (v*100).toFixed(2)+' %' : '0.00 %');
+const chipClass = (v)=> (v>=0.8 ? 'ok' : (v>=0.5 ? 'mid' : 'bad'));
+
+function buildParams(whereExtra){
+  const params = new URLSearchParams({
+    where: `${BASE_WHERE}${whereExtra? ' AND '+whereExtra : ''}`,
+    groupByFieldsForStatistics: "pliego_nombre,ejecutora_nombre",
+    outStatistics: JSON.stringify([
+      { "statisticType":"sum", "onStatisticField":"monto_pim",       "outStatisticFieldName":"sum_pim" },
+      { "statisticType":"sum", "onStatisticField":"monto_devengado", "outStatisticFieldName":"sum_dev" }
+    ]),
+    returnGeometry: "false",
+    f: "json"
+  });
+  return params.toString();
+}
+
+async function queryStats(whereExtra){
+  const url = `${SERVICE}?${buildParams(whereExtra)}`;
+  const res = await fetch(url, { cache:'no-store' });
+  if(!res.ok) throw new Error('HTTP '+res.status);
+  const json = await res.json();
+  if(json.error) throw new Error(json.error.message||'Error del servicio');
+  const out = [];
+  for(const f of (json.features||[])){
+    const a = f.attributes||{};
+    out.push({
+      pliego: String(a.pliego_nombre||'').trim() || '(Sin pliego)',
+      ejecutora: String(a.ejecutora_nombre||'').trim() || '(Sin ejecutora)',
+      pim: Number(a.sum_pim||0),
+      dev: Number(a.sum_dev||0)
+    });
+  }
+  return out;
+}
+
+function mergeStats(total, proy, act){
+  // index por clave pliego|ejecutora
+  const iTotal = new Map(), iProy = new Map(), iAct = new Map();
+  const key = (r)=> `${r.pliego}|||${r.ejecutora}`;
+  total.forEach(r=> iTotal.set(key(r), r));
+  proy.forEach(r=> iProy.set(key(r), r));
+  act.forEach(r=> iAct.set(key(r), r));
+
+  const keys = new Set([...iTotal.keys(), ...iProy.keys(), ...iAct.keys()]);
+  const rows = [];
+  for(const k of keys){
+    const t = iTotal.get(k) || {};
+    const p = iProy.get(k) || {};
+    const a = iAct.get(k) || {};
+    rows.push({
+      pliego: t.pliego || p.pliego || a.pliego || '',
+      ejecutora: t.ejecutora || p.ejecutora || a.ejecutora || '',
+      pim: t.pim||0, dev: t.dev||0,
+      pim_proy: p.pim||0, dev_proy: p.dev||0,
+      pim_act: a.pim||0,  dev_act: a.dev||0
+    });
+  }
+  // agrupar por pliego
+  const byPliego = new Map();
+  for(const r of rows){
+    if(!byPliego.has(r.pliego)) byPliego.set(r.pliego, []);
+    byPliego.get(r.pliego).push(r);
+  }
+  // ordenar por pliego y ejecutora
+  for(const arr of byPliego.values()){
+    arr.sort((x,y)=> x.ejecutora.localeCompare(y.ejecutora, 'es'));
+  }
+  return new Map([...byPliego.entries()].sort((a,b)=> a[0].localeCompare(b[0],'es')));
+}
+
+function addRow(tbody, cells, opts={}){
+  const tr = document.createElement('tr');
+  tr.className = opts.className||'';
+  for(const c of cells){
+    const el = document.createElement(c.header?'th':'td');
+    if(c.cls) el.className = c.cls;
+    el.innerHTML = c.html;
+    tr.appendChild(el);
+  }
+  tbody.appendChild(tr);
+}
+
+function renderTable(grouped){
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = '';
+  let tot = { pim:0, dev:0, pim_proy:0, dev_proy:0, pim_act:0, dev_act:0 };
+
+  for(const [pliego, items] of grouped.entries()){
+    // sumas por pliego
+    const s = items.reduce((a,r)=>({
+      pim:a.pim+r.pim, dev:a.dev+r.dev,
+      pim_proy:a.pim_proy+r.pim_proy, dev_proy:a.dev_proy+r.dev_proy,
+      pim_act:a.pim_act+r.pim_act, dev_act:a.dev_act+r.dev_act
+    }), {pim:0,dev:0,pim_proy:0,dev_proy:0,pim_act:0,dev_act:0});
+
+    tot.pim+=s.pim; tot.dev+=s.dev; tot.pim_proy+=s.pim_proy; tot.dev_proy+=s.dev_proy; tot.pim_act+=s.pim_act; tot.dev_act+=s.dev_act;
+
+    // Fila de grupo (pliego)
+    const av   = s.pim>0 ? s.dev/s.pim : 0;
+    const avp  = s.pim_proy>0 ? s.dev_proy/s.pim_proy : 0;
+    const ava  = s.pim_act>0 ? s.dev_act/s.pim_act : 0;
+
+    const gid = 'g_'+Math.random().toString(36).slice(2,9);
+    addRow(tbody, [
+      {header:true, html:
+        `<button class="btn subtle" aria-expanded="false" aria-controls="${gid}">
+           <span class="chev">▶</span> ${pliego} <br/><small>EJECUTORAS</small>
+         </button>`, cls:'group' },
+      {html: fmt.format(s.pim), cls:'num'},
+      {html: fmt.format(s.dev), cls:'num'},
+      {html: `<span class="dot ${chipClass(av)}"></span>${pct(av)}`, cls:'pct'},
+      {html: fmt.format(s.pim_proy), cls:'num'},
+      {html: fmt.format(s.dev_proy), cls:'num'},
+      {html: `<span class="dot ${chipClass(avp)}"></span>${pct(avp)}`, cls:'pct'},
+      {html: fmt.format(s.pim_act), cls:'num'},
+      {html: fmt.format(s.dev_act), cls:'num'},
+      {html: `<span class="dot ${chipClass(ava)}"></span>${pct(ava)}`, cls:'pct'}
+    ], { className:'group' });
+
+    // Filas hijas (ejecutoras)
+    for(const r of items){
+      const av2  = r.pim>0 ? r.dev/r.pim : 0;
+      const avp2 = r.pim_proy>0 ? r.dev_proy/r.pim_proy : 0;
+      const ava2 = r.pim_act>0 ? r.dev_act/r.pim_act : 0;
+
+      const tr = document.createElement('tr');
+      tr.className = 'item';
+      tr.setAttribute('data-parent', gid);
+      tr.style.display = 'none';
+      tr.innerHTML = `
+        <td style="padding-left:24px;"><span class="subtle">${r.ejecutora}</span></td>
+        <td class="num">${fmt.format(r.pim)}</td>
+        <td class="num">${fmt.format(r.dev)}</td>
+        <td class="pct"><span class="dot ${chipClass(av2)}"></span>${pct(av2)}</td>
+        <td class="num">${fmt.format(r.pim_proy)}</td>
+        <td class="num">${fmt.format(r.dev_proy)}</td>
+        <td class="pct"><span class="dot ${chipClass(avp2)}"></span>${pct(avp2)}</td>
+        <td class="num">${fmt.format(r.pim_act)}</td>
+        <td class="num">${fmt.format(r.dev_act)}</td>
+        <td class="pct"><span class="dot ${chipClass(ava2)}"></span>${pct(ava2)}</td>
+      `;
+      tbody.appendChild(tr);
+    }
+  }
+
+  // Total
+  const tfoot = document.getElementById('tfoot');
+  const tav  = tot.pim>0 ? tot.dev/tot.pim : 0;
+  const tavp = tot.pim_proy>0 ? tot.dev_proy/tot.pim_proy : 0;
+  const tava = tot.pim_act>0 ? tot.dev_act/tot.pim_act : 0;
+  tfoot.innerHTML = `
+    <tr>
+      <td style="text-align:left;font-weight:900;">Total</td>
+      <td class="num">${fmt.format(tot.pim)}</td>
+      <td class="num">${fmt.format(tot.dev)}</td>
+      <td class="pct"><span class="dot ${chipClass(tav)}"></span>${pct(tav)}</td>
+      <td class="num">${fmt.format(tot.pim_proy)}</td>
+      <td class="num">${fmt.format(tot.dev_proy)}</td>
+      <td class="pct"><span class="dot ${chipClass(tavp)}"></span>${pct(tavp)}</td>
+      <td class="num">${fmt.format(tot.pim_act)}</td>
+      <td class="num">${fmt.format(tot.dev_act)}</td>
+      <td class="pct"><span class="dot ${chipClass(tava)}"></span>${pct(tava)}</td>
+    </tr>`;
+
+  // Toggle acordeón
+  tbody.querySelectorAll('button[aria-controls]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id = btn.getAttribute('aria-controls');
+      const open = btn.getAttribute('aria-expanded') === 'true';
+      btn.setAttribute('aria-expanded', String(!open));
+      tbody.querySelectorAll(`tr.item[data-parent="${id}"]`).forEach(tr=>{
+        tr.style.display = open ? 'none' : '';
+      });
+    });
+  });
+}
+
+(async function init(){
+  try{
+    const [all, proy, act] = await Promise.all([
+      queryStats("1=1"),
+      queryStats("tipo_act_proy_nombre = 'PROYECTO'"),
+      queryStats("tipo_act_proy_nombre = 'ACTIVIDAD'")
+    ]);
+    const grouped = mergeStats(all, proy, act);
+    renderTable(grouped);
+  }catch(err){
+    console.error(err);
+    document.getElementById('tbody').innerHTML =
+      `<tr><td colspan="10" style="text-align:center;color:#b91c1c;padding:30px;">
+         Error al cargar datos: ${err?.message || 'Fallo del servicio'}
+       </td></tr>`;
+  }
+})();
+</script>
+</body>
+</html>
