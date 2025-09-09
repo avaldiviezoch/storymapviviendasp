@@ -13,53 +13,64 @@
       --brand:#0e766e;
     }
     html,body{margin:0;background:#fff;font-family:system-ui,Segoe UI,Roboto,Arial}
-    /* Contenedor a 100% del ancho embebido en StoryMap */
-    .wrap{display:flex;justify-content:center;padding:8px}
+
+    /* Ocupa todo el ancho; usa muy poco padding para evitar huecos laterales */
+    .wrap{display:flex;justify-content:center;padding:6px}
     .card{
-      width:100%;      /* ocupa todo el ancho disponible */
-      max-width:1200px;/* se ve bien en pantallas grandes sin “reventar” */
+      width:100%;
+      max-width:1200px;
       background:#fff; border:1px solid var(--ring); border-radius:16px;
       box-shadow:var(--shadow);
-      padding: clamp(14px, 2.4vw, 28px) clamp(14px, 2.4vw, 28px) clamp(10px, 2vw, 22px);
+      /* Altura mínima basada en la altura visible del iframe (vh) */
+      min-height: clamp(280px, 46vh, 600px);
+      padding: clamp(12px, 2.2vw, 26px) clamp(12px, 2.2vw, 26px) clamp(10px, 1.8vw, 20px);
+      box-sizing:border-box;
     }
 
-    /* Tipografías fluidas para llenar el recuadro sin scroll */
+    /* Tipografías FLUIDAS con límite superior en vh para llenar verticalmente */
     .title{
       text-align:center;
       font-weight:800; color:#0f172a; letter-spacing:.2px;
-      margin:0 0 clamp(8px, 1.6vw, 14px);
-      font-size: clamp(18px, 2.4vw, 34px);
+      margin:0 0 clamp(6px, 1.2vw, 12px);
+      /* Crece con ancho y también con alto (vh) */
+      font-size: clamp(18px, 2.6vw, 4.6vh);
+      line-height:1.15;
     }
 
     .kpi{ display:flex; flex-direction:column; align-items:center; }
     .valueRow{
       display:flex; align-items:baseline; gap: clamp(6px, 1.2vw, 14px);
-      justify-content:center; padding: clamp(4px, 1vw, 8px) 0 clamp(2px, .6vw, 6px);
+      justify-content:center; padding: clamp(4px, 1vw, 10px) 0 clamp(4px, 1vw, 10px);
       flex-wrap:wrap;
     }
     .currency{
       font-weight:900; color:var(--ink); opacity:.95; line-height:1;
-      font-size: clamp(18px, 2.2vw, 28px);
+      /* Que también escale con la altura */
+      font-size: clamp(18px, 2.2vw, 3.2vh);
     }
     .value{
-      font-weight:900; color:var(--ink); line-height:1.02; letter-spacing:.02em;
+      font-weight:900; color:var(--ink); line-height:1.02; letter-spacing:.01em;
       text-align:center; word-break:break-word;
-      /* Escala con el ancho: grande en StoryMap sin provocar barra */
-      font-size: clamp(38px, 8vw, 110px);
+      /* Crece bastante para “llenar” el alto, pero sin pasar el límite */
+      font-size: clamp(46px, 9.5vw, 16.5vh);
     }
     .unit{
-      margin-top: clamp(2px, .6vw, 8px);
+      margin-top: clamp(0px, .6vw, 6px);
       font-weight:800; letter-spacing:.22em; color:#0f172a;
-      font-size: clamp(10px, 1vw, 12px);
+      /* También escala con el alto */
+      font-size: clamp(10px, 1.1vw, 2.1vh);
     }
 
     .loading,.error{ text-align:center; color:var(--muted); font-size:13px; margin-top:6px }
     .error{ color:#b91c1c }
 
     .meta{
-      margin-top: clamp(10px, 1.4vw, 16px);
+      /* Fuente un poco más arriba para ayudar a “llenar” verticalmente */
+      margin-top: clamp(8px, 1.2vw, 12px);
       display:flex; align-items:center; justify-content:center; gap:8px;
-      color:var(--muted); font-size: clamp(11px, 1.2vw, 13px);
+      color:var(--muted); font-size: clamp(11px, 1.2vw, 1.9vh);
+      line-height:1.2;
+      text-align:center;
     }
     .dot{ width:7px; height:7px; border-radius:999px; background:var(--brand) }
   </style>
@@ -74,7 +85,7 @@
           <span class="currency">S/.</span>
           <span class="value" id="value">—</span>
         </div>
-        <div class="unit">PIM</div>
+        <div class="unit">P I M</div>
         <div class="loading" id="loading">Consultando servicio…</div>
         <div class="error" id="error" style="display:none"></div>
       </div>
@@ -90,7 +101,7 @@
   /* ===== Config ===== */
   const ENDPOINT = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/OGEI/Mapa_Inversiones_MEF/FeatureServer/13/query";
   const SECTOR   = "VIVIENDA CONSTRUCCION Y SANEAMIENTO";
-  const ANIO     = 2025; // cambia si necesitas otro año
+  const ANIO     = 2025;
 
   const nf = new Intl.NumberFormat("es-PE");
   const $val = document.getElementById("value");
