@@ -6,45 +6,81 @@
   <title>Presupuesto Institucional Modificado 2025</title>
   <style>
     :root{
-      --ink:#0b3b37;
-      --muted:#64748b;
-      --ring:#e2e8f0;
-      --brand:#0f766e;
+      --ink:#083b37;
+      --muted:#5b6b80;
+      --ring:#e8edf3;
+      --shadow:0 6px 18px rgba(2, 6, 23, .06);
+      --brand:#0e766e;
     }
-    html,body{height:100%;margin:0;background:#fff;font-family:system-ui,Segoe UI,Roboto,Arial}
+    html,body{margin:0;background:#fff;font-family:system-ui,Segoe UI,Roboto,Arial}
+    .wrap{display:flex;justify-content:center;padding:18px}
     .card{
-      max-width:980px; margin:48px auto; padding:28px 24px; background:#fff;
-      border:1px solid var(--ring); border-radius:18px;
-      box-shadow:0 6px 24px rgba(2,6,23,.06);
+      width:100%; max-width:820px;
+      background:#fff; border:1px solid var(--ring); border-radius:16px;
+      box-shadow:var(--shadow);
+      padding:22px 20px 18px;
     }
-    .title{ text-align:center; font-size:32px; font-weight:800; margin:0 0 28px; color:#0f172a; }
-    .kpi{ display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px 16px 28px; }
-    .currency{ font-size:28px; color:var(--ink); opacity:.9; margin-bottom:6px }
-    .value{ font-size:64px; line-height:1.05; font-weight:900; color:var(--ink); text-align:center; letter-spacing:.02em; word-break:break-word; }
-    .unit{ margin-top:14px; font-weight:700; letter-spacing:.15em; color:#0f172a; }
-    .meta{ margin-top:28px; display:flex; align-items:center; justify-content:center; gap:10px; color:var(--muted); font-size:13px; }
-    .dot{ width:8px; height:8px; border-radius:999px; background:var(--brand); }
-    .loading,.error{ text-align:center; color:var(--muted); font-size:14px; margin-top:12px; }
+    .title{
+      text-align:center; font-size:26px; font-weight:800; margin:0 0 16px;
+      color:#0f172a; letter-spacing:.2px;
+    }
+
+    /* KPI */
+    .kpi{ display:flex; flex-direction:column; align-items:center; }
+    .valueRow{
+      display:inline-flex; align-items:baseline; gap:10px;
+      flex-wrap:wrap; justify-content:center;
+      padding:8px 0 6px;
+    }
+    .currency{
+      font-size:26px; font-weight:800; color:var(--ink); opacity:.9;
+      line-height:1;
+    }
+    .value{
+      font-size:56px; line-height:1.02; font-weight:900; color:var(--ink);
+      letter-spacing:.02em; text-align:center; word-break:break-word;
+    }
+    .unit{
+      margin-top:6px; font-weight:800; letter-spacing:.22em;
+      color:#0f172a; font-size:12px;
+    }
+
+    .loading,.error{ text-align:center; color:var(--muted); font-size:13px; margin-top:8px }
     .error{ color:#b91c1c }
-    @media (max-width:720px){ .title{font-size:22px} .value{font-size:44px} }
+
+    .meta{
+      margin-top:14px; display:flex; align-items:center; justify-content:center;
+      gap:8px; color:var(--muted); font-size:13px;
+    }
+    .dot{ width:7px; height:7px; border-radius:999px; background:var(--brand) }
+
+    /* Responsive */
+    @media (max-width:720px){
+      .title{font-size:20px}
+      .currency{font-size:20px}
+      .value{font-size:40px}
+    }
   </style>
 </head>
 <body>
-  <div class="card">
-    <!-- Cambia aquí el título si lo deseas -->
-    <h1 class="title">Presupuesto Institucional Modificado 2025</h1>
+  <div class="wrap">
+    <div class="card">
+      <h1 class="title">Presupuesto Institucional Modificado 2025</h1>
 
-    <div class="kpi">
-      <div class="currency">S/.</div>
-      <div class="value" id="value">—</div>
-      <div class="unit">PIM</div>
-      <div class="loading" id="loading">Consultando servicio…</div>
-      <div class="error" id="error" style="display:none"></div>
-    </div>
+      <div class="kpi">
+        <div class="valueRow">
+          <span class="currency">S/.</span>
+          <span class="value" id="value">—</span>
+        </div>
+        <div class="unit">PIM</div>
+        <div class="loading" id="loading">Consultando servicio…</div>
+        <div class="error" id="error" style="display:none"></div>
+      </div>
 
-    <div class="meta">
-      <span class="dot" aria-hidden="true"></span>
-      <span><strong>Fuente:</strong> Ministerio de Economía y Finanzas — MEF · Portal de Datos Abiertos</span>
+      <div class="meta">
+        <span class="dot" aria-hidden="true"></span>
+        <span><strong>Fuente:</strong> Ministerio de Economía y Finanzas — MEF · Portal de Datos Abiertos</span>
+      </div>
     </div>
   </div>
 
@@ -52,7 +88,7 @@
   /* ===== Config ===== */
   const ENDPOINT = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/OGEI/Mapa_Inversiones_MEF/FeatureServer/13/query";
   const SECTOR   = "VIVIENDA CONSTRUCCION Y SANEAMIENTO";
-  const ANIO     = 2025; // <-- cámbialo cuando necesites
+  const ANIO     = 2025; // cambia aquí si necesitas otro año
 
   const nf = new Intl.NumberFormat("es-PE");
   const $val = document.getElementById("value");
@@ -89,20 +125,17 @@
   }
 
   async function countRows(where){
-    const res = await postForm(ENDPOINT, {
-      where, returnCountOnly: "true", f:"json"
-    });
+    const res = await postForm(ENDPOINT, { where, returnCountOnly:"true", f:"json" });
     if(!res.ok) throw new Error("HTTP "+res.status);
     const j = await res.json();
     return Number(j.count) || 0;
   }
 
-  // Último recurso: traer valores y sumar localmente (normalizando el texto)
   async function clientSideSum(){
     const res = await postForm(ENDPOINT, {
       where: `ano_eje=${ANIO} AND sector_nombre IS NOT NULL`,
       outFields: "sector_nombre,monto_pim",
-      resultRecordCount: 32000, // tope amplio
+      resultRecordCount: 32000,
       returnGeometry: "false",
       f:"json"
     });
@@ -120,7 +153,7 @@
     return acc;
   }
 
-  function countUp(to, ms=1600){
+  function countUp(to, ms=1500){
     const start = performance.now();
     function tick(t){
       const k = Math.min(1, (t - start)/ms);
@@ -134,21 +167,17 @@
 
   (async function run(){
     try{
-      // 1) where exacto (igual que en Portal)
       let where = `sector_nombre='${SECTOR.replace(/'/g,"''")}' AND ano_eje=${ANIO}`;
       let total = await sumByStatistics(where);
 
       if(total === 0){
-        // 2) ¿Hay filas? si no, reintento con LIKE (por si hay espacios adicionales)
         const c = await countRows(where);
         if(c === 0){
           where = `sector_nombre LIKE '${SECTOR.replace(/'/g,"''")}%' AND ano_eje=${ANIO}`;
           total = await sumByStatistics(where);
         }
       }
-
       if(total === 0){
-        // 3) Último recurso: sumar en cliente normalizando texto
         total = await clientSideSum();
       }
 
