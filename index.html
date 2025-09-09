@@ -99,6 +99,7 @@
           <a class="btn"  href="grafico-urbano-rural.html"      target="_blank">Urbano vs Rural</a>
           <a class="btn v2" href="grafica-lineas-joseruben.html" target="_blank">Gráfica de Líneas — Jose Rubén</a>
           <a class="btn v3" href="doble-grafico-1.html"          target="_blank">Doble Gráfico 1</a>
+          <a class="btn"  href="cuadro-de-mando1.html"           target="_blank">Cuadro de Mando 1</a>
           <a class="btn v2" href="bonos-techo-propio.html"       target="_blank">Bonos Techo Propio</a>
           <a class="btn v3" href="bonos-niveles-prueba.html"     target="_blank">Bonos Niveles (Prueba)</a>
           <a class="btn v4" href="prueba-christian-1.html"       target="_blank">Prueba Christian 1</a>
@@ -109,7 +110,6 @@
           <!-- Presupuestos también visibles aquí -->
           <a class="btn v4" href="indicador-presupuesto1.html"   target="_blank">Indicador Presupuesto 1</a>
           <a class="btn v2" href="indicador-presupuesto2.html"   target="_blank">Indicador Presupuesto 2</a>
-          <!-- NUEVO en Gráficos -->
           <a class="btn v3" href="indicador-presupuesto3.html"   target="_blank">Indicador Presupuesto 3</a>
         </div>
         <div class="note">Si una página impide incrustación, agrega <code>data-thumb</code> con una miniatura para ese botón.</div>
@@ -240,7 +240,7 @@
     });
 
     // Si el origen bloquea la incrustación, el navegador puede lanzar errores silenciosos;
-    // ofrecemos un time-out para mostrar aviso.
+    // ofrecemos un time-out.
     function markBlocked(){
       preview.classList.remove('loading');
       preview.classList.add('blocked');
@@ -252,8 +252,7 @@
       const a = e.target.closest('a.btn'); if(!a) return;
       showPreview(a, e);
       clearTimeout(blockTimer);
-      blockTimer = setTimeout(()=>{ 
-        // Si sigue en estado loading demasiado tiempo, asumimos bloqueo
+      blockTimer = setTimeout(()=>{
         if(preview.style.display==='block' && preview.classList.contains('loading')) markBlocked();
       }, 1500);
     });
