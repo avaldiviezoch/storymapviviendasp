@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>PIM 2025 – Fullscreen</title>
+<style>
+  /* Full-bleed: nada de márgenes ni fondos extra */
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: transparent; /* sin fondo, usa el del StoryMap */
+    color: #062e2b;
+    font-family: system-ui, Segoe UI, Roboto, Arial;
+    overflow: hidden; /* evita cualquier scroll */
+  }
+
+  /* Ocupa todo el viewport y centra el contenido */
+  .stage {
+    height: 100vh;
+    width: 100vw;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    align-items: center;
+    justify-items: center;
+    box-sizing: border-box;
+    padding: 0 clamp(8px, 2vw, 24px);
+  }
+
+  /* Título arriba, centrado */
+  .title {
+    margin: 0;
+    text-align: center;
+    font-weight: 800;
+    letter-spacing: .2px;
+    color: #062e2b;
+    /* Escala fluida con el tamaño de pantalla */
+    font-size: clamp(18px, 3.2vw, 40px);
+  }
+
+  /* Zona central: símbolo y monto en una fila */
+  .center {
+    display: flex;
+    align-items: flex-end;
+    gap: clamp(10px, 2.2vw, 22px);
+  }
+
+  .prefix {
+    font-weight: 900;
+    color: #0a766c;
+    line-height: 1;
+    transform: translateY(-6%);
+    /* Proporción grande pero controlada por alto y ancho */
+    font-size: clamp(26px, 8vw, 12vh);
+  }
+
+  .amount {
+    font-weight: 900;
+    color: #043a36;
+    line-height: 1.05;
+    /* Haz que llene realmente la pantalla: depende de vw y vh */
+    font-size: clamp(40px, 18vw, 22vh);
+    letter-spacing: .02em;
+    white-space: nowrap;
+    /* aparición suave */
+    opacity: 0;
+    transform: translateY(8px);
+    transition: .35s ease;
+  }
+  .amount.ready { opacity: 1; transform: translateY(0); }
+  .prefix.ready { opacity: 1; transform: translateY(0); transition:.35s ease; }
+
+  /* Subtítulo (PIM) justo debajo del número */
+  .sub {
+    margin-top: clamp(6px, 1.8vh, 14px);
+    text-align: center;
+    letter-spacing: .5em;
+    font-weight: 700;
+    color: #0b3b38;
+    opacity: .85;
+    font-size: clamp(10px, 2vw, 14px);
+  }
+
+  /* Fuente abajo; pequeña para no “robar” altura */
+  .source {
+    margin: 0 0 clamp(6px, 1.5vh, 14px) 0;
+    text-align: center;
+    color: #334155;
+    font-size: clamp(11px, 1.6vw, 13px);
+  }
+  .source b { color:#0369a1; }
+</style>
+</head>
+<body>
+  <div class="stage">
+    <h2 class="title">Presupuesto Institucional Modificado 2025</h2>
+
+    <div style="display:grid;place-items:center">
+      <div class="center">
+        <div class="prefix" id="cur">S/.</div>
+        <div class="amount" id="val">0</div>
+      </div>
+      <div class="sub">P I M</div>
+    </div>
+
+    <div class="source">
+      <b>Fuente:</b> Ministerio de Economía y Finanzas — MEF · Portal de Datos Abiertos
+    </div>
+  </div>
+
+<script>
+/* ==== ArcGIS REST (outStatistics para sumar en el servidor) ==== */
+const SERVICE = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/OGEI/Mapa_Inversiones_MEF/FeatureServer/13/query";
+const WHERE   = "sector_nombre = 'VIVIENDA CONSTRUCCION Y SANEAMIENTO' AND ano_eje = 2025";
+
+async function fetchPIMSum(){
+  const outStats = JSON.stringify([{
+    statisticType: "sum",
+    onStatisticField: "monto_pim",
+    outStatisticFieldName: "sum_pim"
+  }]);
+  const qs = new URLSearchParams({
+    where: WHERE,
+    outStatistics: outStats,
+    returnGeometry: "false",
+    f: "json"
+  });
+  const url = SERVICE + "?" + qs.toString();
+  const res = await fetch(url, { cache: "no-store" });
+  if(!res.ok) throw new Error("HTTP " + res.status);
+  const json = await res.json();
+  if(json.error) throw new Error(json.error.message || "Error del servicio");
+  return Number(json.features?.[0]?.attributes?.sum_pim) || 0;
+}
+
+/* ==== Conteo animado 0 → total ==== */
+function animateNumber(el, target, ms=1700){
+  const fmt = new Intl.NumberFormat('es-PE');
+  const start = performance.now();
+  function tick(t){
+    const p = Math.min(1, (t - start) / ms);
+    const eased = 1 - Math.pow(1 - p, 3); // easeOutCubic
+    const cur = Math.round(target * eased);
+    el.textContent = fmt.format(cur);
+    if(p < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+(async function init(){
+  const val = document.getElementById('val');
+  const cur = document.getElementById('cur');
+  try{
+    const total = await fetchPIMSum();
+    requestAnimationFrame(()=>{
+      val.classList.add('ready');
+      cur.classList.add('ready');
+    });
+    animateNumber(val, total);
+  }catch(e){
+    console.error(e);
+    val.textContent = "—";
+    val.classList.add('ready');
+    cur.classList.add('ready');
+  }
+})();
+</script>
+</body>
+</html>
