@@ -10,12 +10,10 @@
     --ink:#0f172a;
     --muted:#6b7280;
     --line:#e5e7eb;
-    --hdr:#ef4444;     /* rojo encabezado base (se usa como banda) */
-    --hdr2:#f97316;    /* naranja */
-    --hdr3:#d946ef;    /* fucsia */
-    --chip-ok:#16a34a;
-    --chip-mid:#f59e0b;
-    --chip-bad:#ef4444;
+    --chip-ok:#16a34a;   /* verde */
+    --chip-mid:#f59e0b;  /* ámbar */
+    --chip-bad:#ef4444;  /* rojo  */
+    --accent:#0ea5e9;    /* azul discreto */
   }
   html,body{height:100%;margin:0;background:transparent;font-family:system-ui,Segoe UI,Roboto,Arial;color:var(--ink)}
   .wrap{
@@ -25,15 +23,39 @@
   .card{
     width:min(1400px,100%); background:var(--bg);
     border-radius:14px; box-shadow:0 10px 30px rgba(2,6,23,.06);
-    overflow:hidden;
+    overflow:hidden; position:relative;
+  }
+
+  /* Título + leyenda + fuente (centrado) */
+  .header{
+    text-align:center; padding:16px 18px 10px; border-bottom:1px solid var(--line);
   }
   .title{
-    margin:0; padding:14px 18px; font-weight:800; font-size:clamp(16px,2.4vw,22px);
-    letter-spacing:.2px; border-bottom:1px solid var(--line);
+    margin:0; font-weight:800; font-size:clamp(16px,2.4vw,22px); letter-spacing:.2px;
   }
-  .note{
-    padding:0 18px 10px; color:var(--muted); font-size:12px;
+  .legend{
+    margin-top:8px; display:flex; align-items:center; justify-content:center; gap:16px;
+    font-size:13px; color:#111827;
   }
+  .legend .dot{
+    width:.62rem; height:.62rem; border-radius:999px; display:inline-block; vertical-align:-.08rem;
+    margin-right:.4rem;
+  }
+  .src{
+    margin-top:6px; font-size:12px; color:var(--muted);
+  }
+
+  /* Botón CSV (icono pequeño, sutil) */
+  .btnCSV{
+    position:absolute; top:10px; right:10px;
+    display:inline-grid; place-items:center;
+    width:28px; height:28px; border-radius:8px;
+    border:1px solid #e2e8f0; background:#fff; color:#64748b;
+    cursor:pointer; font-size:16px; line-height:1;
+    opacity:.65;
+  }
+  .btnCSV:hover{ opacity:1; color:#0f172a; border-color:#cbd5e1; }
+  .btnCSV:focus{ outline:2px solid #bae6fd; outline-offset:2px; }
 
   .table{
     width:100%; border-collapse:separate; border-spacing:0; table-layout:fixed;
@@ -50,7 +72,7 @@
     padding:8px 8px; border-bottom:1px solid var(--line); background:#fff;
   }
   tbody tr.group > th{
-    background: #f8fafc; position:sticky; left:0; z-index:3;
+    background:#f8fafc; position:sticky; left:0; z-index:3;
     font-weight:800; color:#0b1220; border-bottom:1px solid var(--line);
   }
   tbody tr.item > td:first-child{
@@ -62,7 +84,7 @@
   .dot{
     display:inline-block; width:.62rem; height:.62rem; border-radius:999px; margin-right:.45rem; vertical-align:-.08rem;
   }
-  .ok{ background:var(--chip-ok); }
+  .ok{  background:var(--chip-ok);  }
   .mid{ background:var(--chip-mid); }
   .bad{ background:var(--chip-bad); }
 
@@ -78,7 +100,6 @@
     background:#f8fafc; font-weight:800; border-top:2px solid #94a3b8;
   }
 
-  /* Responsive */
   @media (max-width:900px){
     .table{ font-size:13px; }
     thead th{ padding:8px 4px; }
@@ -89,9 +110,18 @@
 <body>
 <div class="wrap">
   <div class="card">
-    <h2 class="title">Ejecución presupuestal — MVCS (2025) por Ejecutora y Unidad Ejecutora</h2>
-    <div class="note">Fuente: Ministerio de Economía y Finanzas — MEF · Portal de Datos Abiertos.  
-      Filtros: <code>sector_nombre = 'VIVIENDA CONSTRUCCION Y SANEAMIENTO'</code>, <code>ano_eje = 2025</code>.
+    <!-- Icono CSV -->
+    <button id="btnCsv" class="btnCSV" title="Exportar CSV" aria-label="Exportar CSV">⤓</button>
+
+    <!-- Cabecera centrada -->
+    <div class="header">
+      <h2 class="title">Ejecución presupuestal — MVCS (2025) por Ejecutora y Unidad Ejecutora</h2>
+      <div class="legend" aria-label="Leyenda">
+        <span><span class="dot bad"></span><strong>Rojo</strong> &lt; 33%</span>
+        <span><span class="dot mid"></span><strong>Ámbar</strong> 33%–67%</span>
+        <span><span class="dot ok"></span><strong>Verde</strong> ≥ 67%</span>
+      </div>
+      <div class="src">Fuente: Ministerio de Economía y Finanzas — MEF · Portal de Datos Abiertos.</div>
     </div>
 
     <div style="overflow:auto;">
@@ -122,12 +152,22 @@
 </div>
 
 <script>
+/* ====== Servicio y filtros (tu base) ====== */
 const SERVICE = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/OGEI/Mapa_Inversiones_MEF/FeatureServer/13/query";
 const BASE_WHERE = "sector_nombre = 'VIVIENDA CONSTRUCCION Y SANEAMIENTO' AND ano_eje = 2025";
 
+/* ====== Utilidades ====== */
 const fmt = new Intl.NumberFormat('es-PE');
-const pct = (v)=> (isFinite(v) && v>0 ? (v*100).toFixed(2)+' %' : '0.00 %');
-const chipClass = (v)=> (v>=0.8 ? 'ok' : (v>=0.5 ? 'mid' : 'bad'));
+const pctStr = (ratio)=> (isFinite(ratio) ? (ratio*100).toFixed(2)+' %' : '0.00 %');
+
+/* RANGOS de semáforo: rojo <33; ámbar [33,67); verde >=67 */
+function chipClass(ratio){
+  const p = Number(ratio) * 100;
+  if (!isFinite(p)) return 'bad';
+  if (p < 33) return 'bad';
+  if (p < 67) return 'mid';
+  return 'ok';
+}
 
 function buildParams(whereExtra){
   const params = new URLSearchParams({
@@ -163,7 +203,6 @@ async function queryStats(whereExtra){
 }
 
 function mergeStats(total, proy, act){
-  // index por clave pliego|ejecutora
   const iTotal = new Map(), iProy = new Map(), iAct = new Map();
   const key = (r)=> `${r.pliego}|||${r.ejecutora}`;
   total.forEach(r=> iTotal.set(key(r), r));
@@ -184,13 +223,11 @@ function mergeStats(total, proy, act){
       pim_act: a.pim||0,  dev_act: a.dev||0
     });
   }
-  // agrupar por pliego
   const byPliego = new Map();
   for(const r of rows){
     if(!byPliego.has(r.pliego)) byPliego.set(r.pliego, []);
     byPliego.get(r.pliego).push(r);
   }
-  // ordenar por pliego y ejecutora
   for(const arr of byPliego.values()){
     arr.sort((x,y)=> x.ejecutora.localeCompare(y.ejecutora, 'es'));
   }
@@ -215,7 +252,6 @@ function renderTable(grouped){
   let tot = { pim:0, dev:0, pim_proy:0, dev_proy:0, pim_act:0, dev_act:0 };
 
   for(const [pliego, items] of grouped.entries()){
-    // sumas por pliego
     const s = items.reduce((a,r)=>({
       pim:a.pim+r.pim, dev:a.dev+r.dev,
       pim_proy:a.pim_proy+r.pim_proy, dev_proy:a.dev_proy+r.dev_proy,
@@ -224,7 +260,6 @@ function renderTable(grouped){
 
     tot.pim+=s.pim; tot.dev+=s.dev; tot.pim_proy+=s.pim_proy; tot.dev_proy+=s.dev_proy; tot.pim_act+=s.pim_act; tot.dev_act+=s.dev_act;
 
-    // Fila de grupo (pliego)
     const av   = s.pim>0 ? s.dev/s.pim : 0;
     const avp  = s.pim_proy>0 ? s.dev_proy/s.pim_proy : 0;
     const ava  = s.pim_act>0 ? s.dev_act/s.pim_act : 0;
@@ -237,16 +272,15 @@ function renderTable(grouped){
          </button>`, cls:'group' },
       {html: fmt.format(s.pim), cls:'num'},
       {html: fmt.format(s.dev), cls:'num'},
-      {html: `<span class="dot ${chipClass(av)}"></span>${pct(av)}`, cls:'pct'},
+      {html: `<span class="dot ${chipClass(av)}"></span>${pctStr(av)}`, cls:'pct'},
       {html: fmt.format(s.pim_proy), cls:'num'},
       {html: fmt.format(s.dev_proy), cls:'num'},
-      {html: `<span class="dot ${chipClass(avp)}"></span>${pct(avp)}`, cls:'pct'},
+      {html: `<span class="dot ${chipClass(avp)}"></span>${pctStr(avp)}`, cls:'pct'},
       {html: fmt.format(s.pim_act), cls:'num'},
       {html: fmt.format(s.dev_act), cls:'num'},
-      {html: `<span class="dot ${chipClass(ava)}"></span>${pct(ava)}`, cls:'pct'}
+      {html: `<span class="dot ${chipClass(ava)}"></span>${pctStr(ava)}`, cls:'pct'}
     ], { className:'group' });
 
-    // Filas hijas (ejecutoras)
     for(const r of items){
       const av2  = r.pim>0 ? r.dev/r.pim : 0;
       const avp2 = r.pim_proy>0 ? r.dev_proy/r.pim_proy : 0;
@@ -260,19 +294,18 @@ function renderTable(grouped){
         <td style="padding-left:24px;"><span class="subtle">${r.ejecutora}</span></td>
         <td class="num">${fmt.format(r.pim)}</td>
         <td class="num">${fmt.format(r.dev)}</td>
-        <td class="pct"><span class="dot ${chipClass(av2)}"></span>${pct(av2)}</td>
+        <td class="pct"><span class="dot ${chipClass(av2)}"></span>${pctStr(av2)}</td>
         <td class="num">${fmt.format(r.pim_proy)}</td>
         <td class="num">${fmt.format(r.dev_proy)}</td>
-        <td class="pct"><span class="dot ${chipClass(avp2)}"></span>${pct(avp2)}</td>
+        <td class="pct"><span class="dot ${chipClass(avp2)}"></span>${pctStr(avp2)}</td>
         <td class="num">${fmt.format(r.pim_act)}</td>
         <td class="num">${fmt.format(r.dev_act)}</td>
-        <td class="pct"><span class="dot ${chipClass(ava2)}"></span>${pct(ava2)}</td>
+        <td class="pct"><span class="dot ${chipClass(ava2)}"></span>${pctStr(ava2)}</td>
       `;
       tbody.appendChild(tr);
     }
   }
 
-  // Total
   const tfoot = document.getElementById('tfoot');
   const tav  = tot.pim>0 ? tot.dev/tot.pim : 0;
   const tavp = tot.pim_proy>0 ? tot.dev_proy/tot.pim_proy : 0;
@@ -282,16 +315,15 @@ function renderTable(grouped){
       <td style="text-align:left;font-weight:900;">Total</td>
       <td class="num">${fmt.format(tot.pim)}</td>
       <td class="num">${fmt.format(tot.dev)}</td>
-      <td class="pct"><span class="dot ${chipClass(tav)}"></span>${pct(tav)}</td>
+      <td class="pct"><span class="dot ${chipClass(tav)}"></span>${pctStr(tav)}</td>
       <td class="num">${fmt.format(tot.pim_proy)}</td>
       <td class="num">${fmt.format(tot.dev_proy)}</td>
-      <td class="pct"><span class="dot ${chipClass(tavp)}"></span>${pct(tavp)}</td>
+      <td class="pct"><span class="dot ${chipClass(tavp)}"></span>${pctStr(tavp)}</td>
       <td class="num">${fmt.format(tot.pim_act)}</td>
       <td class="num">${fmt.format(tot.dev_act)}</td>
-      <td class="pct"><span class="dot ${chipClass(tava)}"></span>${pct(tava)}</td>
+      <td class="pct"><span class="dot ${chipClass(tava)}"></span>${pctStr(tava)}</td>
     </tr>`;
-
-  // Toggle acordeón
+  
   tbody.querySelectorAll('button[aria-controls]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const id = btn.getAttribute('aria-controls');
@@ -304,6 +336,32 @@ function renderTable(grouped){
   });
 }
 
+/* Exportación CSV, contenido tal como se ve */
+function exportTableToCSV(tableId='tbl', filename='ejecutoras_matriz.csv'){
+  const table = document.getElementById(tableId);
+  if(!table) return;
+  const rows = [];
+  table.querySelectorAll('thead tr, tbody tr, tfoot tr').forEach(tr=>{
+    const cells = tr.querySelectorAll('th,td');
+    const arr = [];
+    cells.forEach(td=>{
+      const text = td.innerText.replace(/\u00A0/g,' ').trim();
+      arr.push('"' + text.replace(/"/g,'""') + '"');
+    });
+    rows.push(arr.join(','));
+  });
+  const csv = rows.join('\r\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+document.getElementById('btnCsv').addEventListener('click', ()=> exportTableToCSV('tbl'));
+
+/* Init */
 (async function init(){
   try{
     const [all, proy, act] = await Promise.all([
