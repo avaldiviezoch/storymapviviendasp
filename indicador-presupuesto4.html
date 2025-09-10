@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Inversiones, PIM y Devengado — MVCS 2025 (Fullscreen)</title>
+<style>
+  html,body{height:100%;margin:0;background:transparent;color:#062e2b;font-family:system-ui,Segoe UI,Roboto,Arial;overflow:hidden}
+  .stage{
+    height:100vh;width:100vw;box-sizing:border-box;
+    display:grid;grid-template-rows:1fr auto auto;justify-items:center;align-content:center;
+    gap:clamp(12px,2.2vh,22px);padding:0 clamp(8px,2vw,24px)
+  }
+  .big{font-weight:900;color:#043a36;line-height:1;letter-spacing:.01em;font-size:clamp(48px,24vw,22vh)}
+  .label{margin-top:6px;text-align:center;font-weight:700;letter-spacing:.06em;font-size:clamp(16px,2.8vw,32px);color:#0b3b38}
+  .row{width:100%;display:flex;gap:min(4vw,40px);justify-content:center;align-items:flex-end;flex-wrap:wrap}
+  .kpi{display:grid;justify-items:center;row-gap:.5rem;min-width:240px}
+  .amount{font-weight:900;color:#043a36;line-height:1.05;white-space:nowrap;font-size:clamp(28px,10.5vw,12vh)}
+  .sub{font-size:clamp(14px,2.3vw,28px);font-weight:700;color:#0b3b38}
+  .source{margin-bottom:clamp(8px,1.8vh,14px);text-align:center;color:#334155;font-size:clamp(11px,1.6vw,13px)}
+  .source b{color:#0369a1}
+  .fade{opacity:0;transform:translateY(8px);transition:.35s ease}
+  .fade.on{opacity:1;transform:translateY(0)}
+</style>
+</head>
+<body>
+  <main class="stage">
+    <div style="display:grid;place-items:center">
+      <div id="count" class="big fade">0</div>
+      <div class="label">Inversiones</div>
+    </div>
+    <div class="row">
+      <section class="kpi">
+        <div id="pim" class="amount fade">0</div>
+        <div class="sub">Monto PIM</div>
+      </section>
+      <section class="kpi">
+        <div id="dev" class="amount fade">0</div>
+        <div class="sub">Monto Devengado</div>
+      </section>
+    </div>
+    <div class="source"><b>Fuente:</b> Ministerio de Economía y Finanzas — MEF · Portal de datos Abiertos</div>
+  </main>
+
+<script>
+/* ===== Endpoints ===== */
+const FS2_COUNT = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/OGEI/Mapa_Inversiones_MEF/FeatureServer/2/query";
+const FS10      = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/OGEI/Mapa_Inversiones_MEF/FeatureServer/10/query";
+const FS13      = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/OGEI/Mapa_Inversiones_MEF/FeatureServer/13/query";
+
+/* ===== Filtros ===== */
+const WHERE_COUNT = "ano_eje = 2025 AND monto_pim > 0 AND tipo_act_proy_nombre = 'PROYECTO'";
+const WHERE_SECTOR = "sector_nombre = 'VIVIENDA CONSTRUCCION Y SANEAMIENTO'";
+
+/* ===== Format & anim ===== */
+const fmtInt   = new Intl.NumberFormat("es-PE",{maximumFractionDigits:0});
+const fmtMoney = new Intl.NumberFormat("es-PE");
+
+function animate(el, target, ms=1600, fmt=fmtInt){
+  if(!Number.isFinite(target)){ el.textContent = "—"; return; }
+  const start = performance.now(); const from = 0;
+  function frame(t){
+    const p = Math.min(1,(t-start)/ms), eased = 1 - Math.pow(1-p,3);
+    el.textContent = fmt.format(Math.round(from + (target-from)*eased));
+    if(p<1) requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+/* ===== COUNT distinto producto_proyecto desde FS/2 (con fallback a FS/13) ===== */
+async function fetchDistinctCount(){
+  const params = new URLSearchParams({
+    where: WHERE_COUNT,
+    outFields: "producto_proyecto",
+    returnDistinctValues: "true",
+    returnCountOnly: "true",
+    f: "json"
+  });
+  try{
+    const r = await fetch(`${FS2_COUNT}?${params}`, {cache:"no-store"});
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const j = await r.json();
+    if(j?.error) throw new Error(j.error.message);
+    if(Number.isFinite(j.count)) return j.count;
+    throw new Error("count inválido");
+  }catch(e){
+    console.warn("COUNT: fallback a FS/13", e);
+    const p2 = new URLSearchParams({
+      where: WHERE_COUNT,
+      outFields: "producto_proyecto",
+      returnDistinctValues: "true",
+      returnCountOnly: "true",
+      f: "json"
+    });
+    const r2 = await fetch(`${FS13}?${p2}`, {cache:"no-store"});
+    const j2 = await r2.json();
+    return Number(j2.count||0);
+  }
+}
+
+/* ===== Sumatorias PIM/DEV: FS/10 -> fallback FS/13 ===== */
+async function sumFromFS10(fieldAgg){ // sum_monto_pim / sum_monto_devengado
+  const out = JSON.stringify([{statisticType:"sum", onStatisticField:fieldAgg, outStatisticFieldName:"v"}]);
+  const p = new URLSearchParams({ where: WHERE_SECTOR, outStatistics: out, returnGeometry:"false", f:"json" });
+  const r = await fetch(`${FS10}?${p}`, {cache:"no-store"});
+  if(!r.ok) throw new Error("HTTP "+r.status);
+  const j = await r.json();
+  if(j?.error) throw new Error(j.error.message);
+  return Number(j.features?.[0]?.attributes?.v || 0);
+}
+async function sumFromFS13(fieldRaw){  // monto_pim / monto_devengado
+  const out = JSON.stringify([{statisticType:"sum", onStatisticField:fieldRaw, outStatisticFieldName:"v"}]);
+  const p = new URLSearchParams({ where: WHERE_SECTOR, outStatistics: out, returnGeometry:"false", f:"json" });
+  const r = await fetch(`${FS13}?${p}`, {cache:"no-store"});
+  const j = await r.json();
+  return Number(j.features?.[0]?.attributes?.v || 0);
+}
+async function fetchPIM(){
+  try{ return await sumFromFS10("sum_monto_pim"); }
+  catch(e){ console.warn("PIM: fallback a FS/13", e); return await sumFromFS13("monto_pim"); }
+}
+async function fetchDEV(){
+  try{ return await sumFromFS10("sum_monto_devengado"); }
+  catch(e){ console.warn("DEV: fallback a FS/13", e); return await sumFromFS13("monto_devengado"); }
+}
+
+/* ===== Init ===== */
+(async function(){
+  const elCount = document.getElementById("count");
+  const elPim   = document.getElementById("pim");
+  const elDev   = document.getElementById("dev");
+
+  try{
+    const [n, pim, dev] = await Promise.all([ fetchDistinctCount(), fetchPIM(), fetchDEV() ]);
+
+    requestAnimationFrame(()=>{ elCount.classList.add("on"); elPim.classList.add("on"); elDev.classList.add("on"); });
+
+    animate(elCount, n,   1400, fmtInt);
+    animate(elPim,   pim, 1700, fmtMoney);
+    animate(elDev,   dev, 1700, fmtMoney);
+
+  }catch(err){
+    console.error("Error general", err);
+    elCount.textContent = elPim.textContent = elDev.textContent = "—";
+    elCount.classList.add("on"); elPim.classList.add("on"); elDev.classList.add("on");
+  }
+})();
+</script>
+</body>
+</html>
+
