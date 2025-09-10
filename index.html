@@ -9,24 +9,33 @@
     :root{
       --bg:#0b1020; --panel:#0f172a; --ink:#e5e7eb; --muted:#9aa4b2; --stroke:#1c2542;
       --btn1:#60a5fa; --btn2:#34d399; --btn3:#f59e0b; --btn4:#a78bfa;
-      --shadow: 0 10px 24px rgba(0,0,0,.25);
-      --pv-w: 520px; --pv-h: 320px;
-      --base-w: 1280px; --base-h: 800px;
+      --shadow: 0 12px 30px rgba(0,0,0,.28);
+      --pv-w: 560px;            /* ancho del popup */
+      --pv-h: 360px;            /* alto del popup */
+      --base-w: 1280px;         /* tamaño base de la página previsualizada */
+      --base-h: 800px;
+      --hdr-h: 40px;            /* alto de la barra del popup */
+      --radius: 14px;
     }
     @media (prefers-color-scheme: light){
-      :root{ --bg:#f6f8fc; --panel:#ffffff; --ink:#0f172a; --muted:#5b6472; --stroke:#e6eaf0; --shadow: 0 14px 30px rgba(16,24,40,.08); }
+      :root{ --bg:#f6f8fc; --panel:#ffffff; --ink:#0f172a; --muted:#5b6472; --stroke:#e6eaf0; --shadow: 0 16px 36px rgba(16,24,40,.10); }
     }
     html,body{height:100%}
     body{margin:0; background:var(--bg); color:var(--ink); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial}
+
     .wrap{max-width:1100px; margin:0 auto; padding:18px}
     h1{margin:0 0 8px; font-size:1.4rem; font-weight:900}
     .sub{color:var(--muted); margin-bottom:14px}
-    details{ background: color-mix(in oklab, var(--panel) 96%, transparent); border:1px solid var(--stroke); border-radius:14px; box-shadow:var(--shadow); overflow:hidden; margin:12px 0 }
+
+    /* Panel retráctil (acordeón) */
+    details{ background: color-mix(in oklab, var(--panel) 96%, transparent); border:1px solid var(--stroke); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; margin:12px 0 }
     summary{ cursor:pointer; list-style:none; padding:14px 16px; display:flex; gap:10px; align-items:center; font-weight:800 }
     summary::-webkit-details-marker{ display:none }
     .chev{transition: transform .2s ease; opacity:.9}
     details[open] .chev{ transform: rotate(180deg) }
     .section{ padding:14px 16px 18px; border-top:1px solid var(--stroke) }
+
+    /* Grid de botones */
     .grid{ display:grid; gap:10px; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
     .btn{
       display:block; text-decoration:none; color:inherit; font-weight:800;
@@ -36,26 +45,73 @@
     }
     .btn:hover{ transform: translateY(-2px); filter: brightness(1.05) }
     .btn:focus-visible{ outline:3px solid color-mix(in oklab, var(--btn1) 50%, transparent) }
+
     .v2{ background: linear-gradient(135deg, color-mix(in oklab, var(--btn2) 38%, transparent), color-mix(in oklab, var(--panel) 85%, transparent)); }
     .v3{ background: linear-gradient(135deg, color-mix(in oklab, var(--btn3) 38%, transparent), color-mix(in oklab, var(--panel) 85%, transparent)); }
     .v4{ background: linear-gradient(135deg, color-mix(in oklab, var(--btn4) 38%, transparent), color-mix(in oklab, var(--panel) 85%, transparent)); }
+
     .note{ color:var(--muted); font-size:.9rem; margin-top:12px }
-    .preview { position: fixed; z-index: 1000; display: none; width: var(--pv-w); height: var(--pv-h); background: var(--panel); color: var(--ink); border: 1px solid var(--stroke); border-radius: 12px; box-shadow: var(--shadow); padding: 8px; gap: 8px; pointer-events: none; }
-    .pv-wrap{ position: relative; width: 100%; height: calc(100% - 28px); border-radius: 10px; overflow: hidden; background: #00000012; border: 1px solid var(--stroke); }
-    .pv-frame{ position:absolute; top:0; left:0; border:0; width: var(--base-w); height: var(--base-h); transform-origin: 0 0; pointer-events: none; }
-    .pv-cap{ font-size:.85rem; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .pv-overlay{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:.9rem; color:var(--muted); background: linear-gradient(to bottom, #0000, #00000018); opacity: 0; transition: opacity .15s ease; }
+
+    /* ===== Popup de vista previa mejorado ===== */
+    .preview {
+      position: fixed; z-index: 1000; display: none;
+      width: var(--pv-w); height: var(--pv-h);
+      background: var(--panel); color: var(--ink);
+      border: 1px solid var(--stroke); border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      pointer-events: auto;   /* para poder hacer click en la barra */
+      user-select: none;
+    }
+    .pv-hdr{
+      height: var(--hdr-h); display:flex; align-items:center; gap:10px; padding:0 10px;
+      border-bottom:1px solid var(--stroke);
+      background: linear-gradient(to bottom, color-mix(in oklab, var(--panel) 95%, transparent), color-mix(in oklab, var(--panel) 85%, transparent));
+    }
+    .pv-title{ flex:1; font-size:.95rem; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .pv-btn{
+      appearance:none; border:1px solid var(--stroke); background:transparent; color:inherit; border-radius:8px; padding:6px 10px; font-weight:800; cursor:pointer;
+    }
+    .pv-btn:hover{ background: color-mix(in oklab, var(--panel) 85%, transparent); }
+    .pv-wrap{
+      position: relative; width: 100%; height: calc(100% - var(--hdr-h) - 22px);
+      margin: 10px; border-radius: 10px; overflow: hidden; background: #00000012; border: 1px solid var(--stroke);
+    }
+    .pv-frame{
+      position:absolute; top:0; left:0; border:0; width: var(--base-w); height: var(--base-h);
+      transform-origin: 0 0; pointer-events: none; /* desactiva interacción dentro del iframe */
+      background:#0b1020;
+    }
+    .pv-overlay{
+      position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+      font-size:.92rem; color:var(--muted); background: linear-gradient(to bottom, #0000, #0003);
+      opacity: 0; transition: opacity .15s ease;
+      text-align:center; padding:10px;
+    }
     .preview.loading .pv-overlay{ opacity: 1; }
     .preview.blocked .pv-overlay{ opacity: 1; color:#fca5a5 }
-    @media (max-width: 700px){ :root{ --pv-w: 92vw; --pv-h: 52vw; } }
+    .pv-thumb{
+      position:absolute; inset:0; object-fit:cover; width:100%; height:100%; display:none;
+    }
+    .preview.blocked .pv-thumb{ display:block; }
+
+    .pv-cap{
+      height: 18px; line-height:18px;
+      font-size:.82rem; color:var(--muted);
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+      padding:0 12px 8px;
+    }
+
+    @media (max-width: 700px){
+      :root{ --pv-w: 92vw; --pv-h: 56vw; }
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>📊 Biblioteca — Productos en HTML y Python</h1>
+    <h1>📊 Biblioteca — Botones simples</h1>
     <div class="sub">Interfaz de visualizaciones para Storymaps (con previsualización real en miniatura).</div>
 
-    <!-- Sección: Gráficos -->
+    <!-- Sección: Gráficos (cerrado por defecto) -->
     <details>
       <summary>
         <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
@@ -83,12 +139,12 @@
           <a class="btn v2" href="grafico-inversion1.html"       target="_blank">Gráfico Inversión 1</a>
           <a class="btn v3" href="grafico-inversion2.html"       target="_blank">Gráfico Inversión 2</a>
         </div>
-        <div class="note">Si una página impide incrustación, agrega <code>data-thumb</code> con una miniatura para ese botón.</div>
+        <div class="note">Si una página impide incrustación, agrega <code>data-thumb="ruta/a/miniatura.jpg"</code> al botón.</div>
       </div>
     </details>
 
-    <!-- Sección: Indicadores -->
-    <details open>
+    <!-- Sección: Indicadores (cerrado por defecto) -->
+    <details>
       <summary>
         <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
         📌 Indicadores
@@ -104,7 +160,7 @@
       </div>
     </details>
 
-    <!-- Sección: Mapas -->
+    <!-- Sección: Mapas (cerrado por defecto) -->
     <details>
       <summary>
         <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
@@ -124,7 +180,178 @@
       </div>
     </details>
   </div>
+
+  <!-- Popup de vista previa -->
+  <div id="preview" class="preview" role="dialog" aria-modal="false" aria-live="polite" aria-hidden="true">
+    <div class="pv-hdr">
+      <div id="pvtitle" class="pv-title">Vista previa</div>
+      <button id="pvlock" class="pv-btn" type="button" title="Fijar (bloquear) la vista">Fijar</button>
+      <a id="pvopen" class="pv-btn" href="#" target="_blank" rel="noopener" title="Abrir en nueva pestaña">Abrir</a>
+      <button id="pvclose" class="pv-btn" type="button" title="Cerrar (Esc)">Cerrar</button>
+    </div>
+    <div class="pv-wrap">
+      <iframe id="pvframe" class="pv-frame" sandbox="allow-scripts allow-same-origin"></iframe>
+      <img id="pvthumb" class="pv-thumb" alt="Miniatura" />
+      <div id="pvover" class="pv-overlay">Cargando vista previa…</div>
+    </div>
+    <div id="pvcap" class="pv-cap"></div>
+  </div>
+
+  <script>
+    // ==== Config y utilidades ====
+    const isCoarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches; // móviles
+    const $ = (q)=>document.querySelector(q);
+    const preview = $('#preview');
+    const pvframe = $('#pvframe');
+    const pvthumb = $('#pvthumb');
+    const pvover  = $('#pvover');
+    const pvtitle = $('#pvtitle');
+    const pvopen  = $('#pvopen');
+    const pvclose = $('#pvclose');
+    const pvlock  = $('#pvlock');
+    const pvcap   = $('#pvcap');
+
+    let hoverTimer = null, blockTimer = null, currentURL = '';
+    let locked = false;
+
+    function cssVar(name){
+      return parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
+    }
+
+    // Escala el iframe al tamaño del recuadro de preview
+    function applyScale(){
+      const wrap = preview.querySelector('.pv-wrap');
+      if(!wrap) return;
+      const wrapW = wrap.clientWidth;
+      const wrapH = wrap.clientHeight;
+      const baseW = cssVar('--base-w');
+      const baseH = cssVar('--base-h');
+      const scale = Math.min(wrapW/baseW, wrapH/baseH);
+      pvframe.style.transform = `scale(${scale})`;
+    }
+    window.addEventListener('resize', applyScale);
+
+    // Posicionar el popup cerca del cursor, ajustando a viewport
+    function positionPopup(x, y){
+      const pad = 14;
+      const w = preview.offsetWidth || cssVar('--pv-w');
+      const h = preview.offsetHeight || cssVar('--pv-h');
+      const vw = window.scrollX + window.innerWidth;
+      const vh = window.scrollY + window.innerHeight;
+      let left = x + pad, top = y + pad;
+      if(left + w > vw - 8) left = x - w - pad;
+      if(top + h > vh - 8) top = y - h - pad;
+      // límites mínimos
+      left = Math.max(window.scrollX + 8, left);
+      top  = Math.max(window.scrollY + 8, top);
+      preview.style.left = left + 'px';
+      preview.style.top  = top  + 'px';
+    }
+
+    function showPreview(anchor, ev){
+      if(isCoarse || locked && preview.style.display==='none') return; // en móviles no mostramos
+      const href = anchor.getAttribute('href');
+      const label = anchor.textContent.trim();
+      const thumb = anchor.getAttribute('data-thumb');
+
+      pvtitle.textContent = label;
+      pvcap.textContent   = href;
+      pvopen.href         = href;
+
+      // Posicionamiento
+      let x, y;
+      if(ev && 'clientX' in ev){ x = ev.clientX + window.scrollX; y = ev.clientY + window.scrollY; }
+      else { const r = anchor.getBoundingClientRect(); x = r.left + r.width/2 + window.scrollX; y = r.bottom + window.scrollY; }
+      preview.style.display = 'block';
+      preview.setAttribute('aria-hidden','false');
+      positionPopup(x, y);
+
+      // Estado visual
+      preview.classList.add('loading');
+      preview.classList.remove('blocked');
+      pvthumb.style.display = 'none';
+      if(thumb){ pvthumb.src = thumb; } else { pvthumb.removeAttribute('src'); }
+
+      // Cargar con pequeño delay para no recargar en pasadas rápidas
+      clearTimeout(hoverTimer);
+      hoverTimer = setTimeout(()=>{
+        if(currentURL !== href || pvframe.src !== href){
+          currentURL = href;
+          pvover.textContent = 'Cargando vista previa…';
+          pvframe.src = href;
+        }
+      }, 130);
+
+      // Timeout de bloqueo (sitios con X-Frame-Options/CSP)
+      clearTimeout(blockTimer);
+      blockTimer = setTimeout(()=>{
+        if(preview.classList.contains('loading')){
+          preview.classList.remove('loading');
+          preview.classList.add('blocked');
+          pvover.textContent = 'Vista previa no disponible (el sitio restringe incrustación).';
+          if(pvthumb.src) pvthumb.style.display = 'block';
+        }
+      }, 1500);
+
+      applyScale();
+    }
+
+    function hidePreview(force=false){
+      if(locked && !force) return; // si está bloqueado/fijado, no ocultar
+      preview.style.display = 'none';
+      preview.setAttribute('aria-hidden','true');
+      clearTimeout(hoverTimer);
+      clearTimeout(blockTimer);
+    }
+
+    // Detecta carga del iframe (no podemos leer su contenido por CORS, solo estados)
+    pvframe.addEventListener('load', ()=>{
+      preview.classList.remove('loading');
+      // si carga algo, asumimos OK (aunque algunas páginas muestren blanco)
+      pvover.textContent = ' ';
+    });
+
+    // Eventos globales para hover/teclado
+    document.addEventListener('mouseover', (e)=>{
+      const a = e.target.closest('a.btn'); if(!a) return;
+      if(!locked) showPreview(a, e);
+    });
+    document.addEventListener('mousemove', (e)=>{
+      if(preview.style.display==='block' && !locked){
+        const a = e.target.closest('a.btn');
+        if(a) { positionPopup(e.clientX + window.scrollX, e.clientY + window.scrollY); }
+      }
+    });
+    document.addEventListener('mouseout', (e)=>{
+      const leavingBtn = e.target.closest && e.target.closest('a.btn');
+      if(leavingBtn && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('#preview'))){
+        hidePreview();
+      }
+    });
+
+    // Accesible con teclado
+    document.addEventListener('focusin', e=>{
+      const a = e.target.closest && e.target.closest('a.btn'); if(a && !locked) showPreview(a, null);
+    });
+    document.addEventListener('focusout', e=>{
+      const a = e.target.closest && e.target.closest('a.btn'); if(a) hidePreview();
+    });
+
+    // Oculta al hacer scroll si no está fijado
+    window.addEventListener('scroll', ()=>{ if(preview.style.display==='block' && !locked) hidePreview(); });
+
+    // Controles del popup
+    pvlock.addEventListener('click', ()=>{
+      locked = !locked;
+      pvlock.textContent = locked ? 'Desfijar' : 'Fijar';
+      preview.setAttribute('aria-modal', locked ? 'true' : 'false');
+    });
+    pvclose.addEventListener('click', ()=>{ locked = false; pvlock.textContent = 'Fijar'; hidePreview(true); });
+
+    // Cerrar con Esc
+    document.addEventListener('keydown', (e)=>{
+      if(e.key === 'Escape'){ locked = false; pvlock.textContent = 'Fijar'; hidePreview(true); }
+    });
+  </script>
 </body>
 </html>
-
-
