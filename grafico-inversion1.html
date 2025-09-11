@@ -6,32 +6,69 @@
 <title>Evolución del Avance Físico por Programa</title>
 <style>
   :root{ --ink:#062e2b; --muted:#475569; --grid:#eef2f7; }
-  html,body{height:100%;margin:0;background:#fff;color:var(--ink);
-    font-family:system-ui,Segoe UI,Roboto,Arial}
-  .stage{
-    height:100vh;width:100vw;display:grid;
-    grid-template-rows:auto auto 1fr;align-items:start;justify-items:stretch;
-    padding:clamp(8px,2vw,20px); box-sizing:border-box;
-    gap:10px;
+
+  /* Full-bleed para embed (iframe/StoryMap) */
+  html, body {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    background: #fff;
+    color: var(--ink);
+    font-family: system-ui, Segoe UI, Roboto, Arial;
+    overflow: hidden; /* evita scrollbars en el embed */
   }
-  h1{margin:0;text-align:center;font-weight:800;letter-spacing:.2px;
-     font-size:clamp(18px,2.6vw,28px)}
+
+  /* Usa nuevas unidades de viewport; fallback a 100vh */
+  .stage{
+    height: 100dvh; /* navegadores modernos */
+    height: 100vh;  /* fallback */
+    width: 100%;
+    display: grid;
+    grid-template-rows: min-content min-content 1fr;
+    align-items: start;
+    justify-items: stretch;
+    padding: 0;          /* sin padding para full-bleed real */
+    box-sizing: border-box;
+    gap: 8px;            /* espacio mínimo entre título/leyenda/gráfico */
+  }
+
+  h1{
+    margin: 0;
+    padding: 8px 10px;   /* un respiro mínimo */
+    text-align: center;
+    font-weight: 800;
+    letter-spacing: .2px;
+    font-size: clamp(18px, 2.6vw, 28px);
+  }
+
+  /* Leyenda interactiva */
   .legendBar{
     display:flex; justify-content:center; align-items:center; gap:14px;
-    flex-wrap:wrap; min-height:28px;
+    flex-wrap:wrap; min-height:32px; padding: 0 8px;
   }
   .leg-btn{
     display:inline-flex; align-items:center; gap:8px; padding:6px 10px;
     border:1px solid #e5e7eb; border-radius:999px; cursor:pointer;
     user-select:none; background:#fff; font-weight:700; font-size:13px;
     transition:transform .06s ease, opacity .2s ease, background .2s;
+    white-space: nowrap;
   }
   .leg-btn .swatch{ width:12px; height:12px; border-radius:50%; box-shadow:0 0 0 2px #fff inset, 0 0 0 1px #00000010 }
   .leg-btn[aria-pressed="false"]{ opacity:.35; background:#f8fafc; }
-  .chartWrap{position:relative;overflow:hidden; border-radius:14px}
-  canvas{display:block;width:100%;height:100%}
-  .empty{display:grid;place-items:center;height:100%;
-    color:#64748b;font-size:clamp(13px,1.6vw,16px)}
+
+  /* Contenedor del gráfico ocupa todo el resto */
+  .chartWrap{
+    position:relative; overflow:hidden; border-radius:0; /* sin bordes para full-bleed */
+    width:100%; height:100%;
+  }
+  canvas{ display:block; width:100%; height:100% }
+
+  .empty{
+    display:grid; place-items:center; height:100%;
+    color:#64748b; font-size:clamp(13px,1.6vw,16px); padding: 12px; text-align:center;
+  }
+
+  /* Tooltip */
   .tip{
     position:absolute; pointer-events:none; background:#0b2532; color:#fff;
     padding:8px 10px; border-radius:10px; font-size:12px; line-height:1.25;
@@ -196,13 +233,21 @@ function makeChart(series){
       s.data.forEach((v,i)=>{ const xx=x(i),yy=y(v); ctx.beginPath(); ctx.arc(xx,yy,3,0,2*Math.PI); ctx.fill(); });
     });
   }
-  draw(); window.addEventListener("resize",draw,{passive:true});
+  draw(); 
+  window.addEventListener("resize",draw,{passive:true});
 }
 
 /* ---------- Run ---------- */
 (async function(){
-  const series = await loadData();
-  makeChart(series);
+  try{
+    const series = await loadData();
+    makeChart(series);
+  }catch(e){
+    console.error(e);
+    const empty = document.getElementById("empty");
+    empty.style.display = "grid";
+    empty.textContent = "Error al cargar datos";
+  }
 })();
 </script>
 </body>
