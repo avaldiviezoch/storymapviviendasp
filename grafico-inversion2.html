@@ -19,11 +19,30 @@
   .chartWrap{position:relative;overflow:hidden;border-radius:14px}
   canvas{display:block;width:100%;height:100%}
   .empty{display:grid;place-items:center;height:100%;color:#64748b;font-size:clamp(13px,1.6vw,16px);padding:12px;text-align:center}
-  .tip{position:absolute;pointer-events:none;background:#0b2532;color:#fff;padding:10px 12px;border-radius:10px;font-size:12px;line-height:1.3;
-       box-shadow:0 10px 24px rgba(2,6,23,.18);opacity:0;transform:translate(-50%,-110%);transition:opacity .12s ease;max-width:min(420px,70vw)}
-  .tip h4{margin:0 0 6px 0;font-size:12px;letter-spacing:.02em;opacity:.9}
-  .tip .row{display:flex;gap:10px;align-items:center;justify-content:space-between}
-  .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+
+  /* ===== Tooltip estilizado (solo estilos) ===== */
+  .tip{
+    position:absolute; pointer-events:none; color:#0b2532;
+    background:#ffffff; border:1px solid #e5e7eb;
+    box-shadow:0 10px 28px rgba(2,6,23,.15), 0 2px 6px rgba(2,6,23,.08);
+    border-radius:12px; padding:12px 14px; font-size:12px; line-height:1.35;
+    opacity:0; transform:translate(-50%,-110%); transition:opacity .12s ease;
+    max-width:min(520px,72vw)
+  }
+  .tip .chip{
+    display:inline-flex; align-items:center; gap:8px;
+    font-weight:800; padding:4px 10px; border-radius:999px;
+    background:#f8fafc; border:1px solid #e5e7eb; font-size:11px;
+    letter-spacing:.02em;
+  }
+  .tip .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+  .tip .grid{
+    margin-top:8px; display:grid; grid-template-columns:auto 1fr; gap:6px 12px;
+  }
+  .tip .k{color:#64748b}
+  .tip .v{font-weight:700; text-align:right}
+  .tip .hr{margin:8px 0; height:1px; background:#eef2f7; grid-column:1/-1}
+  .tip .long{grid-column:1/-1; text-align:left; font-weight:600}
 </style>
 </head>
 <body>
@@ -161,9 +180,9 @@ function makeChart(points){
     legend.appendChild(b);
   });
 
-  // Escala de tamaño por beneficiarios (similar a Power BI: raíz)
+  // Escala de tamaño por beneficiarios
   const maxB = Math.max(1, ...points.map(p=>p.bens||0));
-  const minR = 4, maxR = 22; // ajusta si quieres burbuja más chica/grande
+  const minR = 4, maxR = 22;
   const rScale = (b)=> {
     const t = Math.sqrt((b||0)/maxB);
     return minR + t * (maxR - minR);
@@ -231,24 +250,29 @@ function makeChart(points){
   function draw(){ compute(); drawAxes(); drawPoints(); }
   draw(); window.addEventListener("resize",draw,{passive:true});
 
-  // Tooltip
+  // ===== Tooltip (solo se cambió el markup para estilizar) =====
   function hit(mx,my){ for(let i=HIT.length-1;i>=0;i--){const h=HIT[i],dx=mx-h.x,dy=my-h.y; if(dx*dx+dy*dy<=h.r*h.r) return h;} return null; }
   function showTip(h,mx,my){
     const d=h.data;
-    const rows =
-      `<h4><span class="dot" style="background:${h.color}"></span> ${h.key.replace(/\(.+\)/,'')} (${fmtPct(d.pct)})</h4>`+
-      `<div class="row"><span>Devengado Acumulado</span><strong>${fmtCompact(d.x)}</strong></div>`+
-      `<div class="row"><span>Monto de inversión</span><strong>${fmtCompact(d.y)}</strong></div>`+
-      `<div class="row"><span>Beneficiarios</span><strong>${(d.bens||0).toLocaleString('es-PE')}</strong></div>`+
-      (d.icod? `<div class="row"><span>icodunificado</span><strong>${d.icod}</strong></div>`:"")+
-      (d.nombre? `<div class="row"><span>nombreproyecto</span><strong style="max-width:280px;text-align:right">${d.nombre}</strong></div>`:"");
+    const html =
+      `<span class="chip"><span class="dot" style="background:${h.color}"></span>${h.key}</span>`+
+      `<div class="grid">`+
+        `<div class="k">Devengado Acumulado</div><div class="v">${fmtCompact(d.x)}</div>`+
+        `<div class="k">Monto de inversión</div><div class="v">${fmtCompact(d.y)}</div>`+
+        `<div class="k">Beneficiarios</div><div class="v">${(d.bens||0).toLocaleString('es-PE')}</div>`+
+        `<div class="k">% Avance</div><div class="v">${fmtPct(d.pct)}</div>`+
+        (d.icod ? `<div class="k">CUI</div><div class="v">${d.icod}</div>` : ``)+
+        `<div class="hr"></div>`+
+        (d.nombre ? `<div class="long">${d.nombre}</div>` : ``)+
+      `</div>`;
+
     const rect=wrap.getBoundingClientRect();
-    const tip=document.getElementById("tip"); tip.innerHTML=rows;
-    let lx=mx-rect.left+12, ly=my-rect.top-12;
-    lx=Math.min(rect.width-10,Math.max(10,lx)); ly=Math.min(rect.height-10,Math.max(10,ly));
-    tip.style.left=lx+"px"; tip.style.top=ly+"px"; tip.style.opacity=1;
+    let x=mx-rect.left+12, y=my-rect.top-12;
+    x=Math.min(rect.width-10,Math.max(10,x)); y=Math.min(rect.height-10,Math.max(10,y));
+    tip.innerHTML = html;
+    tip.style.left = x+"px"; tip.style.top = y+"px"; tip.style.opacity = 1;
   }
-  function hideTip(){ document.getElementById("tip").style.opacity=0; }
+  function hideTip(){ tip.style.opacity=0; }
   canvas.addEventListener("mousemove",(e)=>{ const h=hit(e.clientX,e.clientY); if(h) showTip(h,e.clientX,e.clientY); else hideTip(); },{passive:true});
   canvas.addEventListener("mouseleave", hideTip, {passive:true});
 }
@@ -267,4 +291,3 @@ function makeChart(points){
 </script>
 </body>
 </html>
-
