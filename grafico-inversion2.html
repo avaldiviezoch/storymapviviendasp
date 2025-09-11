@@ -1,1 +1,270 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Devengado Acumulado VS Monto de Inversión</title>
+<style>
+  :root{ --ink:#0b2532; --muted:#64748b; --grid:#e5e7eb; }
+  html,body{height:100%;margin:0;background:#fff;color:var(--ink);
+    font-family:system-ui,Segoe UI,Roboto,Arial}
+  .stage{height:100vh;width:100vw;display:grid;grid-template-rows:auto auto 1fr;
+    gap:10px;padding:clamp(8px,2vw,20px); box-sizing:border-box}
+  h1{margin:0;text-align:center;font-weight:900;letter-spacing:.3px;
+     font-size:clamp(20px,3vw,42px)}
+  .legendBar{display:flex;justify-content:center;align-items:center;gap:14px;flex-wrap:wrap;min-height:28px}
+  .leg-btn{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid #e5e7eb;border-radius:999px;cursor:pointer;background:#fff;font-weight:700;font-size:13px}
+  .leg-btn[aria-pressed="false"]{opacity:.35;background:#f8fafc}
+  .sw{width:12px;height:12px;border-radius:50%}
+  .chartWrap{position:relative;overflow:hidden;border-radius:14px}
+  canvas{display:block;width:100%;height:100%}
+  .empty{display:grid;place-items:center;height:100%;color:#64748b;font-size:clamp(13px,1.6vw,16px);padding:12px;text-align:center}
+  .tip{position:absolute;pointer-events:none;background:#0b2532;color:#fff;padding:10px 12px;border-radius:10px;font-size:12px;line-height:1.3;
+       box-shadow:0 10px 24px rgba(2,6,23,.18);opacity:0;transform:translate(-50%,-110%);transition:opacity .12s ease;max-width:min(420px,70vw)}
+  .tip h4{margin:0 0 6px 0;font-size:12px;letter-spacing:.02em;opacity:.9}
+  .tip .row{display:flex;gap:10px;align-items:center;justify-content:space-between}
+  .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+</style>
+</head>
+<body>
+  <div class="stage">
+    <h1>Devengado Acumulado VS Monto de Inversión</h1>
+
+    <!-- Leyenda interactiva centrada -->
+    <div class="legendBar" id="legendBar" role="toolbar" aria-label="Filtrar por Nivel de Avance"></div>
+
+    <div class="chartWrap" id="wrap" aria-live="polite">
+      <canvas id="chart"></canvas>
+      <div id="empty" class="empty" style="display:none">Sin datos que cumplan los filtros.</div>
+      <div id="tip" class="tip" role="status"></div>
+    </div>
+  </div>
+
+<script>
+/* -------- Endpoints -------- */
+const LYR13 = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/OGEI/Mapa_Inversiones_MEF/FeatureServer/13/query";
+const LYR1  = "https://pportalgis.vivienda.gob.pe/phtserver/rest/services/Hosted/story_monitoreo_inversiones/FeatureServer/1/query";
+
+/* -------- Filtros CAPA 13 (válidos) -------- */
+const WHERE_13 = "monto_pim > 0 AND producto_proyecto IS NOT NULL AND producto_proyecto <> 2193247";
+
+/* -------- Filtros CAPA 1 (datos del scatter) -------- */
+const WHERE_1 = "etapa IN ('OBRA','OBRA (SALDO)') AND montoactualizadopip_decimal > 0 AND devengadoacumulado >= 0";
+
+/* -------- Categorías por % -------- */
+const CATS = [
+  {key:"Bajo (0%–30%)",   short:"Bajo",  color:"#dc2626", match:p=> p<=30},
+  {key:"Medio (30%–70%)", short:"Medio", color:"#f59e0b", match:p=> p>30 && p<70},
+  {key:"Alto (70%–100%)", short:"Alto",  color:"#22c55e", match:p=> p>=70}, // incluye >100
+];
+
+/* -------- Utils -------- */
+function pct(dev, inv){
+  const d=Number(dev), m=Number(inv);
+  if(!isFinite(d)||!isFinite(m)||m<=0) return 0;
+  return (d/m)*100;
+}
+function catFromPct(p){ for(const c of CATS){ if(c.match(p)) return c.short; } return "Bajo"; }
+function fmtCompact(n){
+  const v=Number(n)||0, a=Math.abs(v);
+  if(a>=1e9) return (v/1e9).toFixed(1).replace(/\.0$/,'')+" B";
+  if(a>=1e6) return (v/1e6).toFixed(1).replace(/\.0$/,'')+" M";
+  if(a>=1e3) return (v/1e3).toFixed(1).replace(/\.0$/,'')+" k";
+  return v.toLocaleString('es-PE');
+}
+function fmtPct(p){ return (Math.round(p*10)/10).toLocaleString('es-PE')+"%"; }
+
+/* ArcGIS helpers (POST + paginado) */
+async function fetchAllPOST(url, baseParams){
+  const pageSize=2000; let offset=0, out=[];
+  while(true){
+    const body = new URLSearchParams({
+      ...baseParams, returnGeometry:"false", f:"json",
+      resultRecordCount: pageSize, resultOffset: offset
+    }).toString();
+    const res = await fetch(url, {
+      method:"POST",
+      headers:{ "Content-Type":"application/x-www-form-urlencoded;charset=UTF-8" },
+      body, cache:"no-store"
+    });
+    if(!res.ok) throw new Error("HTTP "+res.status);
+    const j = await res.json();
+    if(j.error) throw new Error("ArcGIS: "+(j.error.message||"consulta inválida"));
+    const feats = j.features ?? [];
+    out.push(...feats.map(f=>f.attributes||{}));
+    if(!j.exceededTransferLimit && feats.length<pageSize) break;
+    offset += pageSize;
+  }
+  return out;
+}
+
+/* -------- Carga de datos -------- */
+async function loadData(){
+  // 1) IDs válidos desde CAPA 13
+  const rows13 = await fetchAllPOST(LYR13, {
+    where: WHERE_13,
+    outFields: "producto_proyecto"
+  });
+  const idSet = new Set(rows13.map(r=>r.producto_proyecto).filter(v=>v!=null));
+  if(idSet.size===0) return [];
+
+  // 2) Traemos de CAPA 1 con IN (…) en chunks
+  const ids = Array.from(idSet);
+  const chunkSize = 900;
+  let rows1 = [];
+  for(let i=0;i<ids.length;i+=chunkSize){
+    const slice = ids.slice(i,i+chunkSize);
+    const where = `${WHERE_1} AND icodunificado IN (${slice.join(",")})`;
+    const part = await fetchAllPOST(LYR1, {
+      where,
+      outFields: "icodunificado,devengadoacumulado,montoactualizadopip_decimal,nombreproyecto,beneficiarios"
+    });
+    rows1.push(...part);
+  }
+
+  // 3) Transformamos
+  const pts = rows1.map(r=>{
+    const x = Number(r.devengadoacumulado)||0;
+    const y = Number(r.montoactualizadopip_decimal)||0;
+    const bens = Number(r.beneficiarios)||0;
+    const p = pct(x,y);
+    return {
+      x, y, bens, pct: p, nivel: catFromPct(p),
+      icod: r.icodunificado ?? "",
+      nombre: (r.nombreproyecto ?? "").toString().trim()
+    };
+  }).filter(d=>d.y>0);
+
+  return pts;
+}
+
+/* -------- Gráfico (Canvas) -------- */
+function makeChart(points){
+  const wrap   = document.getElementById("wrap");
+  const canvas = document.getElementById("chart");
+  const ctx    = canvas.getContext("2d");
+  const empty  = document.getElementById("empty");
+  const tip    = document.getElementById("tip");
+  const legend = document.getElementById("legendBar");
+
+  if(!points.length){ empty.style.display="grid"; return; }
+  empty.style.display="none";
+
+  // Leyenda interactiva
+  const visible = new Map(CATS.map(c=>[c.short,true]));
+  legend.innerHTML="";
+  CATS.forEach(c=>{
+    const b=document.createElement("button");
+    b.className="leg-btn"; b.type="button"; b.setAttribute("aria-pressed","true");
+    b.innerHTML=`<span class="sw" style="background:${c.color}"></span>${c.key}`;
+    b.onclick=()=>{ const cur=visible.get(c.short); visible.set(c.short,!cur); b.setAttribute("aria-pressed",String(!cur)); draw(); };
+    legend.appendChild(b);
+  });
+
+  // Escala de tamaño por beneficiarios (similar a Power BI: raíz)
+  const maxB = Math.max(1, ...points.map(p=>p.bens||0));
+  const minR = 4, maxR = 22; // ajusta si quieres burbuja más chica/grande
+  const rScale = (b)=> {
+    const t = Math.sqrt((b||0)/maxB);
+    return minR + t * (maxR - minR);
+  };
+
+  // Escalas y dibujo
+  let dims={}, scale={};
+  function compute(){
+    const dpr=Math.max(1,window.devicePixelRatio||1);
+    const W=wrap.clientWidth,H=wrap.clientHeight;
+    canvas.width=W*dpr; canvas.height=H*dpr; canvas.style.width=W+"px"; canvas.style.height=H+"px";
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    dims={W,H};
+    const pad={t:40,r:24,b:56,l:80};
+    const act=points.filter(p=>visible.get(p.nivel));
+    const minX=0, maxX=Math.max(1,...act.map(p=>p.x));
+    const minY=0, maxY=Math.max(1,...act.map(p=>p.y));
+    const nX=Math.pow(10,Math.floor(Math.log10(maxX||1)));
+    const nY=Math.pow(10,Math.floor(Math.log10(maxY||1)));
+    const XMAX=Math.ceil(maxX/nX)*nX, YMAX=Math.ceil(maxY/nY)*nY;
+    scale={pad,minX,maxX:XMAX,minY,maxY:YMAX,
+      x:v=>pad.l+(W-pad.l-pad.r)*((v-minX)/(XMAX-minX||1)),
+      y:v=>pad.t+(H-pad.t-pad.b)*(1-(v-minY)/(YMAX-minY||1))
+    };
+  }
+  function drawAxes(){
+    const {pad}=scale; const W=dims.W,H=dims.H;
+    ctx.clearRect(0,0,W,H);
+    // grid vertical
+    const vDiv=5; ctx.setLineDash([3,4]); ctx.strokeStyle="#e5e7eb";
+    for(let i=0;i<=vDiv;i++){ const x=scale.x(scale.minX+(scale.maxX-scale.minX)*i/vDiv);
+      ctx.beginPath(); ctx.moveTo(x,pad.t); ctx.lineTo(x,H-pad.b); ctx.stroke(); }
+    ctx.setLineDash([]);
+    // eje y + ticks
+    ctx.textAlign="right"; ctx.textBaseline="middle"; ctx.font="12px system-ui"; ctx.fillStyle="#0b2532";
+    const yTicks=5;
+    for(let i=0;i<=yTicks;i++){
+      const v=scale.minY+(scale.maxY-scale.minY)*i/yTicks, yy=scale.y(v);
+      ctx.strokeStyle=i===0?"#e5e7eb":"#f3f4f6";
+      ctx.beginPath(); ctx.moveTo(scale.pad.l,yy); ctx.lineTo(W-scale.pad.r,yy); ctx.stroke();
+      ctx.fillText(fmtCompact(v), scale.pad.l-8, yy);
+    }
+    // labels
+    ctx.save(); ctx.fillStyle="#0b2532"; ctx.font="600 13px system-ui";
+    ctx.translate(24,H/2); ctx.rotate(-Math.PI/2); ctx.fillText("Monto de Inversión",0,0); ctx.restore();
+    ctx.textAlign="center"; ctx.textBaseline="bottom";
+    ctx.fillText("Devengado Acumulado", scale.pad.l+(W-scale.pad.l-scale.pad.r)/2, H-10);
+  }
+
+  // Dibujo de puntos + hit map
+  let HIT=[];
+  function drawPoints(){
+    HIT=[];
+    CATS.forEach(c=>{
+      if(!visible.get(c.short)) return;
+      ctx.fillStyle=c.color;
+      points.forEach(p=>{
+        if(p.nivel!==c.short) return;
+        const x=scale.x(p.x), y=scale.y(p.y), r=rScale(p.bens);
+        ctx.beginPath(); ctx.arc(x,y,r,0,2*Math.PI); ctx.fill();
+        HIT.push({x,y,r:r+4,data:p,color:c.color, key:c.key});
+      });
+    });
+  }
+  function draw(){ compute(); drawAxes(); drawPoints(); }
+  draw(); window.addEventListener("resize",draw,{passive:true});
+
+  // Tooltip
+  function hit(mx,my){ for(let i=HIT.length-1;i>=0;i--){const h=HIT[i],dx=mx-h.x,dy=my-h.y; if(dx*dx+dy*dy<=h.r*h.r) return h;} return null; }
+  function showTip(h,mx,my){
+    const d=h.data;
+    const rows =
+      `<h4><span class="dot" style="background:${h.color}"></span> ${h.key.replace(/\(.+\)/,'')} (${fmtPct(d.pct)})</h4>`+
+      `<div class="row"><span>Devengado Acumulado</span><strong>${fmtCompact(d.x)}</strong></div>`+
+      `<div class="row"><span>Monto de inversión</span><strong>${fmtCompact(d.y)}</strong></div>`+
+      `<div class="row"><span>Beneficiarios</span><strong>${(d.bens||0).toLocaleString('es-PE')}</strong></div>`+
+      (d.icod? `<div class="row"><span>icodunificado</span><strong>${d.icod}</strong></div>`:"")+
+      (d.nombre? `<div class="row"><span>nombreproyecto</span><strong style="max-width:280px;text-align:right">${d.nombre}</strong></div>`:"");
+    const rect=wrap.getBoundingClientRect();
+    const tip=document.getElementById("tip"); tip.innerHTML=rows;
+    let lx=mx-rect.left+12, ly=my-rect.top-12;
+    lx=Math.min(rect.width-10,Math.max(10,lx)); ly=Math.min(rect.height-10,Math.max(10,ly));
+    tip.style.left=lx+"px"; tip.style.top=ly+"px"; tip.style.opacity=1;
+  }
+  function hideTip(){ document.getElementById("tip").style.opacity=0; }
+  canvas.addEventListener("mousemove",(e)=>{ const h=hit(e.clientX,e.clientY); if(h) showTip(h,e.clientX,e.clientY); else hideTip(); },{passive:true});
+  canvas.addEventListener("mouseleave", hideTip, {passive:true});
+}
+
+/* -------- Run -------- */
+(async function(){
+  try{
+    const pts = await loadData();
+    makeChart(pts);
+  }catch(err){
+    console.error(err);
+    const el=document.getElementById("empty"); el.style.display="grid";
+    el.textContent="Error al cargar datos: "+(err.message||err);
+  }
+})();
+</script>
+</body>
+</html>
 
