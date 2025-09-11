@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Inversión pública por actividad / proyecto</title>
+<style>
+  :root{
+    --ink:#0b2532; --muted:#64748b; --grid:#e5e7eb;
+    --pim:#f59e0b; --dev:#1f77b4;
+  }
+  html,body{height:100%;margin:0;background:#fff;color:var(--ink);
+    font-family:system-ui,Segoe UI,Roboto,Arial}
+  .stage{
+    height:100vh;width:100vw;display:grid;grid-template-rows:auto auto 1fr;
+    gap:10px;padding:clamp(10px,2vw,24px);box-sizing:border-box
+  }
+  h1{margin:0;text-align:center;font-weight:800;letter-spacing:.2px;
+     font-size:clamp(18px,2.8vw,36px)}
+  .legendBar{display:flex;justify-content:center;gap:18px;align-items:center;flex-wrap:wrap}
+  .chip{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid #e5e7eb;border-radius:999px;font-weight:700;font-size:13px;background:#fff}
+  .dot{width:12px;height:12px;border-radius:50%;display:inline-block}
+  .chartWrap{position:relative;overflow:hidden;border-radius:14px}
+  canvas{display:block;width:100%;height:100%}
+  .empty{display:grid;place-items:center;height:100%;color:var(--muted);font-size:clamp(13px,1.6vw,16px);text-align:center}
+  /* Tooltip */
+  .tip{
+    position:absolute; pointer-events:none; color:var(--ink); background:#fff;
+    border:1px solid #e5e7eb; border-radius:12px; padding:10px 12px;
+    font-size:12px; line-height:1.35; box-shadow:0 10px 28px rgba(2,6,23,.15);
+    opacity:0; transform:translate(-50%,-110%); transition:opacity .12s ease;
+    max-width:min(360px,70vw)
+  }
+  .tip .row{display:flex;justify-content:space-between;gap:12px}
+  .tip .k{color:var(--muted)}
+  .tip .v{font-weight:800}
+  .source{font-size:12px;color:var(--muted);text-align:center}
+</style>
+</head>
+<body>
+  <div class="stage">
+    <h1>Inversión pública por actividad / proyecto</h1>
+
+    <div class="legendBar">
+      <span class="chip"><span class="dot" style="background:var(--dev)"></span>monto devengado</span>
+      <span class="chip"><span class="dot" style="background:var(--pim)"></span>monto PIM</span>
+    </div>
+
+    <div class="chartWrap" id="wrap" aria-live="polite">
+      <canvas id="chart"></canvas>
+      <div id="empty" class="empty" style="display:none">Sin datos para el año seleccionado.</div>
+      <div id="tip" class="tip"></div>
+    </div>
+
+    <div class="source">Fuente: Ministerio de Economía y Finanzas – MEF, Portal de Datos Abiertos</div>
+  </div>
+
+<script>
+const URL13 = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/OGEI/Mapa_Inversiones_MEF/FeatureServer/13/query";
+const YEAR  = 2025; // filtro solicitado
+
+function fmtM(v){
+  const n = Number(v)||0;
+  return (n/1e6).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,'.')+" M";
+}
+function fmtAxis(v){
+  const n = Number(v)||0;
+  if (n>=1e9) return (n/1e9).toFixed(1).replace(/\.0$/,'')+" B";
+  if (n>=1e6) return (n/1e6).toFixed(0)+" M";
+  return n.toLocaleString('es-PE');
+}
+async function fetchStats(){
+  const params = new URLSearchParams({
+    f:"json",
+    where:`ano_eje = ${YEAR}`,
+    returnGeometry:"false",
+    groupByFieldsForStatistics:"tipo_act_proy_nombre",
+    outFields:"tipo_act_proy_nombre",
+    orderByFields:"tipo_act_proy_nombre",
+    outStatistics: JSON.stringify([
+      { "statisticType": "sum", "onStatisticField": "monto_pim",        "outStatisticFieldName": "sum_pim" },
+      { "statisticType": "sum", "onStatisticField": "monto_devengado", "outStatisticFieldName": "sum_dev" }
+    ])
+  });
+  const res = await fetch(URL13, {
+    method:"POST",
+    headers:{ "Content-Type":"application/x-www-form-urlencoded;charset=UTF-8" },
+    body: params.toString(),
+    cache:"no-store"
+  });
+  if(!res.ok) throw new Error("HTTP "+res.status);
+  const j = await res.json();
+  if(j.error) throw new Error(j.error.message||"Error ArcGIS");
+  const rows = (j.features||[]).map(f=>f.attributes||{});
+
+  // Orden amigable: PROYECTO primero, luego ACTIVIDAD (si existen)
+  const order = ["PROYECTO","ACTIVIDAD"];
+  rows.sort((a,b)=>{
+    const ai = order.indexOf(a.tipo_act_proy_nombre);
+    const bi = order.indexOf(b.tipo_act_proy_nombre);
+    return (ai<0?99:ai) - (bi<0?99:bi);
+  });
+
+  return rows.map(r=>({
+    cat: r.tipo_act_proy_nombre || "—",
+    pim: Number(r.sum_pim)||0,
+    dev: Number(r.sum_dev)||0
+  }));
+}
+
+function makeChart(data){
+  const wrap = document.getElementById("wrap");
+  const canvas = document.getElementById("chart");
+  const tip = document.getElementById("tip");
+  const empty = document.getElementById("empty");
+  const ctx = canvas.getContext("2d");
+
+  if(!data.length){ empty.style.display="grid"; return; }
+  empty.style.display="none";
+
+  // Escalas
+  let dims={}, scale={}, bars=[];
+  function build(){
+    const dpr = Math.max(1, window.devicePixelRatio||1);
+    const W = wrap.clientWidth, H = wrap.clientHeight;
+    canvas.width=W*dpr; canvas.height=H*dpr; canvas.style.width=W+"px"; canvas.style.height=H+"px";
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    dims={W,H};
+
+    const pad = {t:26, r:24, b:50, l:110};
+    const maxVal = Math.max(1, ...data.map(d=>Math.max(d.pim,d.dev)));
+    // redondeo "bonito"
+    const pow = Math.pow(10, Math.floor(Math.log10(maxVal)));
+    const XMAX = Math.ceil(maxVal / (pow/2)) * (pow/2);
+
+    scale = {
+      pad, max:XMAX,
+      x:(v)=> pad.l + (W-pad.l-pad.r) * (v/XMAX),
+      y:(i)=> {
+        const n = data.length;
+        const band = (H-pad.t-pad.b) / Math.max(1,n);
+        return pad.t + band*(i+0.5);
+      },
+      bandH: (H-pad.t-pad.b)/Math.max(1,data.length)
+    };
+
+    // precálculo de posiciones de barras y para hit-testing
+    const barH = Math.min(36, scale.bandH*0.5);
+    bars = data.map((d,i)=>{
+      const cy = scale.y(i);
+      const yTop = cy - barH/2;
+      const pimW = Math.max(0, scale.x(d.pim)-scale.x(0));
+      const devW = Math.max(0, scale.x(d.dev)-scale.x(0));
+      return {
+        cat:d.cat, pim:d.pim, dev:d.dev,
+        pimRect:{x:scale.x(0), y:yTop, w:pimW, h:barH},
+        devRect:{x:scale.x(0), y:yTop, w:devW, h:barH*0.68}, // más angosta encima
+        cy, barH
+      };
+    });
+  }
+
+  function axes(){
+    const {pad,max} = scale;
+    ctx.clearRect(0,0,dims.W,dims.H);
+
+    // grid vertical
+    ctx.strokeStyle = "#eceff3"; ctx.lineWidth=1; ctx.setLineDash([3,5]);
+    const ticks = 6;
+    for(let t=0;t<=ticks;t++){
+      const v = max*(t/ticks);
+      const x = scale.x(v);
+      ctx.beginPath(); ctx.moveTo(x,pad.t); ctx.lineTo(x,dims.H-pad.b); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    // eje X labels
+    ctx.fillStyle = "var(--ink)"; ctx.font = "12px system-ui,Segoe UI,Roboto,Arial";
+    ctx.textAlign="center"; ctx.textBaseline="top";
+    for(let t=0;t<=ticks;t++){
+      const v = max*(t/ticks);
+      const x = scale.x(v);
+      ctx.fillText(fmtAxis(v), x, dims.H - pad.b + 8);
+    }
+
+    // categorías (Y)
+    ctx.textAlign="right"; ctx.textBaseline="middle"; ctx.font="600 13px system-ui,Segoe UI,Roboto,Arial";
+    data.forEach((d,i)=> ctx.fillText(d.cat, scale.pad.l - 12, scale.y(i)));
+    // etiqueta eje X
+    ctx.textAlign="center"; ctx.textBaseline="bottom"; ctx.font="600 13px system-ui";
+    ctx.fillText("Monto de inversión (S/.)", scale.pad.l + (dims.W-scale.pad.l-scale.pad.r)/2, dims.H-6);
+  }
+
+  function drawBars(){
+    bars.forEach(b=>{
+      // PIM (fondo)
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--pim').trim() || "#f59e0b";
+      roundRect(ctx, b.pimRect.x, b.pimRect.y, b.pimRect.w, b.pimRect.h, 8); ctx.fill();
+
+      // Devengado (frente)
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--dev').trim() || "#1f77b4";
+      roundRect(ctx, b.devRect.x, b.devRect.y, b.devRect.w, b.devRect.h, 8); ctx.fill();
+
+      // Etiquetas dentro de las barras
+      ctx.fillStyle="#fff"; ctx.font="600 12px system-ui";
+      ctx.textAlign="right"; ctx.textBaseline="middle";
+      if (b.devRect.w>42) ctx.fillText(fmtM(b.dev), b.devRect.x + b.devRect.w - 6, b.devRect.y + b.devRect.h/2);
+      ctx.fillStyle="#000000b0";
+      ctx.textAlign="left";
+      if (b.pimRect.w - b.devRect.w > 46)
+        ctx.fillText(fmtM(b.pim), b.devRect.x + b.devRect.w + 8, b.pimRect.y + b.pimRect.h/2);
+    });
+  }
+
+  function draw(){
+    build(); axes(); drawBars();
+  }
+  draw(); window.addEventListener("resize", draw, {passive:true});
+
+  // Tooltip
+  function hit(mx,my){
+    for(const b of bars){
+      const r = b.devRect; // priorizamos devengado; si no, mirar PIM
+      if(mx>=r.x && mx<=r.x+r.w && my>=r.y && my<=r.y+r.h) return {b, kind:"dev"};
+      const p = b.pimRect;
+      if(mx>=p.x && mx<=p.x+p.w && my>=p.y && my<=p.y+p.h) return {b, kind:"pim"};
+    }
+    return null;
+  }
+  canvas.addEventListener("mousemove",(e)=>{
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const h = hit(mx,my);
+    if(!h){ tip.style.opacity=0; return; }
+    const {b, kind} = h;
+    tip.innerHTML = `
+      <div class="row"><span class="k">Categoría</span><span class="v">${b.cat}</span></div>
+      <div class="row"><span class="k">monto PIM</span><span class="v">${fmtAxis(b.pim)}</span></div>
+      <div class="row"><span class="k">monto devengado</span><span class="v">${fmtAxis(b.dev)}</span></div>
+    `;
+    tip.style.left = (e.clientX - rect.left + 14) + "px";
+    tip.style.top  = (e.clientY - rect.top  - 14) + "px";
+    tip.style.opacity = 1;
+  }, {passive:true});
+  canvas.addEventListener("mouseleave", ()=> tip.style.opacity=0, {passive:true});
+
+  // util: rect redondeado
+  function roundRect(ctx,x,y,w,h,r){
+    const rr = Math.min(r, h/2, w/2);
+    ctx.beginPath();
+    ctx.moveTo(x+rr,y);
+    ctx.arcTo(x+w,y,x+w,y+h,rr);
+    ctx.arcTo(x+w,y+h,x,y+h,rr);
+    ctx.arcTo(x,y+h,x,y,rr);
+    ctx.arcTo(x,y,x+w,y,rr);
+    ctx.closePath();
+  }
+}
+
+/* Run */
+(async function(){
+  try{
+    const rows = await fetchStats();
+    makeChart(rows);
+  }catch(err){
+    console.error(err);
+    document.getElementById("empty").style.display="grid";
+    document.getElementById("empty").textContent = "Error al cargar datos";
+  }
+})();
+</script>
+</body>
+</html>
