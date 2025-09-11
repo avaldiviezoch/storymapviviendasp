@@ -1,1 +1,365 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Evolución del Avance Físico por Programa</title>
+<style>
+  :root{ --ink:#062e2b; --muted:#475569; --grid:#eef2f7; }
+  html,body{height:100%;margin:0;background:#fff;color:var(--ink);
+    font-family:system-ui,Segoe UI,Roboto,Arial}
+  .stage{
+    height:100vh;width:100vw;display:grid;
+    grid-template-rows:auto auto 1fr;align-items:start;justify-items:stretch;
+    padding:clamp(8px,2vw,20px); box-sizing:border-box;
+    gap:10px;
+  }
+  h1{margin:0;text-align:center;font-weight:800;letter-spacing:.2px;
+     font-size:clamp(18px,2.6vw,28px)}
+  /* Leyenda interactiva (reemplaza al subtítulo) */
+  .legendBar{
+    display:flex; justify-content:center; align-items:center; gap:14px;
+    flex-wrap:wrap; min-height:28px;
+  }
+  .leg-btn{
+    display:inline-flex; align-items:center; gap:8px; padding:6px 10px;
+    border:1px solid #e5e7eb; border-radius:999px; cursor:pointer;
+    user-select:none; background:#fff; font-weight:700; font-size:13px;
+    transition:transform .06s ease, opacity .2s ease, background .2s;
+  }
+  .leg-btn .swatch{ width:12px; height:12px; border-radius:50%; box-shadow:0 0 0 2px #fff inset, 0 0 0 1px #00000010 }
+  .leg-btn[aria-pressed="false"]{ opacity:.35; background:#f8fafc; }
+  .chartWrap{position:relative;overflow:hidden; border-radius:14px}
+  canvas{display:block;width:100%;height:100%}
+  .empty{display:grid;place-items:center;height:100%;
+    color:#64748b;font-size:clamp(13px,1.6vw,16px)}
+  /* Tooltip */
+  .tip{
+    position:absolute; pointer-events:none; background:#0b2532; color:#fff;
+    padding:8px 10px; border-radius:10px; font-size:12px; line-height:1.25;
+    box-shadow:0 10px 24px rgba(2,6,23,.18); opacity:0; transform:translate(-50%,-110%);
+    transition:opacity .12s ease;
+    max-width:min(320px, 60vw);
+  }
+  .tip h4{margin:0 0 6px 0; font-size:12px; letter-spacing:.02em; opacity:.9}
+  .tip .row{display:flex; gap:10px; align-items:center; justify-content:space-between}
+  .dot{width:10px;height:10px;border-radius:50%; display:inline-block}
+  .tip .name{display:flex; align-items:center; gap:8px}
+</style>
+</head>
+<body>
+  <div class="stage">
+    <h1>Evolución del Avance de Ejecución Física por Programa</h1>
+
+    <!-- Leyenda interactiva centrada -->
+    <div class="legendBar" id="legendBar" role="toolbar" aria-label="Filtrar por programa"></div>
+
+    <div class="chartWrap" id="wrap" aria-live="polite">
+      <canvas id="chart"></canvas>
+      <div id="empty" class="empty" style="display:none">Sin datos que cumplan los filtros.</div>
+      <div id="tip" class="tip" role="status"></div>
+    </div>
+  </div>
+
+<script>
+/* ---------- Config ---------- */
+const LYR1 = "https://pportalgis.vivienda.gob.pe/phtserver/rest/services/Hosted/story_monitoreo_inversiones/FeatureServer/1/query";
+const LYR13= "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/OGEI/Mapa_Inversiones_MEF/FeatureServer/13/query";
+
+/* Filtros */
+const WHERE_1  = "etapa IN ('OBRA','OBRA (SALDO)')";
+const WHERE_13 = "monto_pim > 0 AND producto_proyecto IS NOT NULL AND producto_proyecto <> 2193247";
+
+/* Eje X (bins) */
+const BINS = [
+  {label:"0",      match:(v)=> Number(v)===0},
+  {label:"0–20",   match:(v)=> v>0   && v<20},
+  {label:"20–40",  match:(v)=> v>=20 && v<40},
+  {label:"40–60",  match:(v)=> v>=40 && v<60},
+  {label:"60–80",  match:(v)=> v>=60 && v<80},
+  {label:"80–100", match:(v)=> v>=80 && v<=100},
+];
+const COLORS = { "PASLC":"#b58900","PMIB":"#d97706","PNSR":"#0ea5e9","PNSU":"#16a34a" };
+const FALLBACK_COLORS = ["#2563eb","#f43f5e","#10b981","#a855f7","#eab308","#ef4444"];
+
+/* ---------- Helpers ---------- */
+async function fetchAllPOST(url, baseParams){
+  const pageSize = 2000;
+  let offset = 0, out = [];
+  while(true){
+    const params = new URLSearchParams({
+      ...baseParams,
+      returnGeometry:"false",
+      f:"json",
+      resultRecordCount: pageSize,
+      resultOffset: offset
+    });
+    const res = await fetch(url, {
+      method:"POST",
+      headers:{ "Content-Type":"application/x-www-form-urlencoded;charset=UTF-8" },
+      body: params.toString(),
+      cache:"no-store"
+    });
+    if(!res.ok) throw new Error("HTTP "+res.status);
+    const j = await res.json();
+    const feats = j.features ?? [];
+    out.push(...feats.map(f=>f.attributes||{}));
+    if(!j.exceededTransferLimit && feats.length < pageSize) break;
+    offset += pageSize;
+  }
+  return out;
+}
+function toNumberSafe(x){
+  if (x == null) return NaN;
+  if (typeof x === "number") return x;
+  return parseFloat(String(x).replace(",", "."));
+}
+function binLabel(vRaw){
+  const v = toNumberSafe(vRaw);
+  if (!isFinite(v)) return null;
+  for (const b of BINS){ if (b.match(v)) return b.label; }
+  return null;
+}
+const colorFor = (prog, idx)=> COLORS[prog] || FALLBACK_COLORS[idx % FALLBACK_COLORS.length];
+
+/* ---------- Data Pipeline ---------- */
+async function loadData(){
+  // 1) Ids válidos desde LYR13
+  const attrs13 = await fetchAllPOST(LYR13, {
+    where: WHERE_13,
+    outFields: "producto_proyecto"
+  });
+  const validIDs = new Set(attrs13.map(a=>a.producto_proyecto).filter(v=>v!=null));
+  if (validIDs.size === 0) return [];
+
+  // 2) Base LYR1 (filtramos aquí por etapa y luego por id)
+  const rows1 = await fetchAllPOST(LYR1, {
+    where: WHERE_1,
+    outFields: "icodunificado,programa,avancefisicoreal"
+  });
+
+  const filtered = rows1.filter(r => validIDs.has(r.icodunificado));
+
+  // 3) Agrupar (programa × bin)
+  const byProgram = new Map(); // prog -> Map(bin -> count)
+  for (const r of filtered){
+    const prog = (r.programa ?? "").toString().trim();
+    if (!prog) continue;
+    const bin = binLabel(r.avancefisicoreal);
+    if (!bin) continue;
+    if (!byProgram.has(prog)) byProgram.set(prog, new Map());
+    const m = byProgram.get(prog);
+    m.set(bin, (m.get(bin)||0)+1);
+  }
+
+  // 4) Serie final ordenada por bins
+  const series = [];
+  for (const [prog, counts] of byProgram){
+    const arr = BINS.map(b => counts.get(b.label)||0);
+    series.push({ programa: prog, data: arr });
+  }
+  // Orden por nombre para consistencia
+  series.sort((a,b)=> a.programa.localeCompare(b.programa,'es'));
+  return series;
+}
+
+/* ---------- Chart (Canvas 2D) + Interacción ---------- */
+function makeChart(series){
+  const wrap   = document.getElementById("wrap");
+  const canvas = document.getElementById("chart");
+  const empty  = document.getElementById("empty");
+  const tip    = document.getElementById("tip");
+  const legendBar = document.getElementById("legendBar");
+
+  if(!series.length){
+    empty.style.display = "grid";
+    canvas.width = canvas.height = 0;
+    legendBar.innerHTML = "";
+    return;
+  } else {
+    empty.style.display = "none";
+  }
+
+  // Estado de visibilidad por programa
+  const visible = new Map(series.map((s)=> [s.programa, true]));
+
+  // Leyenda interactiva (centrada)
+  legendBar.innerHTML = "";
+  series.forEach((s,i)=>{
+    const btn = document.createElement("button");
+    btn.className = "leg-btn";
+    btn.type = "button";
+    btn.setAttribute("aria-pressed", "true");
+    btn.setAttribute("data-programa", s.programa);
+    btn.innerHTML = `<span class="swatch" style="background:${colorFor(s.programa,i)}"></span>${s.programa}`;
+    btn.addEventListener("click", ()=>{
+      const cur = visible.get(s.programa);
+      visible.set(s.programa, !cur);
+      btn.setAttribute("aria-pressed", String(!cur));
+      draw(); // redibujar
+    });
+    legendBar.appendChild(btn);
+  });
+
+  // Render
+  const ctx = canvas.getContext("2d");
+  let dims = {}, scale = {};
+  function resize(){
+    const dpr = Math.max(1, window.devicePixelRatio||1);
+    const W = wrap.clientWidth, H = wrap.clientHeight;
+    canvas.width = Math.floor(W*dpr);
+    canvas.height= Math.floor(H*dpr);
+    canvas.style.width = W+"px"; canvas.style.height = H+"px";
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    dims.W=W; dims.H=H;
+  }
+  function buildScales(){
+    const pad = {t: 42, r: 14, b: 44, l: 60};
+    const xStep = (dims.W - pad.l - pad.r) / (BINS.length-1);
+    const yMaxData = Math.max(1, ...series.flatMap(s=> visible.get(s.programa)? s.data : [0]));
+    const YCAP = 300;
+    const yMax = Math.min(YCAP, Math.max(5, Math.ceil(yMaxData/5)*5));
+    scale = {
+      pad, xStep, yMax,
+      x:(i)=> pad.l + xStep * i,
+      y:(v)=> pad.t + (dims.H - pad.t - pad.b) * (1 - v/yMax)
+    };
+  }
+  function drawAxes(){
+    const {pad,y,xStep,yMax} = scale;
+    ctx.clearRect(0,0,dims.W,dims.H);
+
+    // baselíne X
+    ctx.strokeStyle = "#e5e7eb"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(pad.l, scale.y(0)); ctx.lineTo(dims.W-pad.r, scale.y(0)); ctx.stroke();
+
+    // grid + ticks Y
+    const nTicks=5; ctx.textAlign="right"; ctx.textBaseline="middle"; ctx.font="12px system-ui,Segoe UI,Roboto,Arial";
+    for(let t=0;t<=nTicks;t++){
+      const v = Math.round((yMax/nTicks)*t);
+      const yv = scale.y(v);
+      ctx.strokeStyle = "--grid" in getComputedStyle(document.documentElement) ? getComputedStyle(document.documentElement).getPropertyValue("--grid") : "#eef2f7";
+      ctx.beginPath(); ctx.moveTo(pad.l, yv); ctx.lineTo(dims.W-pad.r, yv); ctx.stroke();
+      ctx.fillStyle = "#0b3b38"; ctx.fillText(String(v), pad.l-10, yv);
+    }
+    // labels X
+    ctx.fillStyle = "#0b3b38"; ctx.textAlign="center"; ctx.textBaseline="top";
+    BINS.forEach((b,i)=> ctx.fillText(b.label.replace("–"," - "), scale.x(i), scale.y(0)+8));
+
+    // titles
+    ctx.save(); ctx.fillStyle="#0b3b38"; ctx.font="600 13px system-ui,Segoe UI,Roboto,Arial";
+    ctx.translate(18, dims.H/2); ctx.rotate(-Math.PI/2);
+    ctx.fillText("Recuento de programa",0,0);
+    ctx.restore();
+    ctx.textAlign="center"; ctx.textBaseline="bottom";
+    ctx.fillText("Avance Físico", scale.x(0)+(BINS.length-1)*xStep/2, dims.H-6);
+  }
+  function drawSeries(){
+    series.forEach((s, idx)=>{
+      if(!visible.get(s.programa)) return;
+      const col = colorFor(s.programa, idx);
+      ctx.lineWidth = 2; ctx.strokeStyle = col;
+      ctx.beginPath();
+      s.data.forEach((v,i)=>{
+        const x = scale.x(i), y = scale.y(v);
+        if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      });
+      ctx.stroke();
+      ctx.fillStyle = col;
+      s.data.forEach((v,i)=>{
+        const x = scale.x(i), y = scale.y(v);
+        ctx.beginPath(); ctx.arc(x,y,3,0,Math.PI*2); ctx.fill();
+      });
+    });
+  }
+
+  // Hover / Tooltip
+  let hover = {i:null, x:0, y:0};
+  function drawHover(){
+    if(hover.i==null) return;
+    const xi = scale.x(hover.i);
+    // guía
+    ctx.strokeStyle = "#0ea5e955";
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(xi, scale.pad.t); ctx.lineTo(xi, dims.H - scale.pad.b); ctx.stroke();
+    // puntos resaltados
+    series.forEach((s, idx)=>{
+      if(!visible.get(s.programa)) return;
+      const v = s.data[hover.i]||0;
+      const x = xi, y = scale.y(v);
+      ctx.fillStyle = colorFor(s.programa, idx);
+      ctx.beginPath(); ctx.arc(x,y,4.5,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(x,y,4.5,0,Math.PI*2); ctx.stroke();
+    });
+  }
+  function updateTip(clientX, clientY){
+    if(hover.i==null){ tip.style.opacity = 0; return; }
+    const binLabel = BINS[hover.i].label;
+    const rows = series
+      .filter(s=> visible.get(s.programa))
+      .map((s,idx)=> ({name:s.programa, val:s.data[hover.i]||0, col: colorFor(s.programa, idx)}))
+      .sort((a,b)=> b.val - a.val);
+
+    if(!rows.length){ tip.style.opacity = 0; return; }
+
+    tip.innerHTML =
+      `<h4>${binLabel}</h4>` +
+      rows.map(r=> `<div class="row"><span class="name"><span class="dot" style="background:${r.col}"></span>${r.name}</span><strong>${r.val}</strong></div>`).join("");
+
+    // Posición del tooltip (limitada al viewport)
+    const rect = wrap.getBoundingClientRect();
+    let x = clientX - rect.left, y = clientY - rect.top;
+    x = Math.max(12, Math.min(rect.width-12, x));
+    y = Math.max(12, Math.min(rect.height-12, y));
+    tip.style.left = x+"px"; tip.style.top = y+"px";
+    tip.style.opacity = 1;
+  }
+  function nearestBinFromClientX(clientX){
+    const rect = canvas.getBoundingClientRect();
+    const x = clientX - rect.left;
+    // inverso simple por pasos
+    let bestI = 0, bestD = Infinity;
+    for(let i=0;i<BINS.length;i++){
+      const d = Math.abs(x - scale.x(i));
+      if(d<bestD){ bestD=d; bestI=i; }
+    }
+    return bestI;
+  }
+
+  function draw(){
+    resize();
+    buildScales();
+    drawAxes();
+    drawSeries();
+    drawHover();
+  }
+  draw();
+  window.addEventListener("resize", draw, {passive:true});
+
+  canvas.addEventListener("mousemove", (e)=>{
+    hover.i = nearestBinFromClientX(e.clientX);
+    draw();
+    updateTip(e.clientX, e.clientY);
+  }, {passive:true});
+  canvas.addEventListener("mouseleave", ()=>{
+    hover.i = null; draw(); tip.style.opacity = 0;
+  }, {passive:true});
+}
+
+/* ---------- Run ---------- */
+(async function(){
+  try{
+    const series = await loadData();
+    makeChart(series);
+  }catch(err){
+    console.error(err);
+    const el = document.getElementById("empty");
+    el.style.display = "grid";
+    el.textContent = "Error al cargar datos";
+  }
+})();
+</script>
+</body>
+</html>
 
