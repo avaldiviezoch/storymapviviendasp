@@ -115,7 +115,7 @@ const COLORS = {
 };
 const FALLBACK_COLORS = ["#56B4E9","#F0E442","#CC79A7","#000000","#999999"];
 
-/* Helpers de red y utilitarios */
+/* Helpers */
 async function fetchAllPOST(url, baseParams){
   const pageSize = 2000;
   let offset = 0, out = [];
@@ -159,8 +159,7 @@ async function loadData(){
   const byProgram = new Map();
   for (const r of filtered){
     const prog = (r.programa ?? "").toString().trim();
-    theBin = binLabel(r.avancefisicoreal);
-    const bin = theBin;
+    const bin = binLabel(r.avancefisicoreal);   // ← corregido (sin variable global)
     if (!prog || !bin) continue;
     if (!byProgram.has(prog)) byProgram.set(prog, new Map());
     const m = byProgram.get(prog);
@@ -176,13 +175,11 @@ async function loadData(){
 
 /* ---------- Curvas suavizadas (Catmull–Rom → Bézier) ---------- */
 function drawCRSpline(ctx, pts){
-  // pts: [{x,y}, ...] con length >= 2
   if (pts.length < 2){ return; }
   const p = (i)=> pts[Math.max(0, Math.min(pts.length-1, i))];
   ctx.moveTo(pts[0].x, pts[0].y);
   for (let i=0; i<pts.length-1; i++){
     const p0 = p(i-1), p1 = p(i), p2 = p(i+1), p3 = p(i+2);
-    // Catmull-Rom to cubic Bézier (tension=0.5)
     const t = 0.5;
     const cp1x = p1.x + (p2.x - p0.x) * (t/6);
     const cp1y = p1.y + (p2.y - p0.y) * (t/6);
@@ -216,8 +213,7 @@ function makeChart(series){
     legendBar.appendChild(btn);
   });
 
-  // Para hit-test del tooltip
-  let hitPoints = []; // {x,y,r, programa, binLabel, value, color}
+  let hitPoints = [];
 
   function draw(){
     const dpr=Math.max(1,window.devicePixelRatio||1);
@@ -230,11 +226,14 @@ function makeChart(series){
 
     const pad={t:42,r:14,b:44,l:60};
     const xStep=(W-pad.l-pad.r)/(BINS.length-1);
+
+    // === Escala Y sin tope + 12% de holgura ===
     const yMaxData=Math.max(1,...series.flatMap(s=>visible.get(s.programa)?s.data:[0]));
-    const yMax=Math.min(300,Math.max(5,Math.ceil(yMaxData/5)*5));
+    const yMax=Math.max(5, Math.ceil((yMaxData*1.12)/5)*5);
+
     const x=i=>pad.l+xStep*i, y=v=>pad.t+(H-pad.t-pad.b)*(1-v/yMax);
 
-    // eje Y + X
+    // ejes y grilla
     ctx.strokeStyle="#e5e7eb"; ctx.beginPath(); ctx.moveTo(pad.l,y(0)); ctx.lineTo(W-pad.r,y(0)); ctx.stroke();
     ctx.textAlign="right"; ctx.textBaseline="middle"; ctx.fillStyle="#0b3b38"; ctx.font="12px system-ui";
     for(let t=0;t<=5;t++){ const val=Math.round(yMax/5*t), yy=y(val);
@@ -243,21 +242,17 @@ function makeChart(series){
     ctx.textAlign="center"; ctx.textBaseline="top";
     BINS.forEach((b,i)=> ctx.fillText(b.label,x(i),y(0)+8));
 
-    // series (líneas suavizadas + puntos)
-    const POINT_R = 4; // un punto más grande que antes (era 3)
+    // series
+    const POINT_R = 4;
     series.forEach((s,idx)=>{
       if(!visible.get(s.programa)) return;
       const col=colorFor(s.programa,idx);
-
-      // Construir puntos
       const pts = s.data.map((v,i)=>({ x:x(i), y:y(v), bin:BINS[i].label, val:v, programa:s.programa, color:col }));
 
-      // Línea suavizada
       ctx.strokeStyle=col; ctx.lineWidth=2; ctx.beginPath();
       drawCRSpline(ctx, pts);
       ctx.stroke();
 
-      // Puntos y registro hit-test
       ctx.fillStyle=col;
       pts.forEach(p=>{
         ctx.beginPath(); ctx.arc(p.x,p.y,POINT_R,0,2*Math.PI); ctx.fill();
@@ -266,7 +261,6 @@ function makeChart(series){
     });
   }
 
-  // Tooltip interactivo
   function handleMove(ev){
     const rect = canvas.getBoundingClientRect();
     const x = (ev.clientX - rect.left);
