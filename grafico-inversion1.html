@@ -7,7 +7,6 @@
 <style>
   :root{ --ink:#062e2b; --muted:#475569; --grid:#eef2f7; }
 
-  /* Full-bleed para embed (iframe/StoryMap) */
   html, body {
     height: 100%;
     width: 100%;
@@ -15,33 +14,31 @@
     background: #fff;
     color: var(--ink);
     font-family: system-ui, Segoe UI, Roboto, Arial;
-    overflow: hidden; /* evita scrollbars en el embed */
+    overflow: hidden;
   }
 
-  /* Usa nuevas unidades de viewport; fallback a 100vh */
   .stage{
-    height: 100dvh; /* navegadores modernos */
-    height: 100vh;  /* fallback */
+    height: 100dvh;
+    height: 100vh;
     width: 100%;
     display: grid;
     grid-template-rows: min-content min-content 1fr;
     align-items: start;
     justify-items: stretch;
-    padding: 0;          /* sin padding para full-bleed real */
+    padding: 0;
     box-sizing: border-box;
-    gap: 8px;            /* espacio mínimo entre título/leyenda/gráfico */
+    gap: 8px;
   }
 
   h1{
     margin: 0;
-    padding: 8px 10px;   /* un respiro mínimo */
+    padding: 8px 10px;
     text-align: center;
     font-weight: 800;
     letter-spacing: .2px;
     font-size: clamp(18px, 2.6vw, 28px);
   }
 
-  /* Leyenda interactiva */
   .legendBar{
     display:flex; justify-content:center; align-items:center; gap:14px;
     flex-wrap:wrap; min-height:32px; padding: 0 8px;
@@ -56,9 +53,8 @@
   .leg-btn .swatch{ width:12px; height:12px; border-radius:50%; box-shadow:0 0 0 2px #fff inset, 0 0 0 1px #00000010 }
   .leg-btn[aria-pressed="false"]{ opacity:.35; background:#f8fafc; }
 
-  /* Contenedor del gráfico ocupa todo el resto */
   .chartWrap{
-    position:relative; overflow:hidden; border-radius:0; /* sin bordes para full-bleed */
+    position:relative; overflow:hidden; border-radius:0;
     width:100%; height:100%;
   }
   canvas{ display:block; width:100%; height:100% }
@@ -119,6 +115,7 @@ const COLORS = {
 };
 const FALLBACK_COLORS = ["#56B4E9","#F0E442","#CC79A7","#000000","#999999"];
 
+/* Helpers de red y utilitarios */
 async function fetchAllPOST(url, baseParams){
   const pageSize = 2000;
   let offset = 0, out = [];
@@ -162,7 +159,8 @@ async function loadData(){
   const byProgram = new Map();
   for (const r of filtered){
     const prog = (r.programa ?? "").toString().trim();
-    const bin = binLabel(r.avancefisicoreal);
+    theBin = binLabel(r.avancefisicoreal);
+    const bin = theBin;
     if (!prog || !bin) continue;
     if (!byProgram.has(prog)) byProgram.set(prog, new Map());
     const m = byProgram.get(prog);
@@ -176,6 +174,24 @@ async function loadData(){
   return series.sort((a,b)=> a.programa.localeCompare(b.programa,'es'));
 }
 
+/* ---------- Curvas suavizadas (Catmull–Rom → Bézier) ---------- */
+function drawCRSpline(ctx, pts){
+  // pts: [{x,y}, ...] con length >= 2
+  if (pts.length < 2){ return; }
+  const p = (i)=> pts[Math.max(0, Math.min(pts.length-1, i))];
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i=0; i<pts.length-1; i++){
+    const p0 = p(i-1), p1 = p(i), p2 = p(i+1), p3 = p(i+2);
+    // Catmull-Rom to cubic Bézier (tension=0.5)
+    const t = 0.5;
+    const cp1x = p1.x + (p2.x - p0.x) * (t/6);
+    const cp1y = p1.y + (p2.y - p0.y) * (t/6);
+    const cp2x = p2.x - (p3.x - p1.x) * (t/6);
+    const cp2y = p2.y - (p3.y - p1.y) * (t/6);
+    ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+  }
+}
+
 /* ---------- Chart ---------- */
 function makeChart(series){
   const wrap = document.getElementById("wrap");
@@ -183,6 +199,7 @@ function makeChart(series){
   const ctx = canvas.getContext("2d");
   const empty = document.getElementById("empty");
   const legendBar = document.getElementById("legendBar");
+  const tip = document.getElementById("tip");
 
   if(!series.length){ empty.style.display="grid"; return; }
   empty.style.display="none";
@@ -199,6 +216,9 @@ function makeChart(series){
     legendBar.appendChild(btn);
   });
 
+  // Para hit-test del tooltip
+  let hitPoints = []; // {x,y,r, programa, binLabel, value, color}
+
   function draw(){
     const dpr=Math.max(1,window.devicePixelRatio||1);
     const W=wrap.clientWidth,H=wrap.clientHeight;
@@ -206,6 +226,7 @@ function makeChart(series){
     canvas.style.width=W+"px"; canvas.style.height=H+"px";
     ctx.setTransform(dpr,0,0,dpr,0,0);
     ctx.clearRect(0,0,W,H);
+    hitPoints = [];
 
     const pad={t:42,r:14,b:44,l:60};
     const xStep=(W-pad.l-pad.r)/(BINS.length-1);
@@ -222,19 +243,64 @@ function makeChart(series){
     ctx.textAlign="center"; ctx.textBaseline="top";
     BINS.forEach((b,i)=> ctx.fillText(b.label,x(i),y(0)+8));
 
-    // series
+    // series (líneas suavizadas + puntos)
+    const POINT_R = 4; // un punto más grande que antes (era 3)
     series.forEach((s,idx)=>{
       if(!visible.get(s.programa)) return;
       const col=colorFor(s.programa,idx);
+
+      // Construir puntos
+      const pts = s.data.map((v,i)=>({ x:x(i), y:y(v), bin:BINS[i].label, val:v, programa:s.programa, color:col }));
+
+      // Línea suavizada
       ctx.strokeStyle=col; ctx.lineWidth=2; ctx.beginPath();
-      s.data.forEach((v,i)=>{ const xx=x(i),yy=y(v); if(i===0) ctx.moveTo(xx,yy); else ctx.lineTo(xx,yy); });
+      drawCRSpline(ctx, pts);
       ctx.stroke();
+
+      // Puntos y registro hit-test
       ctx.fillStyle=col;
-      s.data.forEach((v,i)=>{ const xx=x(i),yy=y(v); ctx.beginPath(); ctx.arc(xx,yy,3,0,2*Math.PI); ctx.fill(); });
+      pts.forEach(p=>{
+        ctx.beginPath(); ctx.arc(p.x,p.y,POINT_R,0,2*Math.PI); ctx.fill();
+        hitPoints.push({x:p.x, y:p.y, r:Math.max(POINT_R+6,10), programa:p.programa, binLabel:p.bin, value:p.val, color:p.color});
+      });
     });
   }
-  draw(); 
+
+  // Tooltip interactivo
+  function handleMove(ev){
+    const rect = canvas.getBoundingClientRect();
+    const x = (ev.clientX - rect.left);
+    const y = (ev.clientY - rect.top);
+    let best=null, bestD=Infinity;
+    for(const p of hitPoints){
+      const dx = x - p.x, dy = y - p.y;
+      const d2 = dx*dx + dy*dy;
+      if (d2 < (p.r*p.r) && d2 < bestD){ best=p; bestD=d2; }
+    }
+    if(best){
+      tip.innerHTML = `
+        <h4>${best.programa}</h4>
+        <div class="row">
+          <span class="name"><span class="dot" style="background:${best.color}"></span>Rango</span>
+          <strong>${best.binLabel}</strong>
+        </div>
+        <div class="row">
+          <span>Conteo</span>
+          <strong>${best.value}</strong>
+        </div>`;
+      tip.style.left = `${x}px`;
+      tip.style.top  = `${y}px`;
+      tip.style.opacity = 1;
+    }else{
+      tip.style.opacity = 0;
+    }
+  }
+  function handleLeave(){ tip.style.opacity = 0; }
+
+  draw();
   window.addEventListener("resize",draw,{passive:true});
+  canvas.addEventListener("mousemove", handleMove, {passive:true});
+  canvas.addEventListener("mouseleave", handleLeave, {passive:true});
 }
 
 /* ---------- Run ---------- */
@@ -252,4 +318,3 @@ function makeChart(series){
 </script>
 </body>
 </html>
-
