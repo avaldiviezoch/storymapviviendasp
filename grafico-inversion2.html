@@ -20,28 +20,28 @@
   canvas{display:block;width:100%;height:100%}
   .empty{display:grid;place-items:center;height:100%;color:#64748b;font-size:clamp(13px,1.6vw,16px);padding:12px;text-align:center}
 
-  /* ===== Tooltip estilizado (solo estilos) ===== */
+  /* ===== Tooltip (compacto) ===== */
   .tip{
     position:absolute; pointer-events:none; color:#0b2532;
     background:#ffffff; border:1px solid #e5e7eb;
-    box-shadow:0 10px 28px rgba(2,6,23,.15), 0 2px 6px rgba(2,6,23,.08);
-    border-radius:12px; padding:12px 14px; font-size:12px; line-height:1.35;
+    box-shadow:0 10px 24px rgba(2,6,23,.12), 0 2px 6px rgba(2,6,23,.08);
+    border-radius:10px; padding:8px 10px; font-size:11px; line-height:1.25;
     opacity:0; transform:translate(-50%,-110%); transition:opacity .12s ease;
-    max-width:min(520px,72vw)
+    max-width:min(360px,68vw)
   }
   .tip .chip{
-    display:inline-flex; align-items:center; gap:8px;
-    font-weight:800; padding:4px 10px; border-radius:999px;
-    background:#f8fafc; border:1px solid #e5e7eb; font-size:11px;
+    display:inline-flex; align-items:center; gap:6px;
+    font-weight:800; padding:3px 8px; border-radius:999px;
+    background:#f8fafc; border:1px solid #e5e7eb; font-size:10.5px;
     letter-spacing:.02em;
   }
-  .tip .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+  .tip .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
   .tip .grid{
-    margin-top:8px; display:grid; grid-template-columns:auto 1fr; gap:6px 12px;
+    margin-top:6px; display:grid; grid-template-columns:auto 1fr; gap:4px 10px;
   }
   .tip .k{color:#64748b}
   .tip .v{font-weight:700; text-align:right}
-  .tip .hr{margin:8px 0; height:1px; background:#eef2f7; grid-column:1/-1}
+  .tip .hr{margin:6px 0; height:1px; background:#eef2f7; grid-column:1/-1}
   .tip .long{grid-column:1/-1; text-align:left; font-weight:600}
 </style>
 </head>
@@ -120,10 +120,7 @@ async function fetchAllPOST(url, baseParams){
 /* -------- Carga de datos -------- */
 async function loadData(){
   // 1) IDs válidos desde CAPA 13
-  const rows13 = await fetchAllPOST(LYR13, {
-    where: WHERE_13,
-    outFields: "producto_proyecto"
-  });
+  const rows13 = await fetchAllPOST(LYR13, { where: WHERE_13, outFields: "producto_proyecto" });
   const idSet = new Set(rows13.map(r=>r.producto_proyecto).filter(v=>v!=null));
   if(idSet.size===0) return [];
 
@@ -196,7 +193,7 @@ function makeChart(points){
     canvas.width=W*dpr; canvas.height=H*dpr; canvas.style.width=W+"px"; canvas.style.height=H+"px";
     ctx.setTransform(dpr,0,0,dpr,0,0);
     dims={W,H};
-    const pad={t:40,r:24,b:56,l:80};
+    const pad={t:40,r:24,b:64,l:86};
     const act=points.filter(p=>visible.get(p.nivel));
     const minX=0, maxX=Math.max(1,...act.map(p=>p.x));
     const minY=0, maxY=Math.max(1,...act.map(p=>p.y));
@@ -211,12 +208,8 @@ function makeChart(points){
   function drawAxes(){
     const {pad}=scale; const W=dims.W,H=dims.H;
     ctx.clearRect(0,0,W,H);
-    // grid vertical
-    const vDiv=5; ctx.setLineDash([3,4]); ctx.strokeStyle="#e5e7eb";
-    for(let i=0;i<=vDiv;i++){ const x=scale.x(scale.minX+(scale.maxX-scale.minX)*i/vDiv);
-      ctx.beginPath(); ctx.moveTo(x,pad.t); ctx.lineTo(x,H-pad.b); ctx.stroke(); }
-    ctx.setLineDash([]);
-    // eje y + ticks
+
+    // ----- grilla horizontal (Y) + etiquetas Y
     ctx.textAlign="right"; ctx.textBaseline="middle"; ctx.font="12px system-ui"; ctx.fillStyle="#0b2532";
     const yTicks=5;
     for(let i=0;i<=yTicks;i++){
@@ -225,11 +218,23 @@ function makeChart(points){
       ctx.beginPath(); ctx.moveTo(scale.pad.l,yy); ctx.lineTo(W-scale.pad.r,yy); ctx.stroke();
       ctx.fillText(fmtCompact(v), scale.pad.l-8, yy);
     }
-    // labels
+
+    // ----- grilla/etiquetas X
+    const xTicks=5;
+    ctx.textAlign="center"; ctx.textBaseline="top"; ctx.font="12px system-ui";
+    for(let i=0;i<=xTicks;i++){
+      const v=scale.minX+(scale.maxX-scale.minX)*i/xTicks;
+      const xx=scale.x(v); const y0=H-scale.pad.b;
+      ctx.strokeStyle="#e5e7eb";
+      ctx.beginPath(); ctx.moveTo(xx,scale.pad.t); ctx.lineTo(xx,y0); ctx.stroke();
+      ctx.fillText(fmtCompact(v), xx, y0+10);
+    }
+
+    // etiquetas de ejes
     ctx.save(); ctx.fillStyle="#0b2532"; ctx.font="600 13px system-ui";
-    ctx.translate(24,H/2); ctx.rotate(-Math.PI/2); ctx.fillText("Monto de Inversión",0,0); ctx.restore();
+    ctx.translate(28,H/2); ctx.rotate(-Math.PI/2); ctx.fillText("Monto de Inversión",0,0); ctx.restore();
     ctx.textAlign="center"; ctx.textBaseline="bottom";
-    ctx.fillText("Devengado Acumulado", scale.pad.l+(W-scale.pad.l-scale.pad.r)/2, H-10);
+    ctx.fillText("Devengado Acumulado", scale.pad.l+(W-scale.pad.l-scale.pad.r)/2, H-6);
   }
 
   // Dibujo de puntos + hit map
@@ -243,15 +248,26 @@ function makeChart(points){
         if(p.nivel!==c.short) return;
         const x=scale.x(p.x), y=scale.y(p.y), r=rScale(p.bens);
         ctx.beginPath(); ctx.arc(x,y,r,0,2*Math.PI); ctx.fill();
-        HIT.push({x,y,r:r+4,data:p,color:c.color, key:c.key});
+        // radio de detección ajustado para precisión
+        HIT.push({x,y,r:Math.max(r+2,8),data:p,color:c.color, key:c.key});
       });
     });
   }
   function draw(){ compute(); drawAxes(); drawPoints(); }
   draw(); window.addEventListener("resize",draw,{passive:true});
 
-  // ===== Tooltip (solo se cambió el markup para estilizar) =====
-  function hit(mx,my){ for(let i=HIT.length-1;i>=0;i--){const h=HIT[i],dx=mx-h.x,dy=my-h.y; if(dx*dx+dy*dy<=h.r*h.r) return h;} return null; }
+  // ===== Tooltip preciso sobre la bolita =====
+  function hitAtClient(clientX, clientY){
+    const rect = canvas.getBoundingClientRect();
+    const mx = clientX - rect.left;
+    const my = clientY - rect.top;
+    let best=null, bestD=Infinity;
+    for(let i=HIT.length-1;i>=0;i--){
+      const h=HIT[i], dx=mx-h.x, dy=my-h.y, d2=dx*dx+dy*dy;
+      if(d2 <= h.r*h.r && d2 < bestD){ best=h; bestD=d2; }
+    }
+    return {hit:best, mx, my};
+  }
   function showTip(h,mx,my){
     const d=h.data;
     const html =
@@ -262,18 +278,24 @@ function makeChart(points){
         `<div class="k">Beneficiarios</div><div class="v">${(d.bens||0).toLocaleString('es-PE')}</div>`+
         `<div class="k">% Avance</div><div class="v">${fmtPct(d.pct)}</div>`+
         (d.icod ? `<div class="k">CUI</div><div class="v">${d.icod}</div>` : ``)+
-        `<div class="hr"></div>`+
-        (d.nombre ? `<div class="long">${d.nombre}</div>` : ``)+
+        (d.nombre ? `<div class="hr"></div><div class="long">${d.nombre}</div>` : ``)+
       `</div>`;
 
-    const rect=wrap.getBoundingClientRect();
-    let x=mx-rect.left+12, y=my-rect.top-12;
-    x=Math.min(rect.width-10,Math.max(10,x)); y=Math.min(rect.height-10,Math.max(10,y));
     tip.innerHTML = html;
+    // posicionar dentro del wrap
+    const rect=wrap.getBoundingClientRect();
+    let x=mx+12, y=my-14;
+    x=Math.min(rect.width-10,Math.max(10,x));
+    y=Math.min(rect.height-10,Math.max(10,y));
     tip.style.left = x+"px"; tip.style.top = y+"px"; tip.style.opacity = 1;
   }
   function hideTip(){ tip.style.opacity=0; }
-  canvas.addEventListener("mousemove",(e)=>{ const h=hit(e.clientX,e.clientY); if(h) showTip(h,e.clientX,e.clientY); else hideTip(); },{passive:true});
+
+  canvas.addEventListener("mousemove",(e)=>{
+    const {hit, mx, my} = hitAtClient(e.clientX, e.clientY);
+    canvas.style.cursor = hit ? "pointer" : "default";
+    if(hit) showTip(hit, mx, my); else hideTip();
+  },{passive:true});
   canvas.addEventListener("mouseleave", hideTip, {passive:true});
 }
 
@@ -291,3 +313,4 @@ function makeChart(points){
 </script>
 </body>
 </html>
+
