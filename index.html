@@ -176,6 +176,8 @@
           <a class="btn v2" href="indicadores-presupuesto1.html"       target="_blank">Indicadores Presupuesto 1 (Mapa)</a>
           <a class="btn v3" href="mapa-indicadores-presupuesto1.html"  target="_blank">Mapa — Indicadores Presupuesto 1</a>
           <a class="btn v4" href="mapa-indicadores-presupuesto2.html"  target="_blank">Mapa — Indicadores Presupuesto 2</a>
+          <!-- NUEVO -->
+          <a class="btn v2" href="mapa-christian-1.html"                target="_blank">Mapa — Christian 1</a>
         </div>
       </div>
     </details>
@@ -250,10 +252,10 @@
     function showPreview(anchor, ev){
       if(isCoarse || (locked && preview.style.display==='none')) return;
       const href = anchor.getAttribute('href');
-      const label = anchor.textContent.trim();
+      theLabel = anchor.textContent.trim();
       const thumb = anchor.getAttribute('data-thumb');
 
-      pvtitle.textContent = label;
+      pvtitle.textContent = theLabel;
       pvcap.textContent   = href;
       pvopen.href         = href;
 
