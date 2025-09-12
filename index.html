@@ -149,8 +149,10 @@
           <a class="btn v2" href="indicador-presupuesto2.html" target="_blank">Indicador Presupuesto 2</a>
           <a class="btn v3" href="indicador-presupuesto3.html" target="_blank">Indicador Presupuesto 3</a>
           <a class="btn v4" href="indicador-presupuesto4.html" target="_blank">Indicador Presupuesto 4</a>
+          <!-- NUEVO: Tabla de Inversiones -->
+          <a class="btn v2" href="tabla-inversiones-1.html" target="_blank">Tabla Inversiones 1</a>
         </div>
-        <div class="note">Colección de indicadores presupuestales (1, 2, 3 y 4). Pasa el mouse para ver mini-preview.</div>
+        <div class="note">Colección de indicadores presupuestales e inversiones (1, 2, 3, 4 y tabla de inversiones). Pasa el mouse para ver mini-preview.</div>
       </div>
     </details>
 
@@ -173,7 +175,6 @@
           <!-- Mapas de indicadores de presupuesto -->
           <a class="btn v2" href="indicadores-presupuesto1.html"       target="_blank">Indicadores Presupuesto 1 (Mapa)</a>
           <a class="btn v3" href="mapa-indicadores-presupuesto1.html"  target="_blank">Mapa — Indicadores Presupuesto 1</a>
-          <!-- NUEVO -->
           <a class="btn v4" href="mapa-indicadores-presupuesto2.html"  target="_blank">Mapa — Indicadores Presupuesto 2</a>
         </div>
       </div>
@@ -257,8 +258,13 @@
       pvopen.href         = href;
 
       let x, y;
-      if(ev && 'clientX' in ev){ x = ev.clientX + window.scrollX; y = ev.clientY + window.scrollY; }
-      else { const r = anchor.getBoundingClientRect(); x = r.left + r.width/2 + window.scrollX; y = r.bottom + window.scrollY; }
+      if(ev && 'clientX' in ev){
+        x = ev.clientX + window.scrollX; y = ev.clientY + window.scrollY;
+      } else {
+        const r = anchor.getBoundingClientRect();
+        x = r.left + r.width/2 + window.scrollX;
+        y = r.bottom + window.scrollY;
+      }
       preview.style.display = 'block';
       preview.setAttribute('aria-hidden','false');
       positionPopup(x, y);
@@ -346,3 +352,4 @@
   </script>
 </body>
 </html>
+
