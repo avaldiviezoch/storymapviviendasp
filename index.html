@@ -59,8 +59,7 @@
       background: var(--panel); color: var(--ink);
       border: 1px solid var(--stroke); border-radius: var(--radius);
       box-shadow: var(--shadow);
-      pointer-events: auto;   /* para poder hacer click en la barra */
-      user-select: none;
+      pointer-events: auto; user-select: none;
     }
     .pv-hdr{
       height: var(--hdr-h); display:flex; align-items:center; gap:10px; padding:0 10px;
@@ -78,27 +77,21 @@
     }
     .pv-frame{
       position:absolute; top:0; left:0; border:0; width: var(--base-w); height: var(--base-h);
-      transform-origin: 0 0; pointer-events: none; /* desactiva interacción dentro del iframe */
-      background:#0b1020;
+      transform-origin: 0 0; pointer-events: none; background:#0b1020;
     }
     .pv-overlay{
       position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
       font-size:.92rem; color:var(--muted); background: linear-gradient(to bottom, #0000, #0003);
-      opacity: 0; transition: opacity .15s ease;
-      text-align:center; padding:10px;
+      opacity: 0; transition: opacity .15s ease; text-align:center; padding:10px;
     }
     .preview.loading .pv-overlay{ opacity: 1; }
     .preview.blocked .pv-overlay{ opacity: 1; color:#fca5a5 }
-    .pv-thumb{
-      position:absolute; inset:0; object-fit:cover; width:100%; height:100%; display:none;
-    }
+    .pv-thumb{ position:absolute; inset:0; object-fit:cover; width:100%; height:100%; display:none; }
     .preview.blocked .pv-thumb{ display:block; }
 
     .pv-cap{
-      height: 18px; line-height:18px;
-      font-size:.82rem; color:var(--muted);
-      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-      padding:0 12px 8px;
+      height: 18px; line-height:18px; font-size:.82rem; color:var(--muted);
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding:0 12px 8px;
     }
 
     @media (max-width: 700px){
@@ -180,6 +173,8 @@
           <!-- Mapas de indicadores de presupuesto -->
           <a class="btn v2" href="indicadores-presupuesto1.html"       target="_blank">Indicadores Presupuesto 1 (Mapa)</a>
           <a class="btn v3" href="mapa-indicadores-presupuesto1.html"  target="_blank">Mapa — Indicadores Presupuesto 1</a>
+          <!-- NUEVO -->
+          <a class="btn v4" href="mapa-indicadores-presupuesto2.html"  target="_blank">Mapa — Indicadores Presupuesto 2</a>
         </div>
       </div>
     </details>
@@ -245,7 +240,6 @@
       let left = x + pad, top = y + pad;
       if(left + w > vw - 8) left = x - w - pad;
       if(top + h > vh - 8) top = y - h - pad;
-      // límites mínimos
       left = Math.max(window.scrollX + 8, left);
       top  = Math.max(window.scrollY + 8, top);
       preview.style.left = left + 'px';
@@ -253,7 +247,7 @@
     }
 
     function showPreview(anchor, ev){
-      if(isCoarse || (locked && preview.style.display==='none')) return; // en móviles no mostramos
+      if(isCoarse || (locked && preview.style.display==='none')) return;
       const href = anchor.getAttribute('href');
       const label = anchor.textContent.trim();
       const thumb = anchor.getAttribute('data-thumb');
@@ -262,26 +256,18 @@
       pvcap.textContent   = href;
       pvopen.href         = href;
 
-      // Posicionamiento
       let x, y;
-      if(ev && 'clientX' in ev){
-        x = ev.clientX + window.scrollX; y = ev.clientY + window.scrollY;
-      } else {
-        const r = anchor.getBoundingClientRect();
-        x = r.left + r.width/2 + window.scrollX;
-        y = r.bottom + window.scrollY;
-      }
+      if(ev && 'clientX' in ev){ x = ev.clientX + window.scrollX; y = ev.clientY + window.scrollY; }
+      else { const r = anchor.getBoundingClientRect(); x = r.left + r.width/2 + window.scrollX; y = r.bottom + window.scrollY; }
       preview.style.display = 'block';
       preview.setAttribute('aria-hidden','false');
       positionPopup(x, y);
 
-      // Estado visual
       preview.classList.add('loading');
       preview.classList.remove('blocked');
       pvthumb.style.display = 'none';
       if(thumb){ pvthumb.src = thumb; } else { pvthumb.removeAttribute('src'); }
 
-      // Cargar con pequeño delay para no recargar en pasadas rápidas
       clearTimeout(hoverTimer);
       hoverTimer = setTimeout(()=>{
         if(currentURL !== href || pvframe.src !== href){
@@ -291,7 +277,6 @@
         }
       }, 130);
 
-      // Timeout de bloqueo (sitios con X-Frame-Options/CSP)
       clearTimeout(blockTimer);
       blockTimer = setTimeout(()=>{
         if(preview.classList.contains('loading')){
@@ -306,21 +291,18 @@
     }
 
     function hidePreview(force=false){
-      if(locked && !force) return; // si está bloqueado/fijado, no ocultar
+      if(locked && !force) return;
       preview.style.display = 'none';
       preview.setAttribute('aria-hidden','true');
       clearTimeout(hoverTimer);
       clearTimeout(blockTimer);
     }
 
-    // Detecta carga del iframe (no podemos leer su contenido por CORS, solo estados)
     pvframe.addEventListener('load', ()=>{
       preview.classList.remove('loading');
-      // si carga algo, asumimos OK (aunque algunas páginas muestren blanco)
       pvover.textContent = ' ';
     });
 
-    // Eventos globales para hover/teclado
     document.addEventListener('mouseover', (e)=>{
       const a = e.target.closest('a.btn'); if(!a) return;
       if(!locked) showPreview(a, e);
@@ -338,7 +320,6 @@
       }
     });
 
-    // Accesible con teclado
     document.addEventListener('focusin', e=>{
       const a = e.target.closest && e.target.closest('a.btn'); if(a && !locked) showPreview(a, null);
     });
@@ -346,10 +327,8 @@
       const a = e.target.closest && e.target.closest('a.btn'); if(a) hidePreview();
     });
 
-    // Oculta al hacer scroll si no está fijado
     window.addEventListener('scroll', ()=>{ if(preview.style.display==='block' && !locked) hidePreview(); });
 
-    // Controles del popup
     pvlock.addEventListener('click', ()=>{
       locked = !locked;
       pvlock.textContent = locked ? 'Desfijar' : 'Fijar';
@@ -359,7 +338,6 @@
       locked = false; pvlock.textContent = 'Fijar'; hidePreview(true);
     });
 
-    // Cerrar con Esc
     document.addEventListener('keydown', (e)=>{
       if(e.key === 'Escape'){
         locked = false; pvlock.textContent = 'Fijar'; hidePreview(true);
