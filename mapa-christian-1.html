@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Mapa MiVivienda (responsive)</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<style>
+  html,body{
+    height:100%;
+    margin:0;
+    background:#fff;
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;
+    overflow:hidden; /* evita barras en el embed */
+  }
+  /* Full-bleed y responsive para StoryMap/iframe */
+  #chart{
+    width:100%;
+    height:100dvh;  /* navegadores modernos */
+    height:100vh;   /* fallback */
+  }
+  #err{
+    position:fixed;left:10px;bottom:10px;display:none;background:#fff;border:1px solid #fecaca;color:#b91c1c;
+    padding:8px 10px;border-radius:8px;font-size:12px;max-width:min(560px,92%);white-space:pre-wrap
+  }
+</style>
+</head>
+<body>
+<div id="chart" role="img" aria-label="Mapa de viviendas promovidas por departamento"></div>
+<div id="err"></div>
+
+<script>
+(async function(){
+  const SERVICE   = "https://pportalgis.vivienda.gob.pe/phtserver/rest/services/Hosted/mapa_swipe_viviendas_promovidas_storymap_hosted/FeatureServer";
+  const LYR_LIMIT = 1, TBL_VAL = 6, COD_VAR = 70, YEAR = 2024;
+
+  const COL_LEFT_PCT  = 0.18;
+  const COL_RIGHT_PCT = 0.84;
+
+  const POINT
