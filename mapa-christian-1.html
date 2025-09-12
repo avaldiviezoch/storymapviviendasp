@@ -37,4 +37,158 @@
   const COL_LEFT_PCT  = 0.18;
   const COL_RIGHT_PCT = 0.84;
 
-  const POINT
+  const POINT_SHIFT = {
+    "TUMBES":[0,-3],"PIURA":[-14,-2],"LAMBAYEQUE":[-14,8],"CAJAMARCA":[-5,-40],"LA LIBERTAD":[-12,4],
+    "ANCASH":[-18,0],"LIMA":[6,20],"CALLAO":[2,-4],"HUANCAVELICA":[-10,10],"ICA":[-20,-10],
+    "AYACUCHO":[-4,20],"AREQUIPA":[10,0],"MOQUEGUA":[-8,16],"TACNA":[0,10],"CUSCO":[16,16],
+    "APURIMAC":[0,5],"PUNO":[0,5],"MADRE DE DIOS":[0,20],"JUNIN":[8,5],"PASCO":[-8,-8],
+    "HUANUCO":[-10,-10],"UCAYALI":[-30,-50],"SAN MARTIN":[10,2],"AMAZONAS":[-10,20],"LORETO":[42,-8]
+  };
+
+  const RIGHT_COL = new Set([
+    "LORETO","AMAZONAS","SAN MARTIN","UCAYALI","HUANUCO","PASCO","JUNIN",
+    "MADRE DE DIOS","CUSCO","APURIMAC","PUNO","TACNA"
+  ]);
+  const LEFT_COL = new Set([
+    "TUMBES","PIURA","LAMBAYEQUE","LA LIBERTAD","ANCASH",
+    "LIMA","CALLAO","HUANCAVELICA","ICA","AYACUCHO","AREQUIPA","MOQUEGUA"
+  ]);
+  const CAJ_VERTICAL_UP = 120;
+
+  const qs=(u,p)=>u+"?"+new URLSearchParams(p).toString();
+  const nf=v=>new Intl.NumberFormat('es-PE').format(v||0);
+  const N=s=>(s||"").toUpperCase().normalize("NFD").replace(/\p{Diacritic}/gu,"").replace(/\s+/g," ").trim();
+  const $err=document.getElementById('err'); const showErr=m=>{$err.style.display='block';$err.textContent=m;};
+
+  function ringsToPolygon(rings){return{type:"Polygon",coordinates:rings.map(r=>r.map(([x,y])=>[x,y]))};}
+  function centroid(poly){
+    const r=poly.coordinates[0]; if(!r||r.length<3) return null;
+    let x=0,y=0,a=0;
+    for(let i=0;i<r.length-1;i++){
+      const [x1,y1]=r[i],[x2,y2]=r[i+1];
+      const c = x1*y2 - x2*y1;
+      a += c; x += (x1+x2)*c; y += (y1+y2)*c;
+    }
+    if(a===0){const n=r.length,sx=r.reduce((s,p)=>s+p[0],0),sy=r.reduce((s,p)=>s+p[1],0);return[sx/n,sy/n];}
+    a*=0.5; return [x/(6*a),y/(6*a)];
+  }
+  function pickNameField(attrs){
+    const prefer=["region_nombre","NOMBDEP","DEPARTAMEN","DEPARTAMENTO","NOMBRE","NAME"];
+    for(const k of prefer){ if(k in attrs && /[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(String(attrs[k]||""))) return k; }
+    for(const k in attrs){ const v=attrs[k]; if(typeof v==="string" && /[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(v)) return k; }
+    for(const k in attrs){ if(typeof attrs[k]==="string") return k; }
+    return null;
+  }
+
+  async function getLimites(){
+    const url=qs(`${SERVICE}/${LYR_LIMIT}/query`,{where:"1=1",outFields:"*",returnGeometry:"true",outSR:4326,f:"json"});
+    const r=await fetch(url,{cache:"no-store"}); if(!r.ok) throw new Error("HTTP "+r.status);
+    const j=await r.json(); const feats=j.features||[]; if(!feats.length) throw new Error("Layer 1 sin features.");
+    const nameField=pickNameField(feats[0].attributes||{})||"name";
+    const geoFeats=[]; const bases=new Map(); const pretty=new Map();
+    feats.forEach(f=>{
+      const nm=f.attributes?.[nameField]; if(!nm||!f.geometry?.rings) return;
+      const poly=ringsToPolygon(f.geometry.rings);
+      geoFeats.push({type:"Feature",properties:{name:nm},geometry:poly});
+      const c=centroid(poly); if(c){ bases.set(N(nm),c); pretty.set(N(nm),nm); }
+    });
+    return {geojson:{type:"FeatureCollection",features:geoFeats}, bases, pretty};
+  }
+
+  async function getValores(){
+    const url=qs(`${SERVICE}/${TBL_VAL}/query`,{
+      where:`cod_var=${COD_VAR} AND anio=${YEAR}`,
+      groupByFieldsForStatistics:"region_nombre",
+      outStatistics:JSON.stringify([{statisticType:"sum",onStatisticField:"recuento_total",outStatisticFieldName:"v"}]),
+      outFields:"region_nombre",returnGeometry:"false",f:"json"
+    });
+    const r=await fetch(url,{cache:"no-store"}); if(!r.ok) throw new Error("HTTP "+r.status);
+    const j=await r.json(); const vals=new Map(); const prettyTab=new Map();
+    (j.features||[]).forEach(f=>{const nm=f.attributes?.region_nombre; const k=N(nm); vals.set(k,Number(f.attributes?.v||0)); prettyTab.set(k,nm);});
+    return {vals,prettyTab};
+  }
+
+  const chart=echarts.init(document.getElementById('chart'));
+
+  // Redibuja cuando cambie el tamaño del contenedor (StoryMap)
+  const ro = new ResizeObserver(()=>{ chart.resize(); draw(); });
+  ro.observe(document.getElementById('chart'));
+  window.addEventListener('orientationchange', ()=>setTimeout(()=>{chart.resize(); draw();}, 150), {passive:true});
+
+  chart.showLoading('default',{text:'Cargando…'});
+
+  try{
+    const [{geojson,bases,pretty},{vals,prettyTab}] = await Promise.all([getLimites(), getValores()]);
+    echarts.registerMap('peru', geojson, {});
+    chart.setOption({
+      backgroundColor:'#fff',
+      tooltip:{ show:false },
+      geo:{
+        map:'peru', roam:false, silent:true, label:{show:false}, emphasis:{disabled:true},
+        aspectScale:1.18, layoutCenter:['50%','55%'], layoutSize:'90%',
+        itemStyle:{ borderColor:'#222', borderWidth:1.2, areaColor:'#f6f9ff' }
+      }
+    });
+    chart.hideLoading();
+
+    function draw(){
+      const W=chart.getWidth();
+      const colL = Math.round(W * COL_LEFT_PCT);
+      const colR = Math.round(W * COL_RIGHT_PCT);
+
+      const elements=[];
+      const norm=s=>N(s);
+
+      function addDept(label){
+        const key = norm(label);
+        const baseKey = (key===norm("SAN MARTIN")) ? (bases.has(norm("SAN MARTÍN"))?norm("SAN MARTÍN"):key) : key;
+        const lonlat = bases.get(baseKey); if(!lonlat) return;
+
+        const p0 = chart.convertToPixel({geoIndex:0}, lonlat);
+        const s  = POINT_SHIFT[key] || [0,0];
+        const pA = [p0[0]+s[0], p0[1]+s[1]];
+
+        let name = prettyTab.get(key) || (key===norm("SAN MARTIN") ? (prettyTab.get(norm("SAN MARTÍN"))||"San Martín") : (pretty.get(key)||""));
+        let v    = (key===norm("SAN MARTIN")) ? (vals.get(norm("SAN MARTÍN")) ?? vals.get(key)) : vals.get(key);
+        v = v==null ? 0 : v;
+
+        let xEnd,yEnd,tx,ty,align;
+        if(key===norm("CAJAMARCA")){
+          xEnd=pA[0]; yEnd=pA[1]-CAJ_VERTICAL_UP; tx=xEnd; ty=yEnd-6; align='left';
+        }else if(RIGHT_COL.has(key)){
+          xEnd=colR; yEnd=pA[1]; tx=xEnd+6; ty=yEnd; align='left';
+        }else{
+          xEnd=colL; yEnd=pA[1]; tx=xEnd-6; ty=yEnd; align='right';
+        }
+
+        elements.push({type:'line',silent:true,shape:{x1:pA[0],y1:pA[1],x2:xEnd,y2:yEnd},style:{stroke:'#2b2b2b',lineWidth:1.4}});
+        elements.push({type:'circle',silent:true,shape:{cx:pA[0],cy:pA[1],r:4},style:{fill:'#0ea5e9'}});
+        elements.push({type:'text',silent:true,style:{
+          x:tx,y:ty,text:`{nm|${name}}  {vv|${nf(v)}}`,textAlign:align,
+          rich:{nm:{fontSize:12,fill:'#2b2b2b',fontWeight:500},vv:{fontSize:12,fill:'#0ea5e9',fontWeight:700}}
+        }});
+      }
+
+      const order=[
+        "CAJAMARCA",
+        "TUMBES","PIURA","LAMBAYEQUE","LA LIBERTAD","ANCASH",
+        "LIMA","CALLAO","HUANCAVELICA","ICA","AYACUCHO","AREQUIPA","MOQUEGUA",
+        "LORETO","AMAZONAS","SAN MARTIN","UCAYALI","HUANUCO","PASCO","JUNIN",
+        "MADRE DE DIOS","CUSCO","APURIMAC","PUNO","TACNA"
+      ];
+      const seen=new Set();
+      order.forEach(n=>{ addDept(n); seen.add(norm(n)); });
+      bases.forEach((_,k)=>{ if(!seen.has(k) && (LEFT_COL.has(k)||RIGHT_COL.has(k)||k===norm("CAJAMARCA"))) addDept(k); });
+
+      chart.setOption({graphic:elements},{replaceMerge:['graphic']});
+    }
+
+    draw();
+    chart.on('finished', draw);
+  }catch(err){
+    showErr(err?.message || String(err));
+  }
+})();
+</script>
+</body>
+</html>
