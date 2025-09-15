@@ -5,144 +5,183 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Inversiones, PIM y Devengado — MVCS 2025 (Fullscreen)</title>
 <style>
-  html,body{height:100%;margin:0;background:transparent;color:#062e2b;font-family:system-ui,Segoe UI,Roboto,Arial;overflow:hidden}
+  html,body{
+    height:100%;margin:0;background:transparent;
+    color:#062e2b;font-family:system-ui,Segoe UI,Roboto,Arial;
+    overflow:hidden;
+  }
+
+  /* Escenario totalmente centrado */
   .stage{
     height:100vh;width:100vw;box-sizing:border-box;
-    display:grid;grid-template-rows:1fr auto auto;justify-items:center;align-content:center;
-    gap:clamp(12px,2.2vh,22px);padding:0 clamp(8px,2vw,24px)
+    display:grid;place-items:center;gap:clamp(22px,3vh,34px);
+    padding:clamp(12px,3vw,36px);
   }
-  .big{font-weight:900;color:#043a36;line-height:1;letter-spacing:.01em;font-size:clamp(48px,24vw,22vh)}
-  .label{margin-top:6px;text-align:center;font-weight:700;letter-spacing:.06em;font-size:clamp(16px,2.8vw,32px);color:#0b3b38}
-  .row{width:100%;display:flex;gap:min(4vw,40px);justify-content:center;align-items:flex-end;flex-wrap:wrap}
-  .kpi{display:grid;justify-items:center;row-gap:.5rem;min-width:240px}
-  .amount{font-weight:900;color:#043a36;line-height:1.05;white-space:nowrap;font-size:clamp(28px,10.5vw,12vh)}
-  .sub{font-size:clamp(14px,2.3vw,28px);font-weight:700;color:#0b3b38}
-  .source{margin-bottom:clamp(8px,1.8vh,14px);text-align:center;color:#334155;font-size:clamp(11px,1.6vw,13px)}
+
+  /* Bloque superior (conteo de inversiones) */
+  .hero{display:grid;justify-items:center;row-gap:8px}
+  .big{
+    font-weight:900;color:#043a36;line-height:1;letter-spacing:.01em;
+    font-size:clamp(64px,16vw,150px); /* grande pero controlado */
+    text-align:center;
+  }
+  .label{
+    text-align:center;font-weight:800;letter-spacing:.06em;
+    font-size:clamp(16px,2.6vw,28px);color:#0b3b38;
+  }
+
+  /* Contenedor de tarjetas -> MISMO ANCHO y centradas */
+  .cards{
+    display:grid;gap:clamp(16px,2.4vh,22px);
+    width:100%;max-width:1100px; /* <— todas comparten esto */
+  }
+
+  /* Tarjeta */
+  .card{
+    background:#fff;border:1px solid #e6ecea;border-radius:18px;
+    box-shadow:0 16px 36px rgba(2,6,23,.08);
+    padding:clamp(18px,2.8vh,28px) clamp(18px,4vw,28px);
+    display:grid;justify-items:center;row-gap:12px;
+    margin-inline:auto; /* centra la tarjeta exactamente */
+    width:100%; /* ocupa el mismo ancho de .cards */
+    box-sizing:border-box;
+  }
+
+  .card .title{
+    font-size:clamp(12px,2vw,14px);
+    font-weight:900;letter-spacing:.18em;color:#0b3b38;
+    text-transform:uppercase;text-align:center;
+  }
+
+  /* Número dentro de la tarjeta: escala respecto al ancho de la tarjeta */
+  .amount{
+    font-weight:900;color:#043a36;line-height:1.05;white-space:nowrap;
+    text-align:center;
+    /* Escala segura: no “rompe” el padding de la tarjeta */
+    font-size:clamp(28px, min(9vw, 7.5vh), 92px);
+  }
+
+  /* Porcentaje (badge + valor) */
+  .pct{
+    display:flex;align-items:center;gap:.6em;
+    font-weight:900;color:#0b3b38;
+    font-size:clamp(16px,2.8vw,26px);line-height:1;
+  }
+  .pct .badge{
+    display:grid;place-items:center;
+    width:1.35em;height:1.35em;border-radius:999px;
+    font-size:.72em;font-weight:900;color:#eafffb;background:#0b3b38;
+  }
+
+  .source{
+    text-align:center;color:#334155;
+    font-size:clamp(11px,1.6vw,14px)
+  }
   .source b{color:#0369a1}
+
+  /* Entradas animadas */
   .fade{opacity:0;transform:translateY(8px);transition:.35s ease}
   .fade.on{opacity:1;transform:translateY(0)}
 </style>
 </head>
 <body>
   <main class="stage">
-    <div style="display:grid;place-items:center">
+    <!-- Conteo principal -->
+    <div class="hero">
       <div id="count" class="big fade">0</div>
       <div class="label">Inversiones</div>
     </div>
-    <div class="row">
-      <section class="kpi">
+
+    <!-- Tarjetas con MISMO ancho -->
+    <div class="cards">
+      <section class="card">
+        <div class="title">Monto PIM</div>
         <div id="pim" class="amount fade">0</div>
-        <div class="sub">Monto PIM</div>
       </section>
-      <section class="kpi">
+
+      <section class="card">
+        <div class="title">Monto Devengado</div>
         <div id="dev" class="amount fade">0</div>
-        <div class="sub">Monto Devengado</div>
+        <div id="pct" class="pct fade">
+          <span class="badge">%</span><span id="pctv">0%</span>
+        </div>
       </section>
     </div>
+
     <div class="source"><b>Fuente:</b> Ministerio de Economía y Finanzas — MEF · Portal de datos Abiertos</div>
   </main>
 
 <script>
 /* ===== Endpoints ===== */
-const FS2_COUNT = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/OGEI/Mapa_Inversiones_MEF/FeatureServer/13/query";
-const FS10      = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/OGEI/Mapa_Inversiones_MEF/FeatureServer/10/query";
-const FS13      = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/OGEI/Mapa_Inversiones_MEF/FeatureServer/13/query";
+const FS2_COUNT="https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/OGEI/Mapa_Inversiones_MEF/FeatureServer/13/query";
+const FS10="https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/OGEI/Mapa_Inversiones_MEF/FeatureServer/10/query";
+const FS13="https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/OGEI/Mapa_Inversiones_MEF/FeatureServer/13/query";
 
 /* ===== Filtros ===== */
-const WHERE_COUNT = "ano_eje = 2025 AND monto_pim > 0 AND tipo_act_proy_nombre = 'PROYECTO'";
-const WHERE_SECTOR = "sector_nombre = 'VIVIENDA CONSTRUCCION Y SANEAMIENTO'";
+const WHERE_COUNT="ano_eje = 2025 AND monto_pim > 0 AND tipo_act_proy_nombre = 'PROYECTO'";
+const WHERE_SECTOR="sector_nombre = 'VIVIENDA CONSTRUCCION Y SANEAMIENTO'";
 
-/* ===== Format & anim ===== */
+/* ===== Formatos ===== */
 const fmtInt   = new Intl.NumberFormat("es-PE",{maximumFractionDigits:0});
-const fmtMoney = new Intl.NumberFormat("es-PE");
+const fmtMoney = new Intl.NumberFormat("es-PE",{maximumFractionDigits:0});
+const fmtPct   = new Intl.NumberFormat("es-PE",{maximumFractionDigits:1});
 
-function animate(el, target, ms=1600, fmt=fmtInt){
-  if(!Number.isFinite(target)){ el.textContent = "—"; return; }
-  const start = performance.now(); const from = 0;
+/* ===== Animación ===== */
+function animate(el,target,ms=1600,fmt=fmtInt,suffix=""){
+  if(!Number.isFinite(target)){el.textContent="—";return;}
+  const start=performance.now();
   function frame(t){
-    const p = Math.min(1,(t-start)/ms), eased = 1 - Math.pow(1-p,3);
-    el.textContent = fmt.format(Math.round(from + (target-from)*eased));
+    const p=Math.min(1,(t-start)/ms),e=1-Math.pow(1-p,3);
+    el.textContent=fmt.format(target*e)+suffix;
     if(p<1) requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
 }
 
-/* ===== COUNT distinto producto_proyecto desde FS/2 (con fallback a FS/13) ===== */
+/* ===== Data ===== */
 async function fetchDistinctCount(){
-  const params = new URLSearchParams({
-    where: WHERE_COUNT,
-    outFields: "producto_proyecto",
-    returnDistinctValues: "true",
-    returnCountOnly: "true",
-    f: "json"
-  });
-  try{
-    const r = await fetch(`${FS2_COUNT}?${params}`, {cache:"no-store"});
-    if(!r.ok) throw new Error("HTTP "+r.status);
-    const j = await r.json();
-    if(j?.error) throw new Error(j.error.message);
-    if(Number.isFinite(j.count)) return j.count;
-    throw new Error("count inválido");
-  }catch(e){
-    console.warn("COUNT: fallback a FS/13", e);
-    const p2 = new URLSearchParams({
-      where: WHERE_COUNT,
-      outFields: "producto_proyecto",
-      returnDistinctValues: "true",
-      returnCountOnly: "true",
-      f: "json"
-    });
-    const r2 = await fetch(`${FS13}?${p2}`, {cache:"no-store"});
-    const j2 = await r2.json();
-    return Number(j2.count||0);
-  }
+  const params=new URLSearchParams({where:WHERE_COUNT,outFields:"producto_proyecto",returnDistinctValues:"true",returnCountOnly:"true",f:"json"});
+  const r=await fetch(`${FS2_COUNT}?${params}`,{cache:"no-store"});
+  const j=await r.json();
+  return Number(j.count||0);
 }
-
-/* ===== Sumatorias PIM/DEV: FS/10 -> fallback FS/13 ===== */
-async function sumFromFS10(fieldAgg){ // sum_monto_pim / sum_monto_devengado
-  const out = JSON.stringify([{statisticType:"sum", onStatisticField:fieldAgg, outStatisticFieldName:"v"}]);
-  const p = new URLSearchParams({ where: WHERE_SECTOR, outStatistics: out, returnGeometry:"false", f:"json" });
-  const r = await fetch(`${FS10}?${p}`, {cache:"no-store"});
-  if(!r.ok) throw new Error("HTTP "+r.status);
-  const j = await r.json();
-  if(j?.error) throw new Error(j.error.message);
-  return Number(j.features?.[0]?.attributes?.v || 0);
+async function sumFromFS10(fieldAgg){
+  const out=JSON.stringify([{statisticType:"sum",onStatisticField:fieldAgg,outStatisticFieldName:"v"}]);
+  const p=new URLSearchParams({where:WHERE_SECTOR,outStatistics:out,returnGeometry:"false",f:"json"});
+  const r=await fetch(`${FS10}?${p}`,{cache:"no-store"});
+  const j=await r.json();
+  return Number(j.features?.[0]?.attributes?.v||0);
 }
-async function sumFromFS13(fieldRaw){  // monto_pim / monto_devengado
-  const out = JSON.stringify([{statisticType:"sum", onStatisticField:fieldRaw, outStatisticFieldName:"v"}]);
-  const p = new URLSearchParams({ where: WHERE_SECTOR, outStatistics: out, returnGeometry:"false", f:"json" });
-  const r = await fetch(`${FS13}?${p}`, {cache:"no-store"});
-  const j = await r.json();
-  return Number(j.features?.[0]?.attributes?.v || 0);
+async function sumFromFS13(fieldRaw){
+  const out=JSON.stringify([{statisticType:"sum",onStatisticField:fieldRaw,outStatisticFieldName:"v"}]);
+  const p=new URLSearchParams({where:WHERE_SECTOR,outStatistics:out,returnGeometry:"false",f:"json"});
+  const r=await fetch(`${FS13}?${p}`,{cache:"no-store"});
+  const j=await r.json();
+  return Number(j.features?.[0]?.attributes?.v||0);
 }
-async function fetchPIM(){
-  try{ return await sumFromFS10("sum_monto_pim"); }
-  catch(e){ console.warn("PIM: fallback a FS/13", e); return await sumFromFS13("monto_pim"); }
-}
-async function fetchDEV(){
-  try{ return await sumFromFS10("sum_monto_devengado"); }
-  catch(e){ console.warn("DEV: fallback a FS/13", e); return await sumFromFS13("monto_devengado"); }
-}
+async function fetchPIM(){ try{return await sumFromFS10("sum_monto_pim");} catch{ return await sumFromFS13("monto_pim"); } }
+async function fetchDEV(){ try{return await sumFromFS10("sum_monto_devengado");} catch{ return await sumFromFS13("monto_devengado"); } }
 
 /* ===== Init ===== */
 (async function(){
-  const elCount = document.getElementById("count");
-  const elPim   = document.getElementById("pim");
-  const elDev   = document.getElementById("dev");
+  const elCount=document.getElementById("count");
+  const elPim=document.getElementById("pim");
+  const elDev=document.getElementById("dev");
+  const elPct=document.getElementById("pct");
+  const elPctv=document.getElementById("pctv");
 
   try{
-    const [n, pim, dev] = await Promise.all([ fetchDistinctCount(), fetchPIM(), fetchDEV() ]);
-
-    requestAnimationFrame(()=>{ elCount.classList.add("on"); elPim.classList.add("on"); elDev.classList.add("on"); });
-
-    animate(elCount, n,   1400, fmtInt);
-    animate(elPim,   pim, 1700, fmtMoney);
-    animate(elDev,   dev, 1700, fmtMoney);
-
-  }catch(err){
-    console.error("Error general", err);
-    elCount.textContent = elPim.textContent = elDev.textContent = "—";
-    elCount.classList.add("on"); elPim.classList.add("on"); elDev.classList.add("on");
+    const [n,pim,dev]=await Promise.all([fetchDistinctCount(),fetchPIM(),fetchDEV()]);
+    [elCount,elPim,elDev,elPct].forEach(el=>el.classList.add("fade","on"));
+    animate(elCount,n,1400,fmtInt);
+    animate(elPim,pim,1700,fmtMoney);
+    animate(elDev,dev,1700,fmtMoney);
+    const perc=(pim>0)?(dev/pim*100):0;
+    animate(elPctv,perc,1700,fmtPct,"%");
+  }catch(e){
+    console.error(e);
+    elCount.textContent=elPim.textContent=elDev.textContent=elPctv.textContent="—";
+    [elCount,elPim,elDev,elPct].forEach(el=>el.classList.add("fade","on"));
   }
 })();
 </script>
