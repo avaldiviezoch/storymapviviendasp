@@ -274,3 +274,85 @@
       positionPopup(x, y);
 
       preview.classList.add('loading');
+      preview.classList.remove('blocked');
+      pvthumb.style.display = 'none';
+      if(thumb){ pvthumb.src = thumb; } else { pvthumb.removeAttribute('src'); }
+
+      clearTimeout(hoverTimer);
+      hoverTimer = setTimeout(()=>{
+        if(currentURL !== href || pvframe.src !== href){
+          currentURL = href;
+          pvover.textContent = 'Cargando vista previa…';
+          pvframe.src = href;
+        }
+      }, 130);
+
+      clearTimeout(blockTimer);
+      blockTimer = setTimeout(()=>{
+        if(preview.classList.contains('loading')){
+          preview.classList.remove('loading');
+          preview.classList.add('blocked');
+          pvover.textContent = 'Vista previa no disponible (el sitio restringe incrustación).';
+          if(pvthumb.src) pvthumb.style.display = 'block';
+        }
+      }, 1500);
+
+      applyScale();
+    }
+
+    function hidePreview(force=false){
+      if(locked && !force) return;
+      preview.style.display = 'none';
+      preview.setAttribute('aria-hidden','true');
+      clearTimeout(hoverTimer);
+      clearTimeout(blockTimer);
+    }
+
+    pvframe.addEventListener('load', ()=>{
+      preview.classList.remove('loading');
+      pvover.textContent = ' ';
+    });
+
+    document.addEventListener('mouseover', (e)=>{
+      const a = e.target.closest('a.btn'); if(!a) return;
+      if(!locked) showPreview(a, e);
+    });
+    document.addEventListener('mousemove', (e)=>{
+      if(preview.style.display==='block' && !locked){
+        const a = e.target.closest('a.btn');
+        if(a) { positionPopup(e.clientX + window.scrollX, e.clientY + window.scrollY); }
+      }
+    });
+    document.addEventListener('mouseout', (e)=>{
+      const leavingBtn = e.target.closest && e.target.closest('a.btn');
+      if(leavingBtn && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('#preview'))){
+        hidePreview();
+      }
+    });
+
+    document.addEventListener('focusin', e=>{
+      const a = e.target.closest && e.target.closest('a.btn'); if(a && !locked) showPreview(a, null);
+    });
+    document.addEventListener('focusout', e=>{
+      const a = e.target.closest && e.target.closest('a.btn'); if(a) hidePreview();
+    });
+
+    window.addEventListener('scroll', ()=>{ if(preview.style.display==='block' && !locked) hidePreview(); });
+
+    pvlock.addEventListener('click', ()=>{
+      locked = !locked;
+      pvlock.textContent = locked ? 'Desfijar' : 'Fijar';
+      preview.setAttribute('aria-modal', locked ? 'true' : 'false');
+    });
+    pvclose.addEventListener('click', ()=>{
+      locked = false; pvlock.textContent = 'Fijar'; hidePreview(true);
+    });
+
+    document.addEventListener('keydown', (e)=>{
+      if(e.key === 'Escape'){
+        locked = false; pvlock.textContent = 'Fijar'; hidePreview(true);
+      }
+    });
+  </script>
+</body>
+</html>
