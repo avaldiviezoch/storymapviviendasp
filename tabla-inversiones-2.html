@@ -6,21 +6,23 @@
 <title>Listado MEF · Ranking por Sector</title>
 <style>
   :root{
-    --ink:#0b2532; --muted:#6b7b86; --line:#e6ecea; --bg:#ffffff; /* fondo blanco */
+    --ink:#0b2532; --muted:#6b7b86; --line:#e6ecea; --bg:#ffffff;
     --chip:#0b3b38; --chip-ink:#d7fff6;
     --link:#0a5a51; --link-h:#094c45; --row-alt:#f9fcfb;
   }
   html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);
     font:12px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial}
-  .wrap{max-width:1180px;margin:10px auto 18px;padding:0 10px}
+  /* Evitar scroll vertical en modo colapsado */
+  body{overflow-y:hidden}
+  .wrap{max-width:1180px;margin:6px auto 14px;padding:0 10px}
 
   /* ---------- Indicador ---------- */
   .kpi{display:flex;flex-direction:column;align-items:center;justify-content:center;
-       margin:18px 0 10px}
-  .kpi-num{font-size:88px;line-height:1;font-weight:900;letter-spacing:.5px;color:#0e2f2b}
-  .kpi-label{margin-top:8px;font-size:28px;font-weight:600;color:#1a3f38}
+       margin:10px 0 8px}
+  .kpi-num{font-size:84px;line-height:1;font-weight:900;letter-spacing:.5px;color:#0e2f2b}
+  .kpi-label{margin-top:6px;font-size:26px;font-weight:600;color:#1a3f38}
 
-  .topbar{display:flex;align-items:center;gap:8px;margin:10px 0 8px}
+  .topbar{display:flex;align-items:center;gap:8px;margin:6px 0 6px}
   .btn{display:inline-flex;align-items:center;gap:8px;border:1px solid #0e4a43;
     background:var(--chip);color:var(--chip-ink);padding:7px 10px;border-radius:999px;
     font-weight:800;cursor:pointer;box-shadow:0 6px 14px rgba(2,6,23,.15)}
@@ -36,13 +38,11 @@
   thead th{
     position:sticky;top:0;z-index:2;
     background:#0e2f2b;color:#e9fff9;border-bottom:1px solid var(--line);
-    font-size:11.5px;letter-spacing:.2px;padding:8px 6px;
-    text-align:center;
+    font-size:11.5px;letter-spacing:.2px;padding:8px 6px;text-align:center;
   }
   tbody td{
     border-top:1px solid var(--line);border-right:1px solid var(--line);
-    padding:7px 6px;vertical-align:middle;font-size:11.5px;
-    text-align:center;
+    padding:7px 6px;vertical-align:middle;font-size:11.5px;text-align:center;
   }
   tbody tr:nth-child(odd){background:var(--row-alt)}
   tbody td:last-child, thead th:last-child{border-right:none}
@@ -55,11 +55,11 @@
   col.dev{width:200px}
   col.avz{width:120px}
 
-  .status{padding:10px 0;color:var(--muted);font-weight:700}
+  .status{padding:8px 0;color:var(--muted);font-weight:700}
   .error{color:#9b1c1c}
 
-  /* Pie de controles de tabla (mostrar más/menos) */
-  .tbl-footer{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:8px 10px}
+  /* Pie con botón de expansión */
+  .tbl-footer{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:6px 10px}
   .mini{padding:4px 7px;border-radius:999px;font-size:11px}
 </style>
 </head>
@@ -168,7 +168,7 @@ function fmtPct(n){
   if (!isFinite(v)) return "—";
   return new Intl.NumberFormat("es-PE",{minimumFractionDigits:2,maximumFractionDigits:2}).format(v);
 }
-function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&gt;"}[c])); }
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
 
 /* =========================
    KPI loader
@@ -229,7 +229,7 @@ async function loadAll(){
       offset += page;
     }
     ROWS = out;
-    render(out);
+    render(out, true);
     state.textContent = `Listo (${out.length.toLocaleString('es-PE')} filas)`;
   }catch(e){
     console.error(e);
@@ -241,7 +241,7 @@ async function loadAll(){
 /* =========================
    Render (con colapso/expansión)
 ========================= */
-function render(rows){
+function render(rows, first=false){
   const tb = document.getElementById("tbody");
   const slice = expanded ? rows : rows.slice(0, SHOW_LIMIT);
   tb.innerHTML = slice.map(r=>`
@@ -255,15 +255,21 @@ function render(rows){
     </tr>
   `).join("");
 
-  // actualizar etiquetas y flechas
+  // Actualizar etiquetas y flechas
   const togLabel = document.getElementById("togLabel");
   const arrowPaths = document.querySelectorAll("#btnToggle path, #btnToggle2 path");
   if(expanded){
     togLabel.textContent = "Ver menos";
-    arrowPaths.forEach(p=>p.setAttribute("d","M6 15l6-6 6 6")); // flecha hacia arriba
+    arrowPaths.forEach(p=>p.setAttribute("d","M6 15l6-6 6 6")); // flecha arriba
+    document.body.style.overflowY = "auto";  // permitir scroll al expandir
   }else{
     togLabel.textContent = "Mostrar todo";
-    arrowPaths.forEach(p=>p.setAttribute("d","M6 9l6 6 6-6")); // flecha hacia abajo
+    arrowPaths.forEach(p=>p.setAttribute("d","M6 9l6 6 6-6")); // flecha abajo
+    document.body.style.overflowY = "hidden"; // sin scroll al colapsar
+    if(first){
+      // Ajuste fino: si aún aparece scroll por 1-2px, forzar scroll top
+      window.scrollTo(0,0);
+    }
   }
 }
 
@@ -281,7 +287,7 @@ function toCSV(rows){
 }
 function downloadCSV(){
   const csv = toCSV(ROWS);
-  const bom = new Uint8Array([0xEF,0xBB,0xBF]); // UTF-8 BOM
+  const bom = new Uint8Array([0xEF,0xBB,0xBF]);
   const blob = new Blob([bom, csv], {type:"text/csv;charset=utf-8"});
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
