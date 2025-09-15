@@ -35,9 +35,8 @@
   }
 
   .center {
-    display: inline-flex;
-    align-items: flex-end;
-    gap: clamp(10px, 2vw, 20px);
+    display: grid;
+    place-items: center;
     transform-origin: center bottom;
   }
 
@@ -45,7 +44,6 @@
     font-weight: 900;
     color: #043a36;
     line-height: 1;
-    transform: translateY(-6%);
     font-size: clamp(26px, 7vw, 10.5vh);
     opacity: 0;
     transition: .35s ease;
@@ -59,13 +57,11 @@
     letter-spacing: .02em;
     white-space: nowrap;
     opacity: 0;
-    transform: translateY(8px);
     transition: .35s ease;
   }
-  .amount.ready { opacity: 1; transform: translateY(0); }
-  .prefix.ready { opacity: 1; transform: translateY(0); }
+  .amount.ready { opacity: 1; }
+  .prefix.ready { opacity: 1; }
 
-  /* % debajo del contador */
   .percent {
     margin-top: clamp(6px, 1.8vh, 14px);
     text-align: center;
@@ -73,10 +69,9 @@
     color: #0b3b38;
     font-size: clamp(18px, 3vw, 28px);
     opacity: 0;
-    transform: translateY(6px);
     transition: .35s ease;
   }
-  .percent.ready { opacity: 1; transform: translateY(0); }
+  .percent.ready { opacity: 1; }
 
   .source {
     margin: 0 0 clamp(6px, 1.5vh, 14px) 0;
@@ -91,10 +86,10 @@
   <div class="stage">
     <h2 class="title">Presupuesto Devengado 2025</h2>
 
-    <div style="display:grid;place-items:center">
-      <div class="center" id="row">
-        <div class="prefix" id="cur">S/.</div>
-        <div class="amount" id="val">0</div>
+    <div class="center">
+      <div>
+        <span class="prefix" id="cur">S/.</span>
+        <span class="amount" id="val">0</span>
       </div>
       <div class="percent" id="percent">0%</div>
     </div>
@@ -131,8 +126,7 @@ async function fetchDevengadoData(){
   };
 }
 
-function animateNumber(el, target, ms=1700, suffix=""){
-  const fmt = new Intl.NumberFormat('es-PE', { maximumFractionDigits: 2 });
+function animateNumber(el, target, ms=1700, fmt, suffix=""){
   const start = performance.now();
   function tick(t){
     const p = Math.min(1, (t - start) / ms);
@@ -142,18 +136,6 @@ function animateNumber(el, target, ms=1700, suffix=""){
     if(p < 1) requestAnimationFrame(tick);
   }
   requestAnimationFrame(tick);
-}
-
-function fitRow(){
-  const row = document.getElementById('row');
-  row.style.transform = 'scale(1)';
-  const pad = Math.max(8, Math.min(window.innerWidth*0.02, 24));
-  const available = window.innerWidth - pad*2;
-  const needed = row.scrollWidth;
-  if (needed > available) {
-    const s = Math.max(0.85, available / needed);
-    row.style.transform = `scale(${s})`;
-  }
 }
 
 (async function init(){
@@ -168,10 +150,14 @@ function fitRow(){
       val.classList.add('ready');
       cur.classList.add('ready');
       percentEl.classList.add('ready');
-      fitRow();
     });
-    animateNumber(val, dev, 1700); // monto devengado
-    animateNumber(percentEl, perc, 1700, "%"); // porcentaje
+
+    // 👇 formateadores separados
+    const fmtInt   = new Intl.NumberFormat('es-PE', { maximumFractionDigits: 0 });
+    const fmtPerc  = new Intl.NumberFormat('es-PE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
+    animateNumber(val, dev, 1700, fmtInt);              // monto sin decimales
+    animateNumber(percentEl, perc, 1700, fmtPerc, "%"); // porcentaje con 1 decimal
   }catch(e){
     console.error(e);
     val.textContent = "—";
@@ -179,11 +165,8 @@ function fitRow(){
     val.classList.add('ready');
     cur.classList.add('ready');
     percentEl.classList.add('ready');
-    fitRow();
   }
 })();
-
-window.addEventListener('resize', fitRow);
 </script>
 </body>
 </html>
