@@ -65,6 +65,19 @@
   .amount.ready { opacity: 1; transform: translateY(0); }
   .prefix.ready { opacity: 1; transform: translateY(0); }
 
+  /* % debajo del contador */
+  .percent {
+    margin-top: clamp(6px, 1.8vh, 14px);
+    text-align: center;
+    font-weight: 800;
+    color: #0b3b38;
+    font-size: clamp(18px, 3vw, 28px);
+    opacity: 0;
+    transform: translateY(6px);
+    transition: .35s ease;
+  }
+  .percent.ready { opacity: 1; transform: translateY(0); }
+
   .source {
     margin: 0 0 clamp(6px, 1.5vh, 14px) 0;
     text-align: center;
@@ -83,7 +96,7 @@
         <div class="prefix" id="cur">S/.</div>
         <div class="amount" id="val">0</div>
       </div>
-      <!-- Subtítulo debajo eliminado -->
+      <div class="percent" id="percent">0%</div>
     </div>
 
     <div class="source">
@@ -95,12 +108,11 @@
 const SERVICE = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/OGEI/Mapa_Inversiones_MEF/FeatureServer/13/query";
 const WHERE   = "sector_nombre = 'VIVIENDA CONSTRUCCION Y SANEAMIENTO' AND ano_eje = 2025";
 
-async function fetchDevengadoSum(){
-  const outStats = JSON.stringify([{
-    statisticType: "sum",
-    onStatisticField: "monto_devengado",
-    outStatisticFieldName: "sum_dev"
-  }]);
+async function fetchDevengadoData(){
+  const outStats = JSON.stringify([
+    { statisticType: "sum", onStatisticField: "monto_devengado", outStatisticFieldName: "sum_dev" },
+    { statisticType: "sum", onStatisticField: "monto_pim", outStatisticFieldName: "sum_pim" }
+  ]);
   const qs = new URLSearchParams({
     where: WHERE,
     outStatistics: outStats,
@@ -112,17 +124,21 @@ async function fetchDevengadoSum(){
   if(!res.ok) throw new Error("HTTP " + res.status);
   const json = await res.json();
   if(json.error) throw new Error(json.error.message || "Error del servicio");
-  return Number(json.features?.[0]?.attributes?.sum_dev) || 0;
+  const a = json.features?.[0]?.attributes || {};
+  return {
+    dev: Number(a.sum_dev||0),
+    pim: Number(a.sum_pim||0)
+  };
 }
 
-function animateNumber(el, target, ms=1700){
-  const fmt = new Intl.NumberFormat('es-PE');
+function animateNumber(el, target, ms=1700, suffix=""){
+  const fmt = new Intl.NumberFormat('es-PE', { maximumFractionDigits: 2 });
   const start = performance.now();
   function tick(t){
     const p = Math.min(1, (t - start) / ms);
     const eased = 1 - Math.pow(1 - p, 3);
-    const cur = Math.round(target * eased);
-    el.textContent = fmt.format(cur);
+    const cur = target * eased;
+    el.textContent = fmt.format(cur) + suffix;
     if(p < 1) requestAnimationFrame(tick);
   }
   requestAnimationFrame(tick);
@@ -143,19 +159,26 @@ function fitRow(){
 (async function init(){
   const val = document.getElementById('val');
   const cur = document.getElementById('cur');
+  const percentEl = document.getElementById('percent');
   try{
-    const total = await fetchDevengadoSum();
+    const { dev, pim } = await fetchDevengadoData();
+    const perc = pim > 0 ? (dev / pim * 100) : 0;
+
     requestAnimationFrame(()=>{
       val.classList.add('ready');
       cur.classList.add('ready');
+      percentEl.classList.add('ready');
       fitRow();
     });
-    animateNumber(val, total);
+    animateNumber(val, dev, 1700); // monto devengado
+    animateNumber(percentEl, perc, 1700, "%"); // porcentaje
   }catch(e){
     console.error(e);
     val.textContent = "—";
+    percentEl.textContent = "—";
     val.classList.add('ready');
     cur.classList.add('ready');
+    percentEl.classList.add('ready');
     fitRow();
   }
 })();
