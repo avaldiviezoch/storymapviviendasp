@@ -6,7 +6,7 @@
 <title>Listado MEF · Ranking por Sector</title>
 <style>
   :root{
-    --ink:#0b2532; --muted:#6b7b86; --line:#e6ecea; --bg:#ffffff; /* fondo ahora blanco puro */
+    --ink:#0b2532; --muted:#6b7b86; --line:#e6ecea; --bg:#ffffff; /* fondo blanco */
     --chip:#0b3b38; --chip-ink:#d7fff6;
     --link:#0a5a51; --link-h:#094c45; --row-alt:#f9fcfb;
   }
@@ -14,9 +14,9 @@
     font:12px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial}
   .wrap{max-width:1180px;margin:10px auto 18px;padding:0 10px}
 
-  /* ---------- Indicador (nuevo) ---------- */
+  /* ---------- Indicador ---------- */
   .kpi{display:flex;flex-direction:column;align-items:center;justify-content:center;
-       margin:18px 0 10px} /* bajé un poco el contenido */
+       margin:18px 0 10px}
   .kpi-num{font-size:88px;line-height:1;font-weight:900;letter-spacing:.5px;color:#0e2f2b}
   .kpi-label{margin-top:8px;font-size:28px;font-weight:600;color:#1a3f38}
 
@@ -37,16 +37,16 @@
     position:sticky;top:0;z-index:2;
     background:#0e2f2b;color:#e9fff9;border-bottom:1px solid var(--line);
     font-size:11.5px;letter-spacing:.2px;padding:8px 6px;
-    text-align:center;            /* centrado encabezados */
+    text-align:center;
   }
   tbody td{
     border-top:1px solid var(--line);border-right:1px solid var(--line);
     padding:7px 6px;vertical-align:middle;font-size:11.5px;
-    text-align:center;            /* centrado celdas */
+    text-align:center;
   }
   tbody tr:nth-child(odd){background:var(--row-alt)}
   tbody td:last-child, thead th:last-child{border-right:none}
-  .num{font-variant-numeric:tabular-nums;text-align:center} /* centrado números */
+  .num{font-variant-numeric:tabular-nums;text-align:center}
 
   col.rk{width:80px}
   col.sec{width:420px}
@@ -57,6 +57,10 @@
 
   .status{padding:10px 0;color:var(--muted);font-weight:700}
   .error{color:#9b1c1c}
+
+  /* Pie de controles de tabla (mostrar más/menos) */
+  .tbl-footer{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:8px 10px}
+  .mini{padding:4px 7px;border-radius:999px;font-size:11px}
 </style>
 </head>
 <body>
@@ -71,6 +75,11 @@
   <div class="topbar">
     <strong style="padding-left:2px">Ranking por Sector</strong>
     <div class="spacer"></div>
+    <button id="btnToggle" class="btn small" title="Mostrar más">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M6 9l6 6 6-6" stroke="#bff3e9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
     <button id="btnExcel" class="btn small" title="Exportar a Excel (CSV)">
       <svg class="ic" viewBox="0 0 24 24" fill="none">
         <path d="M14 3h4a2 2 0 0 1 2 2v4" stroke="#bff3e9" stroke-width="2"/>
@@ -102,6 +111,14 @@
         <tbody id="tbody"></tbody>
       </table>
     </div>
+    <div class="tbl-footer">
+      <button id="btnToggle2" class="btn mini" title="Mostrar más">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M6 9l6 6 6-6" stroke="#bff3e9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span id="togLabel">Mostrar todo</span>
+      </button>
+    </div>
   </div>
 </div>
 
@@ -115,8 +132,12 @@ const OUT_FIELDS = [
   "sum_monto_pia","sum_monto_pim","sum_monto_devengado","avance"
 ].join(",");
 
-/* KPI: sector a mostrar (cámbialo si deseas otro) */
+/* KPI: sector a mostrar */
 const KPI_SECTOR = "VIVIENDA CONSTRUCCION Y SANEAMIENTO";
+
+/* Mostrar por defecto solo N filas */
+const SHOW_LIMIT = 10;
+let expanded = false;
 
 /* =========================
    Helpers
@@ -147,10 +168,10 @@ function fmtPct(n){
   if (!isFinite(v)) return "—";
   return new Intl.NumberFormat("es-PE",{minimumFractionDigits:2,maximumFractionDigits:2}).format(v);
 }
-function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&gt;"}[c])); }
 
 /* =========================
-   KPI loader (mínimo rankin del sector)
+   KPI loader
 ========================= */
 function escQuotes(v){ return String(v).replaceAll("'","''"); }
 async function loadKPI(){
@@ -218,11 +239,12 @@ async function loadAll(){
 }
 
 /* =========================
-   Render
+   Render (con colapso/expansión)
 ========================= */
 function render(rows){
   const tb = document.getElementById("tbody");
-  tb.innerHTML = rows.map(r=>`
+  const slice = expanded ? rows : rows.slice(0, SHOW_LIMIT);
+  tb.innerHTML = slice.map(r=>`
     <tr>
       <td class="num">${r.rk ?? "—"}</td>
       <td>${escapeHtml(r.sec || "—")}</td>
@@ -232,6 +254,17 @@ function render(rows){
       <td class="num">${fmtPct(r.avz)}</td>
     </tr>
   `).join("");
+
+  // actualizar etiquetas y flechas
+  const togLabel = document.getElementById("togLabel");
+  const arrowPaths = document.querySelectorAll("#btnToggle path, #btnToggle2 path");
+  if(expanded){
+    togLabel.textContent = "Ver menos";
+    arrowPaths.forEach(p=>p.setAttribute("d","M6 15l6-6 6 6")); // flecha hacia arriba
+  }else{
+    togLabel.textContent = "Mostrar todo";
+    arrowPaths.forEach(p=>p.setAttribute("d","M6 9l6 6 6-6")); // flecha hacia abajo
+  }
 }
 
 /* =========================
@@ -261,6 +294,10 @@ function downloadCSV(){
    Init / UI
 ========================= */
 document.getElementById("btnExcel").addEventListener("click", downloadCSV);
+function toggleRows(){ expanded = !expanded; render(ROWS); }
+document.getElementById("btnToggle").addEventListener("click", toggleRows);
+document.getElementById("btnToggle2").addEventListener("click", toggleRows);
+
 loadKPI();
 loadAll();
 </script>
