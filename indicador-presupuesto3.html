@@ -5,17 +5,15 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Devengado 2025 – Fullscreen</title>
 <style>
-  /* Full-bleed: nada de márgenes ni fondos extra */
   html, body {
     height: 100%;
     margin: 0;
-    background: transparent; /* usa el fondo del StoryMap */
+    background: transparent;
     color: #062e2b;
     font-family: system-ui, Segoe UI, Roboto, Arial;
-    overflow: hidden; /* evita cualquier scroll */
+    overflow: hidden;
   }
 
-  /* Ocupa todo el viewport y centra el contenido */
   .stage {
     height: 100vh;
     width: 100vw;
@@ -27,7 +25,6 @@
     padding: 0 clamp(8px, 2vw, 24px);
   }
 
-  /* Título arriba, centrado */
   .title {
     margin: 0;
     text-align: center;
@@ -37,15 +34,13 @@
     font-size: clamp(18px, 3.2vw, 40px);
   }
 
-  /* Zona central: símbolo y monto en una fila */
   .center {
     display: inline-flex;
     align-items: flex-end;
     gap: clamp(10px, 2vw, 20px);
-    transform-origin: center bottom; /* para el auto-fit */
+    transform-origin: center bottom;
   }
 
-  /* MISMO color que el número */
   .prefix {
     font-weight: 900;
     color: #043a36;
@@ -60,7 +55,6 @@
     font-weight: 900;
     color: #043a36;
     line-height: 1.05;
-    /* límites afinados para que encaje sin salirse */
     font-size: clamp(40px, 16.5vw, 20vh);
     letter-spacing: .02em;
     white-space: nowrap;
@@ -71,18 +65,6 @@
   .amount.ready { opacity: 1; transform: translateY(0); }
   .prefix.ready { opacity: 1; transform: translateY(0); }
 
-  /* Subtítulo justo debajo del número */
-  .sub {
-    margin-top: clamp(6px, 1.8vh, 14px);
-    text-align: center;
-    letter-spacing: .5em;
-    font-weight: 700;
-    color: #0b3b38;
-    opacity: .85;
-    font-size: clamp(10px, 2vw, 14px);
-  }
-
-  /* Fuente abajo; pequeña para no “robar” altura */
   .source {
     margin: 0 0 clamp(6px, 1.5vh, 14px) 0;
     text-align: center;
@@ -101,7 +83,7 @@
         <div class="prefix" id="cur">S/.</div>
         <div class="amount" id="val">0</div>
       </div>
-      <div class="sub">D E V E N G A D O</div>
+      <!-- Subtítulo debajo eliminado -->
     </div>
 
     <div class="source">
@@ -110,7 +92,6 @@
   </div>
 
 <script>
-/* ==== ArcGIS REST (outStatistics para sumar en el servidor) ==== */
 const SERVICE = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/OGEI/Mapa_Inversiones_MEF/FeatureServer/13/query";
 const WHERE   = "sector_nombre = 'VIVIENDA CONSTRUCCION Y SANEAMIENTO' AND ano_eje = 2025";
 
@@ -134,13 +115,12 @@ async function fetchDevengadoSum(){
   return Number(json.features?.[0]?.attributes?.sum_dev) || 0;
 }
 
-/* ==== Conteo animado 0 → total ==== */
 function animateNumber(el, target, ms=1700){
   const fmt = new Intl.NumberFormat('es-PE');
   const start = performance.now();
   function tick(t){
     const p = Math.min(1, (t - start) / ms);
-    const eased = 1 - Math.pow(1 - p, 3); // easeOutCubic
+    const eased = 1 - Math.pow(1 - p, 3);
     const cur = Math.round(target * eased);
     el.textContent = fmt.format(cur);
     if(p < 1) requestAnimationFrame(tick);
@@ -148,11 +128,10 @@ function animateNumber(el, target, ms=1700){
   requestAnimationFrame(tick);
 }
 
-/* Pequeño auto-fit por si el ancho se pasa en pantallas estrechas */
 function fitRow(){
   const row = document.getElementById('row');
   row.style.transform = 'scale(1)';
-  const pad = Math.max(8, Math.min(window.innerWidth*0.02, 24)); // igual al clamp del padding
+  const pad = Math.max(8, Math.min(window.innerWidth*0.02, 24));
   const available = window.innerWidth - pad*2;
   const needed = row.scrollWidth;
   if (needed > available) {
