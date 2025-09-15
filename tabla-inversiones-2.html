@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Listado MEF · Ranking por Sector</title>
+<style>
+  :root{
+    --ink:#0b2532; --muted:#6b7b86; --line:#e6ecea; --bg:#f4faf8;
+    --chip:#0b3b38; --chip-ink:#d7fff6;
+    --link:#0a5a51; --link-h:#094c45; --row-alt:#f9fcfb;
+  }
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);
+    font:12px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial}
+  .wrap{max-width:1180px;margin:10px auto 18px;padding:0 10px}
+
+  /* ---------- Indicador (nuevo) ---------- */
+  .kpi{display:flex;flex-direction:column;align-items:center;justify-content:center;
+       margin:18px 0 10px} /* bajé un poco el contenido */
+  .kpi-num{font-size:88px;line-height:1;font-weight:900;letter-spacing:.5px;color:#0e2f2b}
+  .kpi-label{margin-top:8px;font-size:28px;font-weight:600;color:#1a3f38}
+
+  .topbar{display:flex;align-items:center;gap:8px;margin:10px 0 8px}
+  .btn{display:inline-flex;align-items:center;gap:8px;border:1px solid #0e4a43;
+    background:var(--chip);color:var(--chip-ink);padding:7px 10px;border-radius:999px;
+    font-weight:800;cursor:pointer;box-shadow:0 6px 14px rgba(2,6,23,.15)}
+  .btn.small{padding:6px 8px;border-radius:10px}
+  .btn .ic{width:14px;height:14px;display:inline-block}
+  .btn:hover{filter:brightness(1.05)}
+  .spacer{flex:1}
+
+  .tableWrap{background:#fff;border:1px solid var(--line);border-radius:10px;
+    box-shadow:0 10px 26px rgba(2,6,23,.08);overflow:hidden}
+  .scrollX{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;table-layout:fixed}
+  thead th{
+    position:sticky;top:0;z-index:2;
+    background:#0e2f2b;color:#e9fff9;border-bottom:1px solid var(--line);
+    font-size:11.5px;letter-spacing:.2px;padding:8px 6px;
+    text-align:center;            /* centrado encabezados */
+  }
+  tbody td{
+    border-top:1px solid var(--line);border-right:1px solid var(--line);
+    padding:7px 6px;vertical-align:middle;font-size:11.5px;
+    text-align:center;            /* centrado celdas */
+  }
+  tbody tr:nth-child(odd){background:var(--row-alt)}
+  tbody td:last-child, thead th:last-child{border-right:none}
+  .num{font-variant-numeric:tabular-nums;text-align:center} /* centrado números */
+
+  col.rk{width:80px}
+  col.sec{width:420px}
+  col.pia{width:180px}
+  col.pim{width:180px}
+  col.dev{width:200px}
+  col.avz{width:120px}
+
+  .status{padding:10px 0;color:var(--muted);font-weight:700}
+  .error{color:#9b1c1c}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Indicador / Contador -->
+  <section class="kpi" aria-label="Indicador de ranking general">
+    <div id="kpiNum" class="kpi-num">—</div>
+    <div class="kpi-label">Ranking General</div>
+  </section>
+
+  <div class="topbar">
+    <strong style="padding-left:2px">Ranking por Sector</strong>
+    <div class="spacer"></div>
+    <button id="btnExcel" class="btn small" title="Exportar a Excel (CSV)">
+      <svg class="ic" viewBox="0 0 24 24" fill="none">
+        <path d="M14 3h4a2 2 0 0 1 2 2v4" stroke="#bff3e9" stroke-width="2"/>
+        <path d="M14 3v6h6" stroke="#bff3e9" stroke-width="2"/>
+        <rect x="3" y="7" width="14" height="14" rx="2" stroke="#bff3e9" stroke-width="2"/>
+        <path d="M7.5 12.5 11 16m0-3.5L7.5 16" stroke="#bff3e9" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </button>
+  </div>
+
+  <div id="state" class="status" role="status" aria-live="polite">Cargando datos…</div>
+
+  <div class="tableWrap">
+    <div class="scrollX">
+      <table id="tbl">
+        <colgroup>
+          <col class="rk"><col class="sec"><col class="pia"><col class="pim"><col class="dev"><col class="avz">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>RANKING</th>
+            <th>Sector</th>
+            <th>PIA</th>
+            <th>PIM</th>
+            <th>Devengado</th>
+            <th>Avance(%)</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================
+   Config
+========================= */
+const LAYER_URL = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/OGEI/Mapa_Inversiones_MEF/MapServer/9";
+const OUT_FIELDS = [
+  "rankin","sector_nombre",
+  "sum_monto_pia","sum_monto_pim","sum_monto_devengado","avance"
+].join(",");
+
+/* KPI: sector a mostrar (cámbialo si deseas otro) */
+const KPI_SECTOR = "VIVIENDA CONSTRUCCION Y SANEAMIENTO";
+
+/* =========================
+   Helpers
+========================= */
+function cacheBust(){ return String(Date.now()); }
+
+function esriPOST(url, obj){
+  const body = new URLSearchParams({f:"json",returnGeometry:"false",...obj,__ts:cacheBust()});
+  return fetch(url,{
+    method:"POST",
+    headers:{"Content-Type":"application/x-www-form-urlencoded;charset=UTF-8"},
+    body
+  }).then(r=>{
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    return r.json();
+  }).then(j=>{
+    if(j.error) throw new Error(j.error.message||"ArcGIS");
+    return j;
+  });
+}
+
+function fmtMoney(n){
+  const v = Number(n)||0;
+  return new Intl.NumberFormat("es-PE",{minimumFractionDigits:2,maximumFractionDigits:2}).format(v);
+}
+function fmtPct(n){
+  const v = Number(n);
+  if (!isFinite(v)) return "—";
+  return new Intl.NumberFormat("es-PE",{minimumFractionDigits:2,maximumFractionDigits:2}).format(v);
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+
+/* =========================
+   KPI loader (mínimo rankin del sector)
+========================= */
+function escQuotes(v){ return String(v).replaceAll("'","''"); }
+async function loadKPI(){
+  try{
+    const outStatistics = JSON.stringify([{statisticType:"min",onStatisticField:"rankin",outStatisticFieldName:"min_rankin"}]);
+    const where = `sector_nombre='${escQuotes(KPI_SECTOR)}'`;
+    const j = await esriPOST(LAYER_URL + "/query", {
+      where,
+      outStatistics,
+      groupByFieldsForStatistics:""
+    });
+    const num = (j.features?.[0]?.attributes?.min_rankin);
+    document.getElementById("kpiNum").textContent =
+      (num!=null) ? Number(num).toLocaleString("es-PE") : "—";
+  }catch(e){
+    console.warn("KPI error:", e);
+    document.getElementById("kpiNum").textContent = "—";
+  }
+}
+
+/* =========================
+   Data load (paginado)
+========================= */
+let ROWS = [];
+
+async function loadAll(){
+  const state = document.getElementById("state");
+  state.classList.remove("error");
+  state.textContent = "Cargando datos…";
+  const page = 2000;
+  let offset = 0;
+  const out = [];
+
+  try{
+    while(true){
+      const j = await esriPOST(LAYER_URL + "/query", {
+        where: "1=1",
+        outFields: OUT_FIELDS,
+        orderByFields: "rankin ASC",
+        resultRecordCount: page,
+        resultOffset: offset
+      });
+      (j.features||[]).forEach(f=>{
+        const a = f.attributes||{};
+        out.push({
+          rk: a.rankin ?? null,
+          sec: a.sector_nombre ?? "",
+          pia: Number(a.sum_monto_pia)||0,
+          pim: Number(a.sum_monto_pim)||0,
+          dev: Number(a.sum_monto_devengado)||0,
+          avz: Number(a.avance)
+        });
+      });
+      if(!j.exceededTransferLimit || (j.features||[]).length < page) break;
+      offset += page;
+    }
+    ROWS = out;
+    render(out);
+    state.textContent = `Listo (${out.length.toLocaleString('es-PE')} filas)`;
+  }catch(e){
+    console.error(e);
+    state.classList.add("error");
+    state.textContent = "No se pudo cargar la tabla (ver consola).";
+  }
+}
+
+/* =========================
+   Render
+========================= */
+function render(rows){
+  const tb = document.getElementById("tbody");
+  tb.innerHTML = rows.map(r=>`
+    <tr>
+      <td class="num">${r.rk ?? "—"}</td>
+      <td>${escapeHtml(r.sec || "—")}</td>
+      <td class="num">${fmtMoney(r.pia)}</td>
+      <td class="num">${fmtMoney(r.pim)}</td>
+      <td class="num">${fmtMoney(r.dev)}</td>
+      <td class="num">${fmtPct(r.avz)}</td>
+    </tr>
+  `).join("");
+}
+
+/* =========================
+   CSV
+========================= */
+function toCSV(rows){
+  const sep = ";";
+  const header = ["RANKING","Sector","PIA","PIM","Devengado","Avance(%)"];
+  const esc = v => `"${String(v??"").replace(/"/g,'""')}"`;
+  const lines = rows.map(r=>[
+    r.rk, r.sec, r.pia, r.pim, r.dev, r.avz
+  ].map(esc).join(sep));
+  return header.join(sep) + "\n" + lines.join("\n");
+}
+function downloadCSV(){
+  const csv = toCSV(ROWS);
+  const bom = new Uint8Array([0xEF,0xBB,0xBF]); // UTF-8 BOM
+  const blob = new Blob([bom, csv], {type:"text/csv;charset=utf-8"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "ranking_sector_mef.csv";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1500);
+}
+
+/* =========================
+   Init / UI
+========================= */
+document.getElementById("btnExcel").addEventListener("click", downloadCSV);
+loadKPI();
+loadAll();
+</script>
+</body>
+</html>
