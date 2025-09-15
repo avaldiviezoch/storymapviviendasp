@@ -6,17 +6,18 @@
 <title>Listado MEF · Ranking por Sector</title>
 <style>
   :root{
-    --ink:#0b2532; --muted:#6b7b86; --line:#e6ecea; --bg:#ffffff; /* fondo blanco puro */
-    --chip:#0b3b38; --chip-ink:#d7fff6;
-    --link:#0a5a51; --link-h:#094c45; --row-alt:#f9fcfb;
+    --ink:#0b2532; --muted:#6b7b86; --line:#e6ecea; --bg:#ffffff;
+    --chip:#0b3b38; --chip-ink:#d7fff6; --row-alt:#f9fcfb;
   }
+
   html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);
     font:12px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial}
+
+  /* Mismo ancho fijo y centrado que el otro */
   .wrap{max-width:1180px;margin:10px auto 18px;padding:0 10px}
 
   /* ---------- Indicador ---------- */
-  .kpi{display:flex;flex-direction:column;align-items:center;justify-content:center;
-       margin:18px 0 10px}
+  .kpi{display:flex;flex-direction:column;align-items:center;justify-content:center;margin:18px 0 10px}
   .kpi-num{font-size:88px;line-height:1;font-weight:900;letter-spacing:.5px;color:#0e2f2b}
   .kpi-label{margin-top:8px;font-size:28px;font-weight:600;color:#1a3f38}
 
@@ -31,29 +32,30 @@
 
   .tableWrap{background:#fff;border:1px solid var(--line);border-radius:10px;
     box-shadow:0 10px 26px rgba(2,6,23,.08);overflow:hidden}
-  .scrollX{overflow-x:auto}
+  /* Sin scroll horizontal; la tabla se ajusta al ancho fijo */
+  .scrollX{overflow-x:hidden}
   table{width:100%;border-collapse:collapse;table-layout:fixed}
+
   thead th{
     position:sticky;top:0;z-index:2;
     background:#0e2f2b;color:#e9fff9;border-bottom:1px solid var(--line);
-    font-size:11.5px;letter-spacing:.2px;padding:8px 6px;
-    text-align:center;
+    font-size:11.5px;letter-spacing:.2px;padding:8px 6px;text-align:center;
   }
   tbody td{
     border-top:1px solid var(--line);border-right:1px solid var(--line);
-    padding:7px 6px;vertical-align:middle;font-size:11.5px;
-    text-align:center;
+    padding:7px 6px;vertical-align:middle;font-size:11.5px;text-align:center;
   }
   tbody tr:nth-child(odd){background:var(--row-alt)}
   tbody td:last-child, thead th:last-child{border-right:none}
   .num{font-variant-numeric:tabular-nums;text-align:center}
 
-  col.rk{width:80px}
-  col.sec{width:420px}
-  col.pia{width:180px}
-  col.pim{width:180px}
-  col.dev{width:200px}
-  col.avz{width:120px}
+  /* Anchos relativos (evitan desbordes y barra horizontal) */
+  col.rk  {width: 6%}
+  col.sec {width:34%}
+  col.pia {width:14%}
+  col.pim {width:14%}
+  col.dev {width:18%}
+  col.avz {width:12%}
 
   .status{padding:10px 0;color:var(--muted);font-weight:700}
   .error{color:#9b1c1c}
@@ -71,6 +73,14 @@
   <div class="topbar">
     <strong style="padding-left:2px">Ranking por Sector</strong>
     <div class="spacer"></div>
+
+    <!-- Botón único (solo ícono) para expandir/colapsar -->
+    <button id="btnToggle" class="btn small" title="Mostrar todo / Ver menos">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path id="chevPath" d="M6 9l6 6 6-6" stroke="#bff3e9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+
     <button id="btnExcel" class="btn small" title="Exportar a Excel (CSV)">
       <svg class="ic" viewBox="0 0 24 24" fill="none">
         <path d="M14 3h4a2 2 0 0 1 2 2v4" stroke="#bff3e9" stroke-width="2"/>
@@ -115,115 +125,75 @@ const OUT_FIELDS = [
   "sum_monto_pia","sum_monto_pim","sum_monto_devengado","avance"
 ].join(",");
 
-/* KPI: parámetros de la tarjeta (como en tu captura) */
-const KPI_SECTOR = "VIVIENDA CONSTRUCCION Y SANEAMIENTO"; // filtro sector_nombre = ...
-// Estadística: Mínimo, Campo: rankin, Factor 1, Desplazamiento 0
+/* KPI */
+const KPI_SECTOR = "VIVIENDA CONSTRUCCION Y SANEAMIENTO";
+
+/* Comportamiento de filas (igual que el otro): 10 por defecto, expandible */
+const SHOW_LIMIT = 10;
+let expanded = false;
 
 /* =========================
    Helpers
 ========================= */
 function cacheBust(){ return String(Date.now()); }
-
 function esriPOST(url, obj){
   const body = new URLSearchParams({f:"json",returnGeometry:"false",...obj,__ts:cacheBust()});
-  return fetch(url,{
-    method:"POST",
-    headers:{"Content-Type":"application/x-www-form-urlencoded;charset=UTF-8"},
-    body
-  }).then(r=>{
-    if(!r.ok) throw new Error("HTTP "+r.status);
-    return r.json();
-  }).then(j=>{
-    if(j.error) throw new Error(j.error.message||"ArcGIS");
-    return j;
-  });
+  return fetch(url,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded;charset=UTF-8"},body})
+    .then(r=>{ if(!r.ok) throw new Error("HTTP "+r.status); return r.json(); })
+    .then(j=>{ if(j.error) throw new Error(j.error.message||"ArcGIS"); return j; });
 }
-
-function fmtMoney(n){
-  const v = Number(n)||0;
-  return new Intl.NumberFormat("es-PE",{minimumFractionDigits:2,maximumFractionDigits:2}).format(v);
-}
-function fmtPct(n){
-  const v = Number(n);
-  if (!isFinite(v)) return "—";
-  return new Intl.NumberFormat("es-PE",{minimumFractionDigits:2,maximumFractionDigits:2}).format(v);
-}
+function fmtMoney(n){ const v=Number(n)||0; return new Intl.NumberFormat("es-PE",{minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
+function fmtPct(n){ const v=Number(n); if(!isFinite(v)) return "—"; return new Intl.NumberFormat("es-PE",{minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
 function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
 
 /* =========================
-   KPI loader (mínimo rankin del sector)
+   KPI loader
 ========================= */
 function escQuotes(v){ return String(v).replaceAll("'","''"); }
 async function loadKPI(){
   try{
     const outStatistics = JSON.stringify([{statisticType:"min",onStatisticField:"rankin",outStatisticFieldName:"min_rankin"}]);
     const where = `sector_nombre='${escQuotes(KPI_SECTOR)}'`;
-    const j = await esriPOST(LAYER_URL + "/query", {
-      where,
-      outStatistics,
-      groupByFieldsForStatistics:""
-    });
+    const j = await esriPOST(LAYER_URL + "/query", { where, outStatistics, groupByFieldsForStatistics:"" });
     const num = (j.features?.[0]?.attributes?.min_rankin);
-    document.getElementById("kpiNum").textContent =
-      (num!=null) ? Number(num).toLocaleString("es-PE") : "—";
-  }catch(e){
-    console.warn("KPI error:", e);
-    document.getElementById("kpiNum").textContent = "—";
-  }
+    document.getElementById("kpiNum").textContent = (num!=null) ? Number(num).toLocaleString("es-PE") : "—";
+  }catch(e){ document.getElementById("kpiNum").textContent = "—"; }
 }
 
 /* =========================
    Data load (paginado)
 ========================= */
 let ROWS = [];
-
 async function loadAll(){
   const state = document.getElementById("state");
-  state.classList.remove("error");
-  state.textContent = "Cargando datos…";
-  const page = 2000;
-  let offset = 0;
-  const out = [];
-
+  state.classList.remove("error"); state.textContent = "Cargando datos…";
+  const page=2000; let offset=0; const out=[];
   try{
     while(true){
       const j = await esriPOST(LAYER_URL + "/query", {
-        where: "1=1",
-        outFields: OUT_FIELDS,
-        orderByFields: "rankin ASC",
-        resultRecordCount: page,
-        resultOffset: offset
+        where:"1=1", outFields:OUT_FIELDS, orderByFields:"rankin ASC",
+        resultRecordCount:page, resultOffset:offset
       });
       (j.features||[]).forEach(f=>{
-        const a = f.attributes||{};
-        out.push({
-          rk: a.rankin ?? null,
-          sec: a.sector_nombre ?? "",
-          pia: Number(a.sum_monto_pia)||0,
-          pim: Number(a.sum_monto_pim)||0,
-          dev: Number(a.sum_monto_devengado)||0,
-          avz: Number(a.avance)
-        });
+        const a=f.attributes||{};
+        out.push({ rk:a.rankin??null, sec:a.sector_nombre??"", pia:+a.sum_monto_pia||0,
+                   pim:+a.sum_monto_pim||0, dev:+a.sum_monto_devengado||0, avz:+a.avance });
       });
-      if(!j.exceededTransferLimit || (j.features||[]).length < page) break;
-      offset += page;
+      if(!j.exceededTransferLimit || (j.features||[]).length<page) break;
+      offset+=page;
     }
-    ROWS = out;
-    render(out);
-    state.textContent = `Listo (${out.length.toLocaleString('es-PE')} filas)`;
-  }catch(e){
-    console.error(e);
-    state.classList.add("error");
-    state.textContent = "No se pudo cargar la tabla (ver consola).";
-  }
+    ROWS=out; render(out);
+    state.textContent=`Listo (${out.length.toLocaleString('es-PE')} filas)`;
+  }catch(e){ state.classList.add("error"); state.textContent="No se pudo cargar la tabla (ver consola)."; }
 }
 
 /* =========================
-   Render
+   Render + expansión
 ========================= */
 function render(rows){
   const tb = document.getElementById("tbody");
-  tb.innerHTML = rows.map(r=>`
+  const slice = expanded ? rows : rows.slice(0, SHOW_LIMIT);
+  tb.innerHTML = slice.map(r=>`
     <tr>
       <td class="num">${r.rk ?? "—"}</td>
       <td>${escapeHtml(r.sec || "—")}</td>
@@ -231,29 +201,30 @@ function render(rows){
       <td class="num">${fmtMoney(r.pim)}</td>
       <td class="num">${fmtMoney(r.dev)}</td>
       <td class="num">${fmtPct(r.avz)}</td>
-    </tr>
-  `).join("");
+    </tr>`).join("");
+
+  // Flecha y scroll de página
+  document.getElementById("chevPath")
+    .setAttribute("d", expanded ? "M6 15l6-6 6 6" : "M6 9l6 6 6-6");
+  document.body.style.overflowY = expanded ? "auto" : "hidden";
+  if(!expanded) window.scrollTo(0,0);
 }
 
 /* =========================
    CSV
 ========================= */
 function toCSV(rows){
-  const sep = ";";
-  const header = ["RANKING","Sector","PIA","PIM","Devengado","Avance(%)"];
-  const esc = v => `"${String(v??"").replace(/"/g,'""')}"`;
-  const lines = rows.map(r=>[
-    r.rk, r.sec, r.pia, r.pim, r.dev, r.avz
-  ].map(esc).join(sep));
-  return header.join(sep) + "\n" + lines.join("\n");
+  const sep=";"; const header=["RANKING","Sector","PIA","PIM","Devengado","Avance(%)"];
+  const esc=v=>`"${String(v??"").replace(/"/g,'""')}"`;
+  const lines = rows.map(r=>[r.rk,r.sec,r.pia,r.pim,r.dev,r.avz].map(esc).join(sep));
+  return header.join(sep)+"\n"+lines.join("\n");
 }
 function downloadCSV(){
-  const csv = toCSV(ROWS);
-  const bom = new Uint8Array([0xEF,0xBB,0xBF]); // UTF-8 BOM
-  const blob = new Blob([bom, csv], {type:"text/csv;charset=utf-8"});
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "ranking_sector_mef.csv";
+  const csv=toCSV(ROWS);
+  const bom=new Uint8Array([0xEF,0xBB,0xBF]);
+  const blob=new Blob([bom,csv],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob); a.download="ranking_sector_mef.csv";
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(a.href),1500);
 }
@@ -262,6 +233,8 @@ function downloadCSV(){
    Init / UI
 ========================= */
 document.getElementById("btnExcel").addEventListener("click", downloadCSV);
+document.getElementById("btnToggle").addEventListener("click", ()=>{ expanded=!expanded; render(ROWS); });
+
 loadKPI();
 loadAll();
 </script>
