@@ -47,7 +47,7 @@
 
     .note{ color:var(--muted); font-size:.9rem; margin-top:12px }
 
-    /* ===== Popup de vista previa mejorado ===== */
+    /* ===== Popup de vista previa ===== */
     .preview {
       position: fixed; z-index: 1000; display: none;
       width: var(--pv-w); height: var(--pv-h);
@@ -99,7 +99,7 @@
     <h1>📊 Biblioteca — Productos en HTML y Python</h1>
     <div class="sub">Interfaz de visualizaciones para Storymaps (con previsualización real en miniatura).</div>
 
-    <!-- Sección: Gráficos (cerrado por defecto) -->
+    <!-- Sección: Gráficos -->
     <details>
       <summary>
         <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
@@ -132,7 +132,7 @@
       </div>
     </details>
 
-    <!-- Sección: Indicadores (cerrado por defecto) -->
+    <!-- Sección: Indicadores (Tabla Inversiones 3 aquí) -->
     <details>
       <summary>
         <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
@@ -144,15 +144,16 @@
           <a class="btn v2" href="indicador-presupuesto2.html" target="_blank">Indicador Presupuesto 2</a>
           <a class="btn v3" href="indicador-presupuesto3.html" target="_blank">Indicador Presupuesto 3</a>
           <a class="btn v4" href="indicador-presupuesto4.html" target="_blank">Indicador Presupuesto 4</a>
-          <!-- Tablas de Inversiones (solo 1 y 2 aquí) -->
+          <!-- Tablas de Inversiones -->
           <a class="btn v2" href="tabla-inversiones-1.html" target="_blank">Tabla Inversiones 1</a>
           <a class="btn v3" href="tabla-inversiones-2.html" target="_blank">Tabla Inversiones 2</a>
+          <a class="btn v4" href="tabla-inversiones-3.html" target="_blank">Tabla Inversiones 3</a>
         </div>
-        <div class="note">Colección de indicadores presupuestales e inversiones (1–4) y tablas de inversiones (1–2). Pasa el mouse para ver mini-preview.</div>
+        <div class="note">Colección de indicadores presupuestales e inversiones (1–4) y tablas de inversiones (1–3). Pasa el mouse para ver mini-preview.</div>
       </div>
     </details>
 
-    <!-- Sección: Mapas (cerrado por defecto) -->
+    <!-- Sección: Mapas (agregado mapa-indicadores-presupuesto3.html) -->
     <details>
       <summary>
         <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
@@ -172,9 +173,8 @@
           <a class="btn v2" href="indicadores-presupuesto1.html"       target="_blank">Indicadores Presupuesto 1 (Mapa)</a>
           <a class="btn v3" href="mapa-indicadores-presupuesto1.html"  target="_blank">Mapa — Indicadores Presupuesto 1</a>
           <a class="btn v4" href="mapa-indicadores-presupuesto2.html"  target="_blank">Mapa — Indicadores Presupuesto 2</a>
-          <!-- NUEVO: mover aquí Tabla Inversiones 3 -->
-          <a class="btn v2" href="tabla-inversiones-3.html"            target="_blank">Tabla Inversiones 3</a>
-          <!-- NUEVO -->
+          <a class="btn v2" href="mapa-indicadores-presupuesto3.html"  target="_blank">Mapa — Indicadores Presupuesto 3</a>
+          <!-- Otros -->
           <a class="btn v2" href="mapa-christian-1.html"                target="_blank">Mapa — Christian 1</a>
         </div>
       </div>
@@ -216,7 +216,6 @@
 
     const cssVar = (name)=>parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
 
-    // Escala el iframe al tamaño del recuadro de preview
     function applyScale(){
       const wrap = preview.querySelector('.pv-wrap');
       if(!wrap) return;
@@ -229,7 +228,6 @@
     }
     window.addEventListener('resize', applyScale);
 
-    // Posicionar el popup cerca del cursor, ajustando a viewport
     function positionPopup(x, y){
       const pad = 14;
       const w = preview.offsetWidth || cssVar('--pv-w');
