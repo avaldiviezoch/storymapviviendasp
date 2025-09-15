@@ -72,7 +72,7 @@
   .amount.ready { opacity: 1; transform: translateY(0); }
   .prefix.ready { opacity: 1; transform: translateY(0); }
 
-  /* Subtítulo (PIM) justo debajo del número */
+  /* Subtítulo (PIM) — estilos pueden quedarse aunque no se use */
   .sub {
     margin-top: clamp(6px, 1.8vh, 14px);
     text-align: center;
@@ -102,7 +102,7 @@
         <div class="prefix" id="cur">S/.</div>
         <div class="amount" id="val">0</div>
       </div>
-      <div class="sub">P I M</div>
+      <!-- Subtítulo retirado a pedido -->
     </div>
 
     <div class="source">
@@ -186,3 +186,4 @@ window.addEventListener('resize', fitRow);
 </script>
 </body>
 </html>
+
