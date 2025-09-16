@@ -12,10 +12,16 @@
     gap:10px;padding:clamp(8px,2vw,20px); box-sizing:border-box}
   h1{margin:0;text-align:center;font-weight:900;letter-spacing:.3px;
      font-size:clamp(20px,3vw,42px)}
+
+  /* Leyenda + controles */
   .legendBar{display:flex;justify-content:center;align-items:center;gap:14px;flex-wrap:wrap;min-height:28px}
   .leg-btn{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid #e5e7eb;border-radius:999px;cursor:pointer;background:#fff;font-weight:700;font-size:13px}
   .leg-btn[aria-pressed="false"]{opacity:.35;background:#f8fafc}
   .sw{width:12px;height:12px;border-radius:50%}
+  .ctrl{display:inline-flex;gap:8px;align-items:center;margin-left:6px}
+  .ctrl button{padding:6px 10px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-weight:800}
+  .ctrl button:active{transform:translateY(1px)}
+
   .chartWrap{position:relative;overflow:hidden;border-radius:14px}
   canvas{display:block;width:100%;height:100%}
   .empty{display:grid;place-items:center;height:100%;color:#64748b;font-size:clamp(13px,1.6vw,16px);padding:12px;text-align:center}
@@ -36,9 +42,7 @@
     letter-spacing:.02em;
   }
   .tip .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
-  .tip .grid{
-    margin-top:6px; display:grid; grid-template-columns:auto 1fr; gap:4px 10px;
-  }
+  .tip .grid{ margin-top:6px; display:grid; grid-template-columns:auto 1fr; gap:4px 10px; }
   .tip .k{color:#64748b}
   .tip .v{font-weight:700; text-align:right}
   .tip .hr{margin:6px 0; height:1px; background:#eef2f7; grid-column:1/-1}
@@ -49,7 +53,7 @@
   <div class="stage">
     <h1>Devengado Acumulado VS Monto de Inversión</h1>
 
-    <!-- Leyenda interactiva centrada -->
+    <!-- Leyenda interactiva + controles -->
     <div class="legendBar" id="legendBar" role="toolbar" aria-label="Filtrar por Nivel de Avance"></div>
 
     <div class="chartWrap" id="wrap" aria-live="polite">
@@ -65,7 +69,7 @@ const LYR13 = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/OGEI/M
 const LYR1  = "https://pportalgis.vivienda.gob.pe/phtserver/rest/services/Hosted/story_monitoreo_inversiones/FeatureServer/1/query";
 
 /* -------- Filtros CAPA 13 (válidos) -------- */
-const WHERE_13 = "monto_pim > 0 AND producto_proyecto IS NOT NULL AND producto_proyecto <> 2193247";
+const WHERE_13 = "monto_pim > 0 AND producto_proyecto IS NOT NULL"; // (se quitó el <> 2193247 para no vaciar el set)
 
 /* -------- Filtros CAPA 1 (datos del scatter) -------- */
 const WHERE_1 = "etapa IN ('OBRA','OBRA (SALDO)') AND montoactualizadopip_decimal > 0 AND devengadoacumulado >= 0";
@@ -117,44 +121,74 @@ async function fetchAllPOST(url, baseParams){
   return out;
 }
 
-/* -------- Carga de datos -------- */
+/* -------- Carga de datos (con fallback robusto) -------- */
 async function loadData(){
-  // 1) IDs válidos desde CAPA 13
-  const rows13 = await fetchAllPOST(LYR13, { where: WHERE_13, outFields: "producto_proyecto" });
-  const idSet = new Set(rows13.map(r=>r.producto_proyecto).filter(v=>v!=null));
-  if(idSet.size===0) return [];
+  try{
+    // 1) IDs válidos desde CAPA 13
+    const rows13 = await fetchAllPOST(LYR13, { where: WHERE_13, outFields: "producto_proyecto" });
+    const ids13  = rows13.map(r=>r.producto_proyecto).filter(v=>v!=null);
+    const idSet  = new Set(ids13);
+    console.log("Capa 13 -> IDs:", idSet.size);
 
-  // 2) Traemos de CAPA 1 con IN (…) en chunks
-  const ids = Array.from(idSet);
-  const chunkSize = 900;
-  let rows1 = [];
-  for(let i=0;i<ids.length;i+=chunkSize){
-    const slice = ids.slice(i,i+chunkSize);
-    const where = `${WHERE_1} AND icodunificado IN (${slice.join(",")})`;
-    const part = await fetchAllPOST(LYR1, {
-      where,
+    // Si no hay IDs, caeremos al fallback directo a capa 1
+    if(idSet.size === 0) throw new Error("Capa 13 sin IDs");
+
+    // 2) Traemos de CAPA 1 con IN (…) en chunks
+    const ids = Array.from(idSet);
+    const chunkSize = 800; // prudente para URL/consulta
+    let rows1 = [];
+    for(let i=0;i<ids.length;i+=chunkSize){
+      const slice = ids.slice(i,i+chunkSize);
+      // NOTA: en Capa 1 'icodunificado' suele ser NUMÉRICO. Si fuera string, usa comillas:
+      // const list = slice.map(v=> `'${String(v).replaceAll("'", "''")}'`).join(",");
+      const list = slice.join(",");
+      const where = `${WHERE_1} AND icodunificado IN (${list})`;
+      const part = await fetchAllPOST(LYR1, {
+        where,
+        outFields: "icodunificado,devengadoacumulado,montoactualizadopip_decimal,nombreproyecto,beneficiarios"
+      });
+      rows1.push(...part);
+    }
+    console.log("Capa 1 (join con 13) -> filas:", rows1.length);
+
+    // Si la intersección quedó vacía, usamos fallback directo a capa 1
+    if(rows1.length === 0) throw new Error("Intersección 13↔1 vacía");
+
+    return rows1.map(r=>{
+      const x = Number(r.devengadoacumulado)||0;
+      const y = Number(r.montoactualizadopip_decimal)||0;
+      const bens = Number(r.beneficiarios)||0;
+      const p = pct(x,y);
+      return {
+        x, y, bens, pct: p, nivel: catFromPct(p),
+        icod: r.icodunificado ?? "",
+        nombre: (r.nombreproyecto ?? "").toString().trim()
+      };
+    }).filter(d=>d.y>0);
+
+  }catch(err){
+    console.warn("Fallback directo a Capa 1:", err.message||err);
+    // Fallback: traer TODO de Capa 1 con WHERE_1
+    const rows1 = await fetchAllPOST(LYR1, {
+      where: WHERE_1,
       outFields: "icodunificado,devengadoacumulado,montoactualizadopip_decimal,nombreproyecto,beneficiarios"
     });
-    rows1.push(...part);
+    console.log("Capa 1 (fallback) -> filas:", rows1.length);
+    return rows1.map(r=>{
+      const x = Number(r.devengadoacumulado)||0;
+      const y = Number(r.montoactualizadopip_decimal)||0;
+      const bens = Number(r.beneficiarios)||0;
+      const p = pct(x,y);
+      return {
+        x, y, bens, pct: p, nivel: catFromPct(p),
+        icod: r.icodunificado ?? "",
+        nombre: (r.nombreproyecto ?? "").toString().trim()
+      };
+    }).filter(d=>d.y>0);
   }
-
-  // 3) Transformamos
-  const pts = rows1.map(r=>{
-    const x = Number(r.devengadoacumulado)||0;
-    const y = Number(r.montoactualizadopip_decimal)||0;
-    const bens = Number(r.beneficiarios)||0;
-    const p = pct(x,y);
-    return {
-      x, y, bens, pct: p, nivel: catFromPct(p),
-      icod: r.icodunificado ?? "",
-      nombre: (r.nombreproyecto ?? "").toString().trim()
-    };
-  }).filter(d=>d.y>0);
-
-  return pts;
 }
 
-/* -------- Gráfico (Canvas) -------- */
+/* -------- Gráfico (Canvas) con ZOOM y PAN -------- */
 function makeChart(points){
   const wrap   = document.getElementById("wrap");
   const canvas = document.getElementById("chart");
@@ -176,6 +210,11 @@ function makeChart(points){
     b.onclick=()=>{ const cur=visible.get(c.short); visible.set(c.short,!cur); b.setAttribute("aria-pressed",String(!cur)); draw(); };
     legend.appendChild(b);
   });
+  // Controles de zoom/pan
+  const ctrl=document.createElement("div");
+  ctrl.className="ctrl";
+  ctrl.innerHTML=`<button id="zoomIn">+</button><button id="zoomOut">–</button><button id="resetView">Reset</button>`;
+  legend.appendChild(ctrl);
 
   // Escala de tamaño por beneficiarios
   const maxB = Math.max(1, ...points.map(p=>p.bens||0));
@@ -184,6 +223,14 @@ function makeChart(points){
     const t = Math.sqrt((b||0)/maxB);
     return minR + t * (maxR - minR);
   };
+
+  // Extents data & view
+  const dataMinX = 0;
+  const dataMaxX = Math.max(1,...points.map(p=>p.x));
+  const dataMinY = 0;
+  const dataMaxY = Math.max(1,...points.map(p=>p.y));
+
+  let view = { x0:dataMinX, x1:dataMaxX, y0:dataMinY, y1:dataMaxY };
 
   // Escalas y dibujo
   let dims={}, scale={};
@@ -194,43 +241,39 @@ function makeChart(points){
     ctx.setTransform(dpr,0,0,dpr,0,0);
     dims={W,H};
     const pad={t:40,r:24,b:64,l:86};
-    const act=points.filter(p=>visible.get(p.nivel));
-    const minX=0, maxX=Math.max(1,...act.map(p=>p.x));
-    const minY=0, maxY=Math.max(1,...act.map(p=>p.y));
-    const nX=Math.pow(10,Math.floor(Math.log10(maxX||1)));
-    const nY=Math.pow(10,Math.floor(Math.log10(maxY||1)));
-    const XMAX=Math.ceil(maxX/nX)*nX, YMAX=Math.ceil(maxY/nY)*nY;
-    scale={pad,minX,maxX:XMAX,minY,maxY:YMAX,
-      x:v=>pad.l+(W-pad.l-pad.r)*((v-minX)/(XMAX-minX||1)),
-      y:v=>pad.t+(H-pad.t-pad.b)*(1-(v-minY)/(YMAX-minY||1))
+    scale={pad,
+      x:v=>pad.l+(W-pad.l-pad.r)*((v-view.x0)/((view.x1-view.x0)||1)),
+      y:v=>pad.t+(H-pad.t-pad.b)*(1-((v-view.y0)/((view.y1-view.y0)||1))),
+      xi:px=>{ const k=(view.x1-view.x0)/((W-pad.l-pad.r)||1); return view.x0 + (px-pad.l)*k; },
+      yi:py=>{ const k=(view.y1-view.y0)/((H-pad.t-pad.b)||1); return view.y1 - (py-pad.t)*k; }
     };
   }
   function drawAxes(){
     const {pad}=scale; const W=dims.W,H=dims.H;
     ctx.clearRect(0,0,W,H);
 
-    // ----- grilla horizontal (Y) + etiquetas Y
+    // grilla Y
     ctx.textAlign="right"; ctx.textBaseline="middle"; ctx.font="12px system-ui"; ctx.fillStyle="#0b2532";
     const yTicks=5;
     for(let i=0;i<=yTicks;i++){
-      const v=scale.minY+(scale.maxY-scale.minY)*i/yTicks, yy=scale.y(v);
+      const v=view.y0+(view.y1-view.y0)*i/yTicks, yy=scale.y(v);
       ctx.strokeStyle=i===0?"#e5e7eb":"#f3f4f6";
       ctx.beginPath(); ctx.moveTo(scale.pad.l,yy); ctx.lineTo(W-scale.pad.r,yy); ctx.stroke();
       ctx.fillText(fmtCompact(v), scale.pad.l-8, yy);
     }
 
-    // ----- grilla/etiquetas X
+    // grilla X
     const xTicks=5;
     ctx.textAlign="center"; ctx.textBaseline="top"; ctx.font="12px system-ui";
     for(let i=0;i<=xTicks;i++){
-      const v=scale.minX+(scale.maxX-scale.minX)*i/xTicks;
+      const v=view.x0+(view.x1-view.x0)*i/xTicks;
       const xx=scale.x(v); const y0=H-scale.pad.b;
       ctx.strokeStyle="#e5e7eb";
       ctx.beginPath(); ctx.moveTo(xx,scale.pad.t); ctx.lineTo(xx,y0); ctx.stroke();
       ctx.fillText(fmtCompact(v), xx, y0+10);
     }
 
-    // etiquetas de ejes
+    // etiquetas ejes
     ctx.save(); ctx.fillStyle="#0b2532"; ctx.font="600 13px system-ui";
     ctx.translate(28,H/2); ctx.rotate(-Math.PI/2); ctx.fillText("Monto de Inversión",0,0); ctx.restore();
     ctx.textAlign="center"; ctx.textBaseline="bottom";
@@ -246,9 +289,10 @@ function makeChart(points){
       ctx.fillStyle=c.color;
       points.forEach(p=>{
         if(p.nivel!==c.short) return;
-        const x=scale.x(p.x), y=scale.y(p.y), r=rScale(p.bens);
+        const x=scale.x(p.x), y=scale.y(p.y);
+        if(x<scale.pad.l-30 || x>dims.W-scale.pad.r+30 || y<scale.pad.t-30 || y>dims.H-scale.pad.b+30) return;
+        const r=rScale(p.bens);
         ctx.beginPath(); ctx.arc(x,y,r,0,2*Math.PI); ctx.fill();
-        // radio de detección ajustado para precisión
         HIT.push({x,y,r:Math.max(r+2,8),data:p,color:c.color, key:c.key});
       });
     });
@@ -256,7 +300,90 @@ function makeChart(points){
   function draw(){ compute(); drawAxes(); drawPoints(); }
   draw(); window.addEventListener("resize",draw,{passive:true});
 
-  // ===== Tooltip preciso sobre la bolita =====
+  // ====== Interacción: Zoom (rueda y botones) ======
+  function zoomAt(px, py, factor){
+    const xC = scale.xi(px), yC = scale.yi(py);
+    const newW = (view.x1-view.x0)/factor;
+    const newH = (view.y1-view.y0)/factor;
+    const tX = (xC-view.x0)/(view.x1-view.x0);
+    const tY = (yC-view.y0)/(view.y1-view.y0);
+    let x0 = xC - newW*tX, x1 = x0 + newW;
+    let y0 = yC - newH*tY, y1 = y0 + newH;
+
+    const minSpanX = (dataMaxX-dataMinX)/1e6 + 1;
+    const minSpanY = (dataMaxY-dataMinY)/1e6 + 1;
+    if(newW < minSpanX || newH < minSpanY) return;
+
+    const clamp = (v,min,max)=>Math.min(max,Math.max(min,v));
+    const spanX = x1-x0, spanY = y1-y0;
+    x0 = clamp(x0, dataMinX, dataMaxX-spanX); x1 = x0 + spanX;
+    y0 = clamp(y0, dataMinY, dataMaxY-spanY); y1 = y0 + spanY;
+
+    view = {x0,x1,y0,y1};
+    draw();
+  }
+  canvas.addEventListener('wheel', (e)=>{
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top;
+    const factor = (e.deltaY<0) ? 1.2 : 1/1.2;
+    zoomAt(px, py, factor);
+  }, {passive:false});
+
+  // Botones
+  const btnIn = document.createElement('button'); btnIn.id='zoomIn';
+  const btnOut= document.createElement('button'); btnOut.id='zoomOut';
+  const btnRes= document.createElement('button'); btnRes.id='resetView';
+  document.getElementById('zoomIn')?.remove(); document.getElementById('zoomOut')?.remove(); document.getElementById('resetView')?.remove();
+
+  document.querySelector('.ctrl #zoomIn').addEventListener('click', ()=>{
+    const r = canvas.getBoundingClientRect();
+    zoomAt(r.width/2, r.height/2, 1.2);
+  });
+  document.querySelector('.ctrl #zoomOut').addEventListener('click', ()=>{
+    const r = canvas.getBoundingClientRect();
+    zoomAt(r.width/2, r.height/2, 1/1.2);
+  });
+  document.querySelector('.ctrl #resetView').addEventListener('click', ()=>{
+    view = { x0:dataMinX, x1:dataMaxX, y0:dataMinY, y1:dataMaxY };
+    draw();
+  });
+
+  // ====== Interacción: Pan (arrastrar) ======
+  let dragging=false, last={x:0,y:0};
+  canvas.addEventListener('mousedown',(e)=>{
+    dragging=true; const r=canvas.getBoundingClientRect();
+    last.x=e.clientX - r.left; last.y=e.clientY - r.top;
+    canvas.style.cursor='grabbing';
+  });
+  window.addEventListener('mouseup',()=>{ dragging=false; canvas.style.cursor='default'; });
+  canvas.addEventListener('mousemove',(e)=>{
+    if(!dragging) return;
+    const r=canvas.getBoundingClientRect();
+    const px=e.clientX - r.left, py=e.clientY - r.top;
+    const dx = px - last.x, dy = py - last.y; last={x:px,y:py};
+
+    const spanX = (view.x1-view.x0), spanY = (view.y1-view.y0);
+    const pixW = (r.width  - scale.pad.l - scale.pad.r);
+    const pixH = (r.height - scale.pad.t - scale.pad.b);
+    if(pixW<=0 || pixH<=0) return;
+    const dxData = -dx * (spanX/pixW);
+    const dyData =  dy * (spanY/pixH);
+
+    let x0=view.x0+dxData, x1=view.x1+dxData;
+    let y0=view.y0+dyData, y1=view.y1+dyData;
+
+    const clamp = (v,min,max)=>Math.min(max,Math.max(min,v));
+    const sx=x1-x0, sy=y1-y0;
+    x0 = clamp(x0, 0, dataMaxX-sx); x1 = x0 + sx;
+    y0 = clamp(y0, 0, dataMaxY-sy); y1 = y0 + sy;
+
+    view={x0,x1,y0,y1};
+    draw();
+  });
+
+  // ===== Tooltip preciso =====
   function hitAtClient(clientX, clientY){
     const rect = canvas.getBoundingClientRect();
     const mx = clientX - rect.left;
@@ -280,9 +407,7 @@ function makeChart(points){
         (d.icod ? `<div class="k">CUI</div><div class="v">${d.icod}</div>` : ``)+
         (d.nombre ? `<div class="hr"></div><div class="long">${d.nombre}</div>` : ``)+
       `</div>`;
-
     tip.innerHTML = html;
-    // posicionar dentro del wrap
     const rect=wrap.getBoundingClientRect();
     let x=mx+12, y=my-14;
     x=Math.min(rect.width-10,Math.max(10,x));
@@ -291,9 +416,11 @@ function makeChart(points){
   }
   function hideTip(){ tip.style.opacity=0; }
 
+  let HIT=[];
   canvas.addEventListener("mousemove",(e)=>{
+    if(dragging){ hideTip(); return; }
     const {hit, mx, my} = hitAtClient(e.clientX, e.clientY);
-    canvas.style.cursor = hit ? "pointer" : "default";
+    canvas.style.cursor = hit ? "pointer" : (dragging ? "grabbing" : "default");
     if(hit) showTip(hit, mx, my); else hideTip();
   },{passive:true});
   canvas.addEventListener("mouseleave", hideTip, {passive:true});
@@ -303,6 +430,7 @@ function makeChart(points){
 (async function(){
   try{
     const pts = await loadData();
+    console.log("Puntos finales:", pts.length);
     makeChart(pts);
   }catch(err){
     console.error(err);
@@ -313,4 +441,3 @@ function makeChart(points){
 </script>
 </body>
 </html>
-
