@@ -154,7 +154,7 @@ async function loadData(){
   return pts;
 }
 
-/* -------- Gráfico (Canvas) -------- */
+/* -------- Gráfico (Canvas) + ZOOM / PAN -------- */
 function makeChart(points){
   const wrap   = document.getElementById("wrap");
   const canvas = document.getElementById("chart");
@@ -166,7 +166,7 @@ function makeChart(points){
   if(!points.length){ empty.style.display="grid"; return; }
   empty.style.display="none";
 
-  // Leyenda interactiva
+  // Leyenda interactiva (igual)
   const visible = new Map(CATS.map(c=>[c.short,true]));
   legend.innerHTML="";
   CATS.forEach(c=>{
@@ -177,7 +177,7 @@ function makeChart(points){
     legend.appendChild(b);
   });
 
-  // Escala de tamaño por beneficiarios
+  // Tamaño por beneficiarios
   const maxB = Math.max(1, ...points.map(p=>p.bens||0));
   const minR = 4, maxR = 22;
   const rScale = (b)=> {
@@ -185,8 +185,28 @@ function makeChart(points){
     return minR + t * (maxR - minR);
   };
 
-  // Escalas y dibujo
+  // ===== Estado de la vista para zoom/pan =====
   let dims={}, scale={};
+  // Extremos de datos (se recalculan con la leyenda)
+  let dataMaxX=1, dataMaxY=1;
+  // Ventana visible en coordenadas de datos
+  let view = {minX:0, maxX:1, minY:0, maxY:1};
+
+  function computeDataExtents(){
+    const act=points.filter(p=>visible.get(p.nivel));
+    dataMaxX = Math.max(1, ...act.map(p=>p.x));
+    dataMaxY = Math.max(1, ...act.map(p=>p.y));
+    if(view.maxX===1 && view.maxY===1){
+      view.minX=0; view.maxX=dataMaxX; view.minY=0; view.maxY=dataMaxY;
+    }else{
+      // si la leyenda ocultó la mayoría, asegura que la ventana no sea mayor que el nuevo dominio
+      view.minX = Math.max(0, Math.min(view.minX, dataMaxX*0.99));
+      view.maxX = Math.min(dataMaxX, Math.max(view.maxX, view.minX+1));
+      view.minY = Math.max(0, Math.min(view.minY, dataMaxY*0.99));
+      view.maxY = Math.min(dataMaxY, Math.max(view.maxY, view.minY+1));
+    }
+  }
+
   function compute(){
     const dpr=Math.max(1,window.devicePixelRatio||1);
     const W=wrap.clientWidth,H=wrap.clientHeight;
@@ -194,50 +214,45 @@ function makeChart(points){
     ctx.setTransform(dpr,0,0,dpr,0,0);
     dims={W,H};
     const pad={t:40,r:24,b:64,l:86};
-    const act=points.filter(p=>visible.get(p.nivel));
-    const minX=0, maxX=Math.max(1,...act.map(p=>p.x));
-    const minY=0, maxY=Math.max(1,...act.map(p=>p.y));
-    const nX=Math.pow(10,Math.floor(Math.log10(maxX||1)));
-    const nY=Math.pow(10,Math.floor(Math.log10(maxY||1)));
-    const XMAX=Math.ceil(maxX/nX)*nX, YMAX=Math.ceil(maxY/nY)*nY;
-    scale={pad,minX,maxX:XMAX,minY,maxY:YMAX,
-      x:v=>pad.l+(W-pad.l-pad.r)*((v-minX)/(XMAX-minX||1)),
-      y:v=>pad.t+(H-pad.t-pad.b)*(1-(v-minY)/(YMAX-minY||1))
+    scale={pad,
+      x:v=>pad.l+(W-pad.l-pad.r)*((v-view.minX)/((view.maxX-view.minX)||1)),
+      y:v=>pad.t+(H-pad.t-pad.b)*(1-(v-view.minY)/((view.maxY-view.minY)||1))
     };
   }
+
   function drawAxes(){
     const {pad}=scale; const W=dims.W,H=dims.H;
     ctx.clearRect(0,0,W,H);
 
-    // ----- grilla horizontal (Y) + etiquetas Y
+    // Y
     ctx.textAlign="right"; ctx.textBaseline="middle"; ctx.font="12px system-ui"; ctx.fillStyle="#0b2532";
     const yTicks=5;
     for(let i=0;i<=yTicks;i++){
-      const v=scale.minY+(scale.maxY-scale.minY)*i/yTicks, yy=scale.y(v);
+      const v=view.minY+(view.maxY-view.minY)*i/yTicks, yy=scale.y(v);
       ctx.strokeStyle=i===0?"#e5e7eb":"#f3f4f6";
       ctx.beginPath(); ctx.moveTo(scale.pad.l,yy); ctx.lineTo(W-scale.pad.r,yy); ctx.stroke();
       ctx.fillText(fmtCompact(v), scale.pad.l-8, yy);
     }
 
-    // ----- grilla/etiquetas X
+    // X
     const xTicks=5;
     ctx.textAlign="center"; ctx.textBaseline="top"; ctx.font="12px system-ui";
     for(let i=0;i<=xTicks;i++){
-      const v=scale.minX+(scale.maxX-scale.minX)*i/xTicks;
+      const v=view.minX+(view.maxX-view.minX)*i/xTicks;
       const xx=scale.x(v); const y0=H-scale.pad.b;
       ctx.strokeStyle="#e5e7eb";
       ctx.beginPath(); ctx.moveTo(xx,scale.pad.t); ctx.lineTo(xx,y0); ctx.stroke();
       ctx.fillText(fmtCompact(v), xx, y0+10);
     }
 
-    // etiquetas de ejes
+    // etiquetas ejes
     ctx.save(); ctx.fillStyle="#0b2532"; ctx.font="600 13px system-ui";
     ctx.translate(28,H/2); ctx.rotate(-Math.PI/2); ctx.fillText("Monto de Inversión",0,0); ctx.restore();
     ctx.textAlign="center"; ctx.textBaseline="bottom";
     ctx.fillText("Devengado Acumulado", scale.pad.l+(W-scale.pad.l-scale.pad.r)/2, H-6);
   }
 
-  // Dibujo de puntos + hit map
+  // Puntos + hit map
   let HIT=[];
   function drawPoints(){
     HIT=[];
@@ -247,16 +262,18 @@ function makeChart(points){
       points.forEach(p=>{
         if(p.nivel!==c.short) return;
         const x=scale.x(p.x), y=scale.y(p.y), r=rScale(p.bens);
-        ctx.beginPath(); ctx.arc(x,y,r,0,2*Math.PI); ctx.fill();
-        // radio de detección ajustado para precisión
-        HIT.push({x,y,r:Math.max(r+2,8),data:p,color:c.color, key:c.key});
+        if(isFinite(x)&&isFinite(y)){
+          ctx.beginPath(); ctx.arc(x,y,r,0,2*Math.PI); ctx.fill();
+          HIT.push({x,y,r:Math.max(r+2,8),data:p,color:c.color, key:c.key});
+        }
       });
     });
   }
-  function draw(){ compute(); drawAxes(); drawPoints(); }
+
+  function draw(){ computeDataExtents(); compute(); drawAxes(); drawPoints(); }
   draw(); window.addEventListener("resize",draw,{passive:true});
 
-  // ===== Tooltip preciso sobre la bolita =====
+  // ===== Tooltip
   function hitAtClient(clientX, clientY){
     const rect = canvas.getBoundingClientRect();
     const mx = clientX - rect.left;
@@ -281,7 +298,6 @@ function makeChart(points){
         (d.nombre ? `<div class="hr"></div><div class="long">${d.nombre}</div>` : ``)+
       `</div>`;
     tip.innerHTML = html;
-    // posicionar dentro del wrap
     const rect=wrap.getBoundingClientRect();
     let x=mx+12, y=my-14;
     x=Math.min(rect.width-10,Math.max(10,x));
@@ -289,13 +305,70 @@ function makeChart(points){
     tip.style.left = x+"px"; tip.style.top = y+"px"; tip.style.opacity = 1;
   }
   function hideTip(){ tip.style.opacity=0; }
-
   canvas.addEventListener("mousemove",(e)=>{
     const {hit, mx, my} = hitAtClient(e.clientX, e.clientY);
     canvas.style.cursor = hit ? "pointer" : "default";
     if(hit) showTip(hit, mx, my); else hideTip();
   },{passive:true});
   canvas.addEventListener("mouseleave", hideTip, {passive:true});
+
+  // ====== Interacción: ZOOM & PAN ======
+  function pxToData(mx,my){
+    const W=dims.W,H=dims.H,p=scale.pad;
+    const xRatio = (mx - p.l) / (W - p.l - p.r);
+    const yRatio = 1 - (my - p.t) / (H - p.t - p.b);
+    return {
+      x: view.minX + (view.maxX - view.minX) * Math.min(1,Math.max(0,xRatio)),
+      y: view.minY + (view.maxY - view.minY) * Math.min(1,Math.max(0,yRatio))
+    };
+  }
+  function clampView(){
+    view.minX = Math.max(0, view.minX);
+    view.minY = Math.max(0, view.minY);
+    view.maxX = Math.min(dataMaxX, view.maxX);
+    view.maxY = Math.min(dataMaxY, view.maxY);
+    const minSpanX = dataMaxX/1e6 || 1;
+    const minSpanY = dataMaxY/1e6 || 1;
+    if((view.maxX-view.minX) < minSpanX) view.maxX = view.minX + minSpanX;
+    if((view.maxY-view.minY) < minSpanY) view.maxY = view.minY + minSpanY;
+  }
+
+  // Zoom con rueda (sobre el cursor)
+  canvas.addEventListener("wheel",(e)=>{
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const c = pxToData(mx,my);
+    const factor = e.deltaY > 0 ? 1.15 : 1/1.15;
+    view.minX = c.x + (view.minX - c.x) * factor;
+    view.maxX = c.x + (view.maxX - c.x) * factor;
+    view.minY = c.y + (view.minY - c.y) * factor;
+    view.maxY = c.y + (view.maxY - c.y) * factor;
+    clampView();
+    draw();
+  },{passive:false});
+
+  // Pan (arrastrar)
+  let dragging=false, last=null;
+  canvas.addEventListener("mousedown",(e)=>{ dragging=true; last={x:e.clientX,y:e.clientY}; tip.style.opacity=0; });
+  window.addEventListener("mouseup",()=> dragging=false);
+  window.addEventListener("mousemove",(e)=>{
+    if(!dragging) return;
+    const dx=e.clientX-last.x, dy=e.clientY-last.y; last={x:e.clientX,y:e.clientY};
+    const spanX=view.maxX-view.minX, spanY=view.maxY-view.minY;
+    const rx = dx / (dims.W - scale.pad.l - scale.pad.r);
+    const ry = dy / (dims.H - scale.pad.t - scale.pad.b);
+    view.minX -= rx*spanX; view.maxX -= rx*spanX;
+    view.minY += ry*spanY; view.maxY += ry*spanY; // Y invertida
+    clampView();
+    draw();
+  });
+
+  // Doble-clic = reset
+  canvas.addEventListener("dblclick", ()=>{
+    view.minX=0; view.maxX=dataMaxX; view.minY=0; view.maxY=dataMaxY;
+    draw();
+  });
 }
 
 /* -------- Run -------- */
@@ -312,4 +385,3 @@ function makeChart(points){
 </script>
 </body>
 </html>
-
