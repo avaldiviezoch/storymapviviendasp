@@ -89,6 +89,11 @@
       <details id="acc" class="acc" open>
         <summary>Filtrar por ubicación <span style="font-weight:900">▾</span></summary>
         <div class="content">
+          <!-- NUEVO: Programa -->
+          <div>
+            <label for="selProg">Programa</label>
+            <select id="selProg"><option value="">(Todos)</option></select>
+          </div>
           <div>
             <label for="selDep">Departamento</label>
             <select id="selDep"><option value="">(Todos)</option></select>
@@ -141,28 +146,13 @@
 
     <!-- 8 indicadores (reordenados) -->
     <section class="grid8">
-      <!-- 1) Obras Concluidas -->
       <div class="tile"><div class="v" id="kObrasConcluidas">—</div><div class="t">Obras Concluidas</div></div>
-
-      <!-- 2) Obras en Ejecución -->
       <div class="tile"><div class="v" id="kObrasEjec">—</div><div class="t">Obras en Ejecución</div></div>
-
-      <!-- 3) Obras por Iniciar -->
       <div class="tile"><div class="v" id="kObrasPorIniciar">—</div><div class="t">Obras por Iniciar</div></div>
-
-      <!-- 4) Obras en proceso de Selección -->
       <div class="tile"><div class="v" id="kObrasProcSel">—</div><div class="t">Obras en proceso de Selección</div></div>
-
-      <!-- 5) Exp. Concluidos -->
       <div class="tile"><div class="v" id="kExpConcluidos">—</div><div class="t">Exp. Concluidos</div></div>
-
-      <!-- 6) Exp. en Elaboración -->
       <div class="tile"><div class="v" id="kExpElab">—</div><div class="t">Exp. en Elaboración</div></div>
-
-      <!-- 7) Exp. en Proceso de Selección -->
       <div class="tile"><div class="v" id="kExpProcSel">—</div><div class="t">Exp. en Proceso de Selección</div></div>
-
-      <!-- 8) Exp. por Convocar -->
       <div class="tile"><div class="v" id="kExpPorConvocar">—</div><div class="t">Exp. por Convocar</div></div>
     </section>
   </aside>
@@ -176,10 +166,12 @@ const fmt = new Intl.NumberFormat('es-PE');
 function esc(v){ return String(v).replaceAll("'", "''"); }
 function cacheBust(){ return String(Date.now()); }
 function buildWhereUbic(){
+  const prog = document.getElementById('selProg').value.trim();
   const dep  = document.getElementById('selDep').value.trim();
   const prov = document.getElementById('selProv').value.trim();
   const dist = document.getElementById('selDist').value.trim();
   const parts = ["1=1"];
+  if (prog) parts.push(`programa='${esc(prog)}'`);
   if (dep)  parts.push(`departamento='${esc(dep)}'`);
   if (prov) parts.push(`provincia='${esc(prov)}'`);
   if (dist) parts.push(`distrito='${esc(dist)}'`);
@@ -365,11 +357,17 @@ require([
   map.add(layer);
   view.ui.add(new ScaleBar({view,unit:"metric"}),"bottom-left");
 
+  const selProg = document.getElementById('selProg');
   const selDep  = document.getElementById('selDep');
   const selProv = document.getElementById('selProv');
   const selDist = document.getElementById('selDist');
   const btnClear= document.getElementById('btnClear');
 
+  async function refreshProg(){
+    selProg.innerHTML = `<option value="">(Todos)</option>`;
+    const progs = await loadDistinct("programa");
+    progs.forEach(v => selProg.insertAdjacentHTML("beforeend", `<option>${v}</option>`));
+  }
   async function refreshDep(){
     selDep.innerHTML = `<option value="">(Todos)</option>`;
     const deps = await loadDistinct("departamento");
@@ -402,16 +400,19 @@ require([
     await Promise.all([ updateKPIsTop(where), updateBottom(where) ]);
   }
 
+  selProg.addEventListener("change", ()=>{ applyAll(); });
   selDep.addEventListener("change", async ()=>{ await refreshProv(); applyAll(); });
   selProv.addEventListener("change", async ()=>{ await refreshDist(); applyAll(); });
   selDist.addEventListener("change", ()=>{ applyAll(); });
   btnClear.addEventListener("click", async ()=>{
-    selDep.value = ""; await refreshProv();
+    selProg.value = "";
+    selDep.value = "";
+    await refreshProv();
     applyAll();
   });
 
   (async function init(){
-    await refreshDep();
+    await Promise.all([refreshProg(), refreshDep()]);
     applyAll();
   })();
 });
