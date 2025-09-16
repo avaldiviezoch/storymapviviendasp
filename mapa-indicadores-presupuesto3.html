@@ -36,6 +36,7 @@
   .topTitle{text-align:center; font-weight:900; letter-spacing:.2px; font-size:clamp(18px, 2.2vh, 22px); margin:2px 0 6px;}
   .bigCount{text-align:center; font-weight:900; color:#0b3b38; font-size:clamp(42px, 8vh, 64px); line-height:1; margin:4px 0 10px;}
   .bar{background:var(--bar); color:#e7fff9; font-weight:800; text-align:center; padding:10px 12px; border-radius:10px; margin:6px 0 12px; font-size:clamp(12px, 1.6vh, 14px);}
+
   .kpiGrid{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
   .kpiCard{display:flex; align-items:center; gap:12px; background:#fff; border:1px solid var(--line); border-radius:14px; padding:12px; box-shadow:0 10px 24px rgba(2,6,23,.06);}
   .badge{flex:0 0 clamp(36px, 5vh, 46px); width:clamp(36px, 5vh, 46px); height:clamp(36px, 5vh, 46px); border-radius:50%; display:grid; place-items:center; background:var(--g-2); color:#fff; font-size:clamp(18px, 2.4vh, 22px); font-weight:900}
@@ -43,6 +44,7 @@
   .metric .val{font-size:clamp(28px, 4.6vh, 44px); font-weight:900; color:var(--g-dark); line-height:1}
   .metric .lbl{font-size:clamp(12px, 1.8vh, 14px); font-weight:700; color:var(--muted); margin-top:6px}
   .sep{height:1px;background:var(--line); margin:12px 0}
+
   .grid8{display:grid; grid-template-columns: repeat(4, 1fr); gap:12px; margin-top:6px;}
   .tile{background:#fff; border:1px solid var(--line); border-radius:14px; box-shadow:0 10px 24px rgba(2,6,23,.06); padding:12px; display:grid; justify-items:center; align-content:center; gap:6px; min-height:clamp(92px, 13vh, 120px);}
   .tile .v{font-size:clamp(26px, 4.3vh, 40px); font-weight:900; color:var(--g-dark); line-height:1}
@@ -115,6 +117,7 @@
 
     <div class="bar">Se espera generar</div>
 
+    <!-- 4 KPIs superiores -->
     <div class="kpiGrid">
       <div class="kpiCard" aria-live="polite">
         <div class="badge">💧</div>
@@ -136,14 +139,30 @@
 
     <div class="sep"></div>
 
+    <!-- 8 indicadores (reordenados) -->
     <section class="grid8">
+      <!-- 1) Obras Concluidas -->
       <div class="tile"><div class="v" id="kObrasConcluidas">—</div><div class="t">Obras Concluidas</div></div>
-      <div class="tile"><div class="v" id="kExpConcluidos">—</div><div class="t">Exp. Concluidos</div></div>
+
+      <!-- 2) Obras en Ejecución -->
       <div class="tile"><div class="v" id="kObrasEjec">—</div><div class="t">Obras en Ejecución</div></div>
-      <div class="tile"><div class="v" id="kExpElab">—</div><div class="t">Exp. en Elaboración</div></div>
+
+      <!-- 3) Obras por Iniciar -->
       <div class="tile"><div class="v" id="kObrasPorIniciar">—</div><div class="t">Obras por Iniciar</div></div>
-      <div class="tile"><div class="v" id="kExpProcSel">—</div><div class="t">Exp. en Proceso de Selección</div></div>
+
+      <!-- 4) Obras en proceso de Selección -->
       <div class="tile"><div class="v" id="kObrasProcSel">—</div><div class="t">Obras en proceso de Selección</div></div>
+
+      <!-- 5) Exp. Concluidos -->
+      <div class="tile"><div class="v" id="kExpConcluidos">—</div><div class="t">Exp. Concluidos</div></div>
+
+      <!-- 6) Exp. en Elaboración -->
+      <div class="tile"><div class="v" id="kExpElab">—</div><div class="t">Exp. en Elaboración</div></div>
+
+      <!-- 7) Exp. en Proceso de Selección -->
+      <div class="tile"><div class="v" id="kExpProcSel">—</div><div class="t">Exp. en Proceso de Selección</div></div>
+
+      <!-- 8) Exp. por Convocar -->
       <div class="tile"><div class="v" id="kExpPorConvocar">—</div><div class="t">Exp. por Convocar</div></div>
     </section>
   </aside>
@@ -282,12 +301,9 @@ require([
   const view = new MapView({ container:"viewDiv", map, center:[-75.2,-9.3], zoom:5 });
 
   /* Ocultar cabecera nativa del popup */
-  view.popup.title = ""; // sin título
-  try{
-    view.popup.visibleElements = { title: false }; // API 4.x: oculta el título
-  }catch(_){} // por si cambia la API
+  view.popup.title = "";
+  try{ view.popup.visibleElements = { title:false }; }catch(_){}
 
-  /* ========= POPUP ESTILIZADO ========= */
   function money(n){ return new Intl.NumberFormat("es-PE",{maximumFractionDigits:0}).format(Number(n||0)); }
   function intfmt(n){ return new Intl.NumberFormat("es-PE",{maximumFractionDigits:0}).format(Number(n||0)); }
   function safe(s){ return (s==null||s==="") ? "—" : String(s); }
@@ -296,11 +312,7 @@ require([
     url: FS_URL, outFields:["*"], title:"Proyectos MEF",
     renderer:{
       type:"simple",
-      symbol:{
-        type:"simple-marker",
-        color:[31,112,102,0.95], size:6,
-        outline:{ color:[255,255,255,140], width:0.5 }
-      }
+      symbol:{ type:"simple-marker", color:[31,112,102,0.95], size:6, outline:{ color:[255,255,255,140], width:0.5 } }
     },
     popupEnabled:true,
     popupTemplate:{
