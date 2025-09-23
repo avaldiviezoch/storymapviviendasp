@@ -12,7 +12,7 @@
   html,body{height:100%;margin:0;background:#fff;color:var(--ink);
     font-family:system-ui,Segoe UI,Roboto,Arial}
   .stage{
-    height:100vh;width:100vw;display:grid;grid-template-rows:auto auto 1fr;
+    height:100vh;width:100vw;display:grid;grid-template-rows:auto auto 1fr auto;
     gap:10px;padding:clamp(10px,2vw,24px);box-sizing:border-box
   }
   h1{margin:0;text-align:center;font-weight:800;letter-spacing:.2px;
@@ -23,7 +23,6 @@
   .chartWrap{position:relative;overflow:hidden;border-radius:14px}
   canvas{display:block;width:100%;height:100%}
   .empty{display:grid;place-items:center;height:100%;color:var(--muted);font-size:clamp(13px,1.6vw,16px);text-align:center}
-  /* Tooltip */
   .tip{
     position:absolute; pointer-events:none; color:var(--ink); background:#fff;
     border:1px solid #e5e7eb; border-radius:12px; padding:10px 12px;
@@ -34,7 +33,15 @@
   .tip .row{display:flex;justify-content:space-between;gap:12px}
   .tip .k{color:var(--muted)}
   .tip .v{font-weight:800}
-  .source{font-size:12px;color:var(--muted);text-align:center}
+
+  /* === Fuente estandarizada (igual que indicadores) === */
+  .source{
+    margin: 0 0 clamp(6px,1.5vh,14px) 0;
+    text-align:center;
+    color:#334155;
+    font-size:clamp(11px,1.6vw,13px)
+  }
+  .source b{color:#0369a1}
 </style>
 </head>
 <body>
@@ -52,12 +59,15 @@
       <div id="tip" class="tip"></div>
     </div>
 
-    <div class="source">Fuente: Ministerio de Economía y Finanzas – MEF, Portal de Datos Abiertos</div>
+    <div class="source">
+      <b>Fuente:</b> Ministerio de Economía y Finanzas — MEF · Portal de Datos Abiertos · 
+      <em id="lastUpdate">Actualizado al —</em>
+    </div>
   </div>
 
 <script>
 const URL13 = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/OGEI/Mapa_Inversiones_MEF/FeatureServer/13/query";
-const YEAR  = 2025; // filtro solicitado
+const YEAR  = 2025;
 
 function fmtM(v){
   const n = Number(v)||0;
@@ -69,6 +79,7 @@ function fmtAxis(v){
   if (n>=1e6) return (n/1e6).toFixed(0)+" M";
   return n.toLocaleString('es-PE');
 }
+
 async function fetchStats(){
   const params = new URLSearchParams({
     f:"json",
@@ -93,7 +104,6 @@ async function fetchStats(){
   if(j.error) throw new Error(j.error.message||"Error ArcGIS");
   const rows = (j.features||[]).map(f=>f.attributes||{});
 
-  // Orden amigable: PROYECTO primero, luego ACTIVIDAD (si existen)
   const order = ["PROYECTO","ACTIVIDAD"];
   rows.sort((a,b)=>{
     const ai = order.indexOf(a.tipo_act_proy_nombre);
@@ -108,6 +118,29 @@ async function fetchStats(){
   }));
 }
 
+/* === Traer fecha más reciente === */
+async function fetchMaxDate(){
+  const params = new URLSearchParams({
+    f:"json",
+    where:`ano_eje = ${YEAR}`,
+    returnGeometry:"false",
+    outStatistics: JSON.stringify([
+      { "statisticType":"max", "onStatisticField":"fecha_proceso", "outStatisticFieldName":"max_fp" }
+    ])
+  });
+  const res = await fetch(URL13+"?"+params.toString(),{cache:"no-store"});
+  if(!res.ok) throw new Error("HTTP "+res.status);
+  const j = await res.json();
+  const attrs = j.features?.[0]?.attributes||{};
+  return Number(attrs.max_fp)||null;
+}
+function formatEsDate(ts){
+  if(!Number.isFinite(ts)) return "—";
+  const d=new Date(ts);
+  const fmt=new Intl.DateTimeFormat("es-PE",{day:"2-digit",month:"long",year:"numeric"});
+  return fmt.format(d);
+}
+
 function makeChart(data){
   const wrap = document.getElementById("wrap");
   const canvas = document.getElementById("chart");
@@ -118,7 +151,6 @@ function makeChart(data){
   if(!data.length){ empty.style.display="grid"; return; }
   empty.style.display="none";
 
-  // Escalas
   let dims={}, scale={}, bars=[];
   function build(){
     const dpr = Math.max(1, window.devicePixelRatio||1);
@@ -129,7 +161,6 @@ function makeChart(data){
 
     const pad = {t:26, r:24, b:50, l:110};
     const maxVal = Math.max(1, ...data.map(d=>Math.max(d.pim,d.dev)));
-    // redondeo "bonito"
     const pow = Math.pow(10, Math.floor(Math.log10(maxVal)));
     const XMAX = Math.ceil(maxVal / (pow/2)) * (pow/2);
 
@@ -144,7 +175,6 @@ function makeChart(data){
       bandH: (H-pad.t-pad.b)/Math.max(1,data.length)
     };
 
-    // precálculo de posiciones de barras y para hit-testing
     const barH = Math.min(36, scale.bandH*0.5);
     bars = data.map((d,i)=>{
       const cy = scale.y(i);
@@ -154,7 +184,7 @@ function makeChart(data){
       return {
         cat:d.cat, pim:d.pim, dev:d.dev,
         pimRect:{x:scale.x(0), y:yTop, w:pimW, h:barH},
-        devRect:{x:scale.x(0), y:yTop, w:devW, h:barH*0.68}, // más angosta encima
+        devRect:{x:scale.x(0), y:yTop, w:devW, h:barH*0.68},
         cy, barH
       };
     });
@@ -164,7 +194,6 @@ function makeChart(data){
     const {pad,max} = scale;
     ctx.clearRect(0,0,dims.W,dims.H);
 
-    // grid vertical
     ctx.strokeStyle = "#eceff3"; ctx.lineWidth=1; ctx.setLineDash([3,5]);
     const ticks = 6;
     for(let t=0;t<=ticks;t++){
@@ -174,7 +203,6 @@ function makeChart(data){
     }
     ctx.setLineDash([]);
 
-    // eje X labels
     ctx.fillStyle = "var(--ink)"; ctx.font = "12px system-ui,Segoe UI,Roboto,Arial";
     ctx.textAlign="center"; ctx.textBaseline="top";
     for(let t=0;t<=ticks;t++){
@@ -183,25 +211,20 @@ function makeChart(data){
       ctx.fillText(fmtAxis(v), x, dims.H - pad.b + 8);
     }
 
-    // categorías (Y)
     ctx.textAlign="right"; ctx.textBaseline="middle"; ctx.font="600 13px system-ui,Segoe UI,Roboto,Arial";
     data.forEach((d,i)=> ctx.fillText(d.cat, scale.pad.l - 12, scale.y(i)));
-    // etiqueta eje X
     ctx.textAlign="center"; ctx.textBaseline="bottom"; ctx.font="600 13px system-ui";
     ctx.fillText("Monto de inversión (S/.)", scale.pad.l + (dims.W-scale.pad.l-scale.pad.r)/2, dims.H-6);
   }
 
   function drawBars(){
     bars.forEach(b=>{
-      // PIM (fondo)
       ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--pim').trim() || "#f59e0b";
       roundRect(ctx, b.pimRect.x, b.pimRect.y, b.pimRect.w, b.pimRect.h, 8); ctx.fill();
 
-      // Devengado (frente)
       ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--dev').trim() || "#1f77b4";
       roundRect(ctx, b.devRect.x, b.devRect.y, b.devRect.w, b.devRect.h, 8); ctx.fill();
 
-      // Etiquetas dentro de las barras
       ctx.fillStyle="#fff"; ctx.font="600 12px system-ui";
       ctx.textAlign="right"; ctx.textBaseline="middle";
       if (b.devRect.w>42) ctx.fillText(fmtM(b.dev), b.devRect.x + b.devRect.w - 6, b.devRect.y + b.devRect.h/2);
@@ -217,10 +240,9 @@ function makeChart(data){
   }
   draw(); window.addEventListener("resize", draw, {passive:true});
 
-  // Tooltip
   function hit(mx,my){
     for(const b of bars){
-      const r = b.devRect; // priorizamos devengado; si no, mirar PIM
+      const r = b.devRect;
       if(mx>=r.x && mx<=r.x+r.w && my>=r.y && my<=r.y+r.h) return {b, kind:"dev"};
       const p = b.pimRect;
       if(mx>=p.x && mx<=p.x+p.w && my>=p.y && my<=p.y+p.h) return {b, kind:"pim"};
@@ -232,7 +254,7 @@ function makeChart(data){
     const mx = e.clientX - rect.left, my = e.clientY - rect.top;
     const h = hit(mx,my);
     if(!h){ tip.style.opacity=0; return; }
-    const {b, kind} = h;
+    const {b} = h;
     tip.innerHTML = `
       <div class="row"><span class="k">Categoría</span><span class="v">${b.cat}</span></div>
       <div class="row"><span class="k">monto PIM</span><span class="v">${fmtAxis(b.pim)}</span></div>
@@ -244,7 +266,6 @@ function makeChart(data){
   }, {passive:true});
   canvas.addEventListener("mouseleave", ()=> tip.style.opacity=0, {passive:true});
 
-  // util: rect redondeado
   function roundRect(ctx,x,y,w,h,r){
     const rr = Math.min(r, h/2, w/2);
     ctx.beginPath();
@@ -260,8 +281,9 @@ function makeChart(data){
 /* Run */
 (async function(){
   try{
-    const rows = await fetchStats();
+    const [rows,lastTs] = await Promise.all([fetchStats(),fetchMaxDate()]);
     makeChart(rows);
+    document.getElementById("lastUpdate").textContent = "Actualizado al " + formatEsDate(lastTs);
   }catch(err){
     console.error(err);
     document.getElementById("empty").style.display="grid";
