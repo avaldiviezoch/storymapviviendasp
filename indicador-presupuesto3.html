@@ -95,7 +95,8 @@
     </div>
 
     <div class="source">
-      <b>Fuente:</b> Ministerio de Economía y Finanzas — MEF · Portal de Datos Abiertos
+      <b>Fuente:</b> Ministerio de Economía y Finanzas — MEF · Portal de Datos Abiertos ·
+      <em id="lastUpdate">Actualizado al —</em>
     </div>
   </div>
 
@@ -103,10 +104,12 @@
 const SERVICE = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/OGEI/Mapa_Inversiones_MEF/FeatureServer/13/query";
 const WHERE   = "sector_nombre = 'VIVIENDA CONSTRUCCION Y SANEAMIENTO' AND ano_eje = 2025";
 
+/* Trae sum(devengado), sum(pim) y max(fecha_proceso) en UNA consulta */
 async function fetchDevengadoData(){
   const outStats = JSON.stringify([
     { statisticType: "sum", onStatisticField: "monto_devengado", outStatisticFieldName: "sum_dev" },
-    { statisticType: "sum", onStatisticField: "monto_pim", outStatisticFieldName: "sum_pim" }
+    { statisticType: "sum", onStatisticField: "monto_pim",       outStatisticFieldName: "sum_pim" },
+    { statisticType: "max", onStatisticField: "fecha_proceso",   outStatisticFieldName: "max_fp"  }
   ]);
   const qs = new URLSearchParams({
     where: WHERE,
@@ -122,10 +125,12 @@ async function fetchDevengadoData(){
   const a = json.features?.[0]?.attributes || {};
   return {
     dev: Number(a.sum_dev||0),
-    pim: Number(a.sum_pim||0)
+    pim: Number(a.sum_pim||0),
+    lastTs: (a.max_fp != null) ? Number(a.max_fp) : null
   };
 }
 
+/* Animaciones */
 function animateNumber(el, target, ms=1700, fmt, suffix=""){
   const start = performance.now();
   function tick(t){
@@ -138,12 +143,22 @@ function animateNumber(el, target, ms=1700, fmt, suffix=""){
   requestAnimationFrame(tick);
 }
 
+/* Fecha estilo es-PE: 14 de septiembre de 2025 */
+function formatEsDate(ts){
+  if(!Number.isFinite(ts)) return "—";
+  const d = new Date(ts);
+  const fmt = new Intl.DateTimeFormat("es-PE", { day:"2-digit", month:"long", year:"numeric" });
+  return fmt.format(d);
+}
+
 (async function init(){
   const val = document.getElementById('val');
   const cur = document.getElementById('cur');
   const percentEl = document.getElementById('percent');
+  const last = document.getElementById('lastUpdate');
+
   try{
-    const { dev, pim } = await fetchDevengadoData();
+    const { dev, pim, lastTs } = await fetchDevengadoData();
     const perc = pim > 0 ? (dev / pim * 100) : 0;
 
     requestAnimationFrame(()=>{
@@ -152,16 +167,19 @@ function animateNumber(el, target, ms=1700, fmt, suffix=""){
       percentEl.classList.add('ready');
     });
 
-    // 👇 formateadores separados
-    const fmtInt   = new Intl.NumberFormat('es-PE', { maximumFractionDigits: 0 });
-    const fmtPerc  = new Intl.NumberFormat('es-PE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    // formateadores
+    const fmtInt  = new Intl.NumberFormat('es-PE', { maximumFractionDigits: 0 });
+    const fmtPerc = new Intl.NumberFormat('es-PE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
     animateNumber(val, dev, 1700, fmtInt);              // monto sin decimales
     animateNumber(percentEl, perc, 1700, fmtPerc, "%"); // porcentaje con 1 decimal
+
+    last.textContent = "Actualizado al " + formatEsDate(lastTs);
   }catch(e){
     console.error(e);
     val.textContent = "—";
     percentEl.textContent = "—";
+    document.getElementById('lastUpdate').textContent = "Actualizado al —";
     val.classList.add('ready');
     cur.classList.add('ready');
     percentEl.classList.add('ready');
