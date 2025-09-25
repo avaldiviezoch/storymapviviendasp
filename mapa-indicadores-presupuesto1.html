@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Mapa · Inversiones MEF (puntos) + Indicadores</title>
+<title>Visor · Vivienda Rural + CCPP + Límites (UI verde flotante)</title>
 
-<link rel="stylesheet" href="https://js.arcgis.com/4.29/esri/themes/light/main.css">
-<script src="https://js.arcgis.com/4.29/"></script>
+<link rel="stylesheet" href="https://js.arcgis.com/4.30/esri/themes/light/main.css">
+<script src="https://js.arcgis.com/4.30/"></script>
 
 <style>
   :root{
@@ -14,418 +14,227 @@
     --g-dark:#0f3f3a; --g-2:#7da39e; --line:#e6ecea; --panel:#f7fbfa;
     --bar:#0b3b38;
   }
-  html,body{height:100%;margin:0;background:#eef5f3;color:var(--ink);
+  html,body{margin:0; height:100%; overflow:hidden; background:#eef5f3; color:var(--ink);
     font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial}
+  .shell{display:grid; grid-template-columns: 1fr min(44vw, 720px); height:100vh; width:100vw;}
+  #viewWrap{ position:sticky; top:0; height:100vh; overflow:hidden; }
+  #viewDiv{position:relative; width:100%; height:100%}
 
-  /* ====== Layout: mapa izquierda + panel derecho (más ancho) ====== */
-  .shell{position:relative; height:100vh; width:100vw;}
-  .sidebar{
-    position:absolute; top:0; right:0; height:100%; width:min(44vw,720px);
-    background:var(--panel); border-left:1px solid var(--line);
-    box-shadow:-6px 0 24px rgba(2,6,23,.06);
-    padding:18px 18px 22px; box-sizing:border-box; overflow:auto;
-  }
-  #viewWrap{position:absolute; left:0; top:0; height:100%; right:min(44vw,720px); }
-  #viewDiv{position:absolute; inset:0}
+  /* Panel derecho (vacío) */
+  .sidebar{background:var(--panel); border-left:1px solid var(--line); box-shadow:-6px 0 24px rgba(2,6,23,.06); padding:16px 16px 18px; box-sizing:border-box;}
+  .topTitle{text-align:center; font-weight:900; letter-spacing:.2px; font-size:clamp(18px, 2.2vh, 22px); margin:2px 0 6px;}
+  .bar{background:var(--bar); color:#e7fff9; font-weight:800; text-align:center; padding:10px 12px; border-radius:10px; margin:6px 0 12px; font-size:clamp(12px, 1.6vh, 14px);}
 
-  /* ====== Filtro retráctil (en el mapa) ====== */
-  .filters{position:absolute; left:14px; top:14px; z-index:6; width:min(360px, 92vw)}
-  .acc{background:#0b3b38;color:#e6fffb;border-radius:14px;box-shadow:0 12px 28px rgba(0,0,0,.18);overflow:hidden}
-  .acc summary{list-style:none;cursor:pointer;padding:12px 14px;display:flex;justify-content:space-between;
-    align-items:center;font-weight:800}
+  /* Flotantes retráctiles (estética verde) */
+  .floatPanels{position:absolute; left:14px; top:14px; z-index:6; width:min(360px, 92vw); display:grid; gap:10px;}
+  .acc{background:#0b3b38; color:#e6fffb; border-radius:14px; box-shadow:0 12px 28px rgba(0,0,0,.18); overflow:hidden}
+  .acc summary{list-style:none; cursor:pointer; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; font-weight:900; letter-spacing:.2px}
   .acc summary::-webkit-details-marker{display:none}
-  .acc .content{padding:12px 14px;display:grid;gap:10px}
-  .acc label{font-size:12px;color:#cbe8e5;font-weight:700}
-  .acc select{width:100%;border-radius:10px;padding:10px 12px;border:1px solid #155149;background:#0f2e29;color:#e6fffb}
-  .hint{font-size:12px;color:#b9d5d1}
-  .rowBtns{display:flex;gap:10px;justify-content:flex-end}
-  .btn{
-    background:#0b3b38;color:#ecfffb;border:1px solid #0e4a43;padding:8px 12px;border-radius:10px;
-    font-weight:800;cursor:pointer; box-shadow:0 6px 16px rgba(2,6,23,.18)
-  }
-  .btn.secondary{background:#114d46;border-color:#0d3a35}
+  .acc .content{padding:10px 12px; background:#0f2e29; border-top:1px solid #0e4a43}
+  .hint{font-size:12px; color:#b9d5d1; padding:6px 12px 10px}
 
-  /* ====== KPIs estilo tablero ====== */
-  .topTitle{
-    text-align:center; font-weight:900; letter-spacing:.2px;
-    font-size:22px; margin:2px 0 8px;
+  /* Widgets dentro del panel verde */
+  .acc .content .esri-legend, 
+  .acc .content .esri-layer-list{
+    --esri-widget-padding: 6px;
+    --esri-widget-border-color: #0e4a43;
+    --esri-widget-shadow: 0 6px 18px rgba(2,6,23,.12);
+    font-size: 12.5px;
+    border:1px solid #0e4a43;
+    border-radius:10px;
+    background:#0f2e29;
+    color:#dff7f3;
   }
-  .bigCount{
-    text-align:center; font-weight:900; color:#0b3b38;
-    font-size:64px; line-height:1; margin:6px 0 12px;
-  }
-  .bar{
-    background:var(--bar); color:#e7fff9; font-weight:800;
-    text-align:center; padding:10px 12px; border-radius:10px;
-    margin:8px 0 14px;
-  }
+  .esri-layer-list__item-label,
+  .esri-legend__service-label{ color:#e6fffb !important; }
 
-  .kpiGrid{
-    display:grid; grid-template-columns:1fr 1fr; gap:14px;
-  }
-  .kpiCard{
-    display:flex; align-items:center; gap:12px;
-    background:#fff; border:1px solid var(--line); border-radius:14px;
-    padding:14px; box-shadow:0 10px 24px rgba(2,6,23,.06);
-  }
-  .badge{
-    flex:0 0 46px; width:46px; height:46px; border-radius:50%;
-    display:grid; place-items:center; background:var(--g-2); color:#fff;
-    font-size:22px; font-weight:900
-  }
-  .metric{display:flex; flex-direction:column; align-items:flex-start}
-  .metric .val{font-size:44px; font-weight:900; color:var(--g-dark); line-height:1}
-  .metric .lbl{font-size:14px; font-weight:700; color:var(--muted); margin-top:6px}
+  /* Popup */
+  .pop-card{background:#ffffff; border:1px solid var(--line); border-radius:14px; box-shadow:0 12px 30px rgba(2,6,23,.12); overflow:hidden; min-width:min(320px, 78vw); max-width:min(520px, 86vw); color:#0b2532; font:12.5px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial;}
+  .pop-hdr{background:#0b3b38; color:#e6fffb; padding:10px 12px; font-weight:900; letter-spacing:.2px;}
+  .pop-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; padding:12px;}
+  .pop-grid .lbl{font-weight:800; color:#47606b; font-size:11.5px}
+  .pop-grid .val{font-weight:800; color:#0b2532}
+  .esri-popup__header{display:none !important;}
+  .esri-popup__main-container{padding-top:0 !important;}
 
-  .sep{height:1px;background:var(--line); margin:16px 0}
-
-  /* ====== 8 indicadores inferiores (4×2, mismo tamaño) ====== */
-  .grid8{
-    display:grid; grid-template-columns: repeat(4, 1fr); gap:14px; margin-top:8px;
-  }
-  .tile{
-    background:#fff; border:1px solid var(--line); border-radius:14px;
-    box-shadow:0 10px 24px rgba(2,6,23,.06);
-    padding:14px; display:grid; justify-items:center; align-content:center; gap:6px;
-    min-height:120px;
-  }
-  .tile .v{font-size:40px; font-weight:900; color:var(--g-dark); line-height:1}
-  .tile .t{font-size:13px; color:var(--muted); font-weight:800; text-align:center}
-
-  /* Responsive */
-  @media (max-width: 1100px){
-    .sidebar{width: min(50vw,720px)}
-    #viewWrap{right: min(50vw,720px)}
-  }
+  @media (max-width: 1100px){ .shell{grid-template-columns: 1fr min(50vw, 720px);} }
   @media (max-width: 900px){
-    .sidebar{position:static; width:100%; height:auto}
-    #viewWrap{position:static; height:50vh; right:0}
-    .kpiGrid{grid-template-columns:1fr}
-    .grid8{grid-template-columns: repeat(2, 1fr);}
+    .shell{grid-template-columns:1fr;}
+    #viewWrap{position:relative; height:54vh;}
   }
 </style>
 </head>
 <body>
 <div class="shell">
 
-  <!-- Mapa (izquierda) -->
+  <!-- Mapa -->
   <div id="viewWrap">
-    <div id="viewDiv" aria-label="Mapa de proyectos MEF"></div>
+    <div id="viewDiv" aria-label="Mapa Vivienda Rural + CCPP + Límites"></div>
 
-    <!-- Filtro retráctil -->
-    <div class="filters">
-      <details id="acc" class="acc" open>
-        <summary>Filtrar por ubicación <span style="font-weight:900">▾</span></summary>
-        <div class="content">
-          <div>
-            <label for="selDep">Departamento</label>
-            <select id="selDep"><option value="">(Todos)</option></select>
-          </div>
-          <div>
-            <label for="selProv">Provincia</label>
-            <select id="selProv" disabled><option value="">(Todos)</option></select>
-          </div>
-          <div>
-            <label for="selDist">Distrito</label>
-            <select id="selDist" disabled><option value="">(Todos)</option></select>
-          </div>
-          <div class="rowBtns">
-            <button id="btnClear" class="btn secondary" type="button">Limpiar filtros</button>
-          </div>
-          <div class="hint">Los filtros se aplican a los puntos y a los indicadores.</div>
-        </div>
+    <!-- Flotantes retráctiles (cerrados por defecto) -->
+    <div class="floatPanels">
+      <details class="acc">
+        <summary>Capas <span>▾</span></summary>
+        <div class="content"><div id="layerListNode"></div></div>
+        <div class="hint">Activa/desactiva capas. Algunas aparecen según el nivel de zoom.</div>
+      </details>
+
+      <details class="acc">
+        <summary>Leyenda <span>▾</span></summary>
+        <div class="content"><div id="legendNode"></div></div>
       </details>
     </div>
   </div>
 
-  <!-- Panel derecho -->
+  <!-- Panel derecho vacío -->
   <aside class="sidebar">
-    <div class="topTitle">A través de Inversiones</div>
-    <div class="bigCount" id="kpiCount">—</div>
-
-    <div class="bar">Se espera generar</div>
-
-    <!-- 4 KPIs superiores (2×2) -->
-    <div class="kpiGrid">
-      <div class="kpiCard" aria-live="polite">
-        <div class="badge">💧</div>
-        <div class="metric">
-          <div class="val" id="kpiAgua">—</div>
-          <div class="lbl">Conexiones Nuevas de Agua</div>
-        </div>
-      </div>
-
-      <div class="kpiCard" aria-live="polite">
-        <div class="badge">🚰</div>
-        <div class="metric">
-          <div class="val" id="kpiAlc">—</div>
-          <div class="lbl">Conexiones Nuevas de Alcantarillado</div>
-        </div>
-      </div>
-
-      <div class="kpiCard" aria-live="polite">
-        <div la="badge" class="badge">🛣️</div>
-        <div class="metric">
-          <div class="val" id="kpiPav">—</div>
-          <div class="lbl">M2 de Pavimento</div>
-        </div>
-      </div>
-
-      <div class="kpiCard" aria-live="polite">
-        <div class="badge">👷</div>
-        <div class="metric">
-          <div class="val" id="kpiVer">—</div>
-          <div class="lbl">M2 de Vereda</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="sep"></div>
-
-    <!-- 8 indicadores inferiores (4×2, mismo tamaño) -->
-    <section class="grid8">
-      <div class="tile"><div class="v" id="kObrasConcluidas">—</div><div class="t">Obras Concluidas</div></div>
-      <div class="tile"><div class="v" id="kExpConcluidos">—</div><div class="t">Exp. Concluidos</div></div>
-      <div class="tile"><div class="v" id="kObrasEjec">—</div><div class="t">Obras en Ejecución</div></div>
-      <div class="tile"><div class="v" id="kExpElab">—</div><div class="t">Exp. en Elaboración</div></div>
-
-      <div class="tile"><div class="v" id="kObrasPorIniciar">—</div><div class="t">Obras por Iniciar</div></div>
-      <div class="tile"><div class="v" id="kExpProcSel">—</div><div class="t">Exp. en Proceso de Selección</div></div>
-      <div class="tile"><div class="v" id="kObrasProcSel">—</div><div class="t">Obras en proceso de Selección</div></div>
-      <div class="tile"><div class="v" id="kExpPorConvocar">—</div><div class="t">Exp. por Convocar</div></div>
-    </section>
+    <div class="topTitle">Mapa · Vivienda Rural, CCPP y Límites</div>
+    <div class="bar">Cartografía OGEI · MVCS</div>
+    <!-- vacío -->
   </aside>
-
 </div>
 
 <script>
-const FS_URL = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/OGEI/Mapa_Inversiones_Coord_MEF/FeatureServer/0";
-const fmt = new Intl.NumberFormat('es-PE');
-
-function esc(v){ return String(v).replaceAll("'", "''"); }
-function cacheBust(){ return String(Date.now()); }
-
-function buildWhereUbic(){
-  const dep  = document.getElementById('selDep').value.trim();
-  const prov = document.getElementById('selProv').value.trim();
-  const dist = document.getElementById('selDist').value.trim();
-  const parts = ["1=1"];
-  if (dep)  parts.push(`departamento='${esc(dep)}'`);
-  if (prov) parts.push(`provincia='${esc(prov)}'`);
-  if (dist) parts.push(`distrito='${esc(dist)}'`);
-  return parts.join(" AND ");
-}
-
-function esriPOST(url, paramsObj){
-  const body = new URLSearchParams({ f:"json", returnGeometry:"false", ...paramsObj, __ts: cacheBust() });
-  return fetch(url, {
-    method:"POST",
-    headers:{ "Content-Type":"application/x-www-form-urlencoded;charset=UTF-8" },
-    body: body.toString(),
-    cache:"no-store"
-  }).then(r => { if(!r.ok) throw new Error("HTTP "+r.status); return r.json(); })
-    .then(j => { if(j.error){ console.error("ArcGIS:", j.error); throw new Error(j.error.message||"ArcGIS"); } return j; });
-}
-
-/* Distintos con paginado, robusto */
-async function loadDistinct(field, where){
-  const page = 2000; let offset = 0; const vals = new Set();
-  while (true){
-    const j = await esriPOST(FS_URL+"/query", {
-      where: where || "1=1",
-      outFields: field,
-      orderByFields: field,
-      returnDistinctValues: "true",
-      resultRecordCount: page,
-      resultOffset: offset
-    });
-    const rows = (j.features||[]).map(f => (f.attributes||{})[field]).filter(v => v!=null && v!=="");
-    rows.forEach(v => vals.add(v));
-    if (!j.exceededTransferLimit || rows.length < page) break;
-    offset += page;
-  }
-  return [...vals];
-}
-
-/* ================= KPIs de arriba ================= */
-async function updateKPIsTop(where){
-  // Conteo de inversiones (distintos producto_proyecto)
-  const totalProy = (await loadDistinct("producto_proyecto", where)).length;
-
-  // Sumas con outStatistics + fallback a suma en cliente
-  let agua=0, alc=0, pav=0, ver=0;
-  try{
-    const j = await esriPOST(FS_URL+"/query", {
-      where,
-      outStatistics: JSON.stringify([
-        { statisticType:"sum", onStatisticField:"cnx_nuevas_agua",               outStatisticFieldName:"sAgua" },
-        { statisticType:"sum", onStatisticField:"cnx_nuevas_alcantarillado_dse", outStatisticFieldName:"sAlc"  },
-        { statisticType:"sum", onStatisticField:"final_pavimento_m2_monitoreo",  outStatisticFieldName:"sPav"  },
-        { statisticType:"sum", onStatisticField:"final_vereda_m2_monitoreo",     outStatisticFieldName:"sVer"  }
-      ])
-    });
-    const a = (j.features?.[0]?.attributes) || {};
-    agua = Number(a.sAgua||0); alc = Number(a.sAlc||0);
-    pav  = Number(a.sPav||0);  ver = Number(a.sVer||0);
-    if(agua===0 && alc===0 && pav===0 && ver===0) throw new Error("all-zero");
-  }catch(e){
-    let offset=0, page=2000;
-    while(true){
-      const j2 = await esriPOST(FS_URL+"/query", {
-        where,
-        outFields:"cnx_nuevas_agua,cnx_nuevas_alcantarillado_dse,final_pavimento_m2_monitoreo,final_vereda_m2_monitoreo",
-        resultRecordCount:page, resultOffset:offset
-      });
-      const feats = j2.features||[];
-      for(const f of feats){
-        const at=f.attributes||{};
-        agua += Number(at.cnx_nuevas_agua)||0;
-        alc  += Number(at.cnx_nuevas_alcantarillado_dse)||0;
-        pav  += Number(at.final_pavimento_m2_monitoreo)||0;
-        ver  += Number(at.final_vereda_m2_monitoreo)||0;
-      }
-      if(!j2.exceededTransferLimit || feats.length<page) break;
-      offset += page;
-    }
-  }
-
-  document.getElementById('kpiCount').textContent = fmt.format(totalProy);
-  document.getElementById('kpiAgua').textContent  = fmt.format(agua);
-  document.getElementById('kpiAlc').textContent   = fmt.format(alc);
-  document.getElementById('kpiPav').textContent   = fmt.format(pav);
-  document.getElementById('kpiVer').textContent   = fmt.format(ver);
-}
-
-/* ================= 8 indicadores inferiores ================= */
-function IN(list){ return list.map(v=>`'${esc(v)}'`).join(","); }
-async function countDistinctProducto(where){ return (await loadDistinct("producto_proyecto", where)).length; }
-
-async function updateBottom(whereBase){
-  const OBRA = ["OBRA (SALDO)","OBRA"];
-  const EXP  = ["EXPEDIENTE TECNICO (SALDO)","OBRA (Expediente Saldo)","EXPEDIENTE TECNICO"];
-
-  const W = (...conds)=> [whereBase, ...conds.filter(Boolean)].join(" AND ");
-
-  const queries = {
-    obrasConcluidas: W(`etapa IN (${IN(OBRA)})`, `estado IN ('Transferencia','Post Ejecución','Concluido')`),
-    expConcluidos:   W(`etapa IN (${IN(EXP)})`,  `estado IN ('Concluido')`),
-    obrasEjec:       W(`etapa IN (${IN(OBRA)})`, `estado IN ('En Ejecución')`),
-    expElab:         W(`etapa IN (${IN(EXP)})`,  `estado IN ('En elaboración')`),
-    obrasPorIniciar: W(`etapa IN (${IN(OBRA)})`, `estado IN ('Actos Previos')`, `subestado = 'Por Iniciar'`),
-    expProcSel:      W(`etapa IN (${IN(EXP)})`,  `estado IN ('Actos Previos')`, `subestado = 'Proceso de Selección'`),
-    obrasProcSel:    W(`etapa IN (${IN(OBRA)})`, `estado IN ('Actos Previos')`, `subestado = 'Proceso de Selección'`),
-    expPorConvocar:  W(`etapa IN (${IN(EXP)})`,  `estado IN ('Actos Previos')`, `subestado = 'Por Convocar'`)
-  };
-
-  const [
-    n1,n2,n3,n4,n5,n6,n7,n8
-  ] = await Promise.all([
-    countDistinctProducto(queries.obrasConcluidas),
-    countDistinctProducto(queries.expConcluidos),
-    countDistinctProducto(queries.obrasEjec),
-    countDistinctProducto(queries.expElab),
-    countDistinctProducto(queries.obrasPorIniciar),
-    countDistinctProducto(queries.expProcSel),
-    countDistinctProducto(queries.obrasProcSel),
-    countDistinctProducto(queries.expPorConvocar),
-  ]);
-
-  document.getElementById('kObrasConcluidas').textContent = fmt.format(n1);
-  document.getElementById('kExpConcluidos').textContent   = fmt.format(n2);
-  document.getElementById('kObrasEjec').textContent       = fmt.format(n3);
-  document.getElementById('kExpElab').textContent         = fmt.format(n4);
-  document.getElementById('kObrasPorIniciar').textContent = fmt.format(n5);
-  document.getElementById('kExpProcSel').textContent      = fmt.format(n6);
-  document.getElementById('kObrasProcSel').textContent    = fmt.format(n7);
-  document.getElementById('kExpPorConvocar').textContent  = fmt.format(n8);
-}
-
-/* ================= Mapa + filtros ================= */
 require([
-  "esri/Map","esri/views/MapView","esri/layers/FeatureLayer","esri/widgets/ScaleBar"
-], (Map,MapView,FeatureLayer,ScaleBar)=>{
+  "esri/Map",
+  "esri/views/MapView",
+  "esri/layers/FeatureLayer",
+  "esri/widgets/Legend",
+  "esri/widgets/LayerList",
+  "esri/widgets/ScaleBar",
+  "esri/renderers/UniqueValueRenderer",
+  "esri/symbols/SimpleFillSymbol",
+  "esri/symbols/SimpleLineSymbol",
+  "esri/symbols/SimpleMarkerSymbol"
+], (Map, MapView, FeatureLayer, Legend, LayerList, ScaleBar, UniqueValueRenderer,
+    SimpleFillSymbol, SimpleLineSymbol, SimpleMarkerSymbol) => {
 
-  const map = new Map({ basemap:"gray-vector" });
-  const view = new MapView({ container:"viewDiv", map, center:[-75.2,-9.3], zoom:5 });
+  // ENDPOINTS
+  const CCPP = "https://pportalgis.vivienda.gob.pe/pfdserver1/rest/services/OGEI/CCPP_Dispersos/FeatureServer";
+  const VR   = "https://dportalgis.vivienda.gob.pe/dfdserver/rest/services/OGEI/vivienda_rural/FeatureServer/0";
+  const LIM0 = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/COES/Limites_Pol%C3%ADticos/MapServer/0";
+  const LIM1 = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/COES/Limites_Pol%C3%ADticos/MapServer/1";
+  const LIM2 = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/COES/Limites_Pol%C3%ADticos/MapServer/2";
 
-  const layer = new FeatureLayer({
-    url: FS_URL, outFields:["*"], title:"Proyectos MEF",
-    renderer:{
-      type:"simple",
-      symbol:{
-        type:"simple-marker",
-        color:[31,112,102,0.95], size:6,
-        outline:{ color:[255,255,255,140], width:0.5 }
+  // Mapa base
+  const map = new Map({ basemap: "gray-vector" });
+  const view = new MapView({
+    container: "viewDiv",
+    map,
+    // Vista inicial: costa del Lago Titicaca (Puno)
+    center: [-69.35, -15.9],
+    scale: 180000, // ~1:180k (VR visible por minScale=300k)
+    constraints: { minZoom: 4, snapToZoom: false },
+    highlightOptions: { color: [13,58,53,1], haloOpacity: 0.15, fillOpacity: 0.05 }
+  });
+  view.ui.add(new ScaleBar({ view, unit: "metric" }), "bottom-left");
+
+  // Popup compacto
+  view.popup.title = "";
+  try { view.popup.visibleElements = { title: false }; } catch(_){}
+
+  // Capas CCPP
+  const ccppLayers = [
+    new FeatureLayer({ url: `${CCPP}/6`, title: "Áreas agrupadas (densidad y viviendas)", outFields:["*"], visible:false }),
+    new FeatureLayer({ url: `${CCPP}/5`, title: "Ámbito territorial de centros poblados", outFields:["*"], visible:false }),
+    new FeatureLayer({ url: `${CCPP}/4`, title: "Centro poblado por grado de dispersión",  outFields:["*"], visible:true  }),
+    new FeatureLayer({ url: `${CCPP}/3`, title: "Redes - DATASS",                          outFields:["*"], visible:false }),
+    new FeatureLayer({ url: `${CCPP}/2`, title: "Reservorio - DATASS",                      outFields:["*"], visible:false }),
+    new FeatureLayer({ url: `${CCPP}/1`, title: "Captación - DATASS",                       outFields:["*"], visible:false }),
+    new FeatureLayer({ url: `${CCPP}/0`, title: "PTAP - DATASS",                            outFields:["*"], visible:false })
+  ];
+
+  // Vivienda Rural (3 categorías exactas, visible a ciudad)
+  const FIELD = "dhabcual";
+  const defExp = `${FIELD} IN ('Con Deficit Cualitativo','''Sin Dcficit Cualitativo','Otro')`;
+
+  const COL_DEFICIT = [198, 42, 75, 0.90];   // rojo
+  const COL_SIN     = [ 60,130,246,0.90];    // azul
+  const COL_OTRO    = [168,170,175,0.70];    // plomo
+
+  const mkSymbol = (rgba) => new SimpleMarkerSymbol({ style:"circle", size:7, color:rgba, outline:{ color:[255,255,255,1], width:0.6 }});
+  const lnSymbol = (rgba) => new SimpleLineSymbol({ color:rgba, width:2 });
+  const flSymbol = (rgba) => new SimpleFillSymbol({ color:rgba, outline:{ color:[255,255,255,1], width:0.5 }});
+  const symbolForGeom = (geom, rgba) => geom === "polygon" ? flSymbol(rgba) : (geom === "polyline" ? lnSymbol(rgba) : mkSymbol(rgba));
+
+  function vrRenderer(geom){
+    return new UniqueValueRenderer({
+      field: FIELD,
+      defaultSymbol: null,
+      uniqueValueInfos: [
+        { value:"Con Deficit Cualitativo",  label:"Con Déficit Cualitativo", symbol:symbolForGeom(geom, COL_DEFICIT) },
+        { value:"'Sin Dcficit Cualitativo", label:"Sin Déficit Cualitativo", symbol:symbolForGeom(geom, COL_SIN) },
+        { value:"Otro",                      label:"Otro",                    symbol:symbolForGeom(geom, COL_OTRO) }
+      ]
+    });
+  }
+
+  const viviendaRural = new FeatureLayer({
+    url: VR,
+    title: "Vivienda rural - Viviendas Rurales",
+    outFields: ["*"],
+    definitionExpression: defExp,
+    minScale: 300000, // visible desde ciudad
+    maxScale: 0,
+    visible: true,
+    popupTemplate: {
+      title: "",
+      outFields:["*"],
+      content: (e)=>{
+        const a = e.graphic.attributes||{};
+        const safe = (v)=> (v==null||v==="") ? "—" : String(v);
+        return `
+          <div class="pop-card">
+            <div class="pop-hdr">${safe(a.NOMBRE)||"Vivienda rural"}</div>
+            <div class="pop-grid">
+              <div class="lbl">Déficit Habitacional Cualitativo</div><div class="val">${safe(a[FIELD])}</div>
+              <div class="lbl">Departamento</div><div class="val">${safe(a.departamen||a.departamento)}</div>
+              <div class="lbl">Provincia</div><div class="val">${safe(a.provincia)}</div>
+              <div class="lbl">Distrito</div><div class="val">${safe(a.distrito)}</div>
+            </div>
+          </div>
+        `;
       }
-    },
-    popupTemplate:{
-      title:"{producto_proyecto_nombre}",
-      content:[{ type:"fields", fieldInfos:[
-        {fieldName:"programa",label:"Programa"},
-        {fieldName:"departamento",label:"Departamento"},
-        {fieldName:"provincia",label:"Provincia"},
-        {fieldName:"distrito",label:"Distrito"},
-        {fieldName:"monto_pim",label:"Monto PIM",format:{digitSeparator:true,places:0}},
-        {fieldName:"monto_devengado",label:"Monto devengado",format:{digitSeparator:true,places:0}},
-        {fieldName:"cnx_nuevas_agua",label:"Conexiones nuevas de agua",format:{digitSeparator:true,places:0}},
-        {fieldName:"cnx_nuevas_alcantarillado_dse",label:"Conexiones nuevas de alcantarillado",format:{digitSeparator:true,places:0}},
-        {fieldName:"final_pavimento_m2_monitoreo",label:"M2 de Pavimento",format:{digitSeparator:true,places:0}},
-        {fieldName:"final_vereda_m2_monitoreo",label:"M2 de Vereda",format:{digitSeparator:true,places:0}}
-      ]}]
     }
   });
-  map.add(layer);
-  view.ui.add(new ScaleBar({view,unit:"metric"}),"bottom-left");
+  viviendaRural.when(()=>{ viviendaRural.renderer = vrRenderer(viviendaRural.geometryType); });
 
-  const selDep  = document.getElementById('selDep');
-  const selProv = document.getElementById('selProv');
-  const selDist = document.getElementById('selDist');
-  const btnClear= document.getElementById('btnClear');
-
-  async function refreshDep(){
-    selDep.innerHTML = `<option value="">(Todos)</option>`;
-    const deps = await loadDistinct("departamento");
-    deps.forEach(v => selDep.insertAdjacentHTML("beforeend", `<option>${v}</option>`));
-    selProv.innerHTML = `<option value="">(Todos)</option>`; selProv.disabled = true;
-    selDist.innerHTML = `<option value="">(Todos)</option>`; selDist.disabled = true;
+  // Límites políticos
+  function outlineRenderer(color, width){
+    return { type:"simple", symbol: new SimpleFillSymbol({ color:[0,0,0,0], outline:new SimpleLineSymbol({ color, width }) }) };
   }
-  async function refreshProv(){
-    const dep = selDep.value.trim();
-    selProv.innerHTML = `<option value="">(Todos)</option>`;
-    selDist.innerHTML = `<option value="">(Todos)</option>`; selDist.disabled = true;
-    if(!dep){ selProv.disabled=true; applyAll(); return; }
-    const provs = await loadDistinct("provincia", `departamento='${esc(dep)}'`);
-    provs.forEach(v => selProv.insertAdjacentHTML("beforeend", `<option>${v}</option>`));
-    selProv.disabled = false;
+  function lineRenderer(color, width){
+    return { type:"simple", symbol: new SimpleLineSymbol({ color, width }) };
   }
-  async function refreshDist(){
-    const dep = selDep.value.trim();
-    const prov= selProv.value.trim();
-    selDist.innerHTML = `<option value="">(Todos)</option>`;
-    if(!dep || !prov){ selDist.disabled = true; applyAll(); return; }
-    const dists = await loadDistinct("distrito", `departamento='${esc(dep)}' AND provincia='${esc(prov)}'`);
-    dists.forEach(v => selDist.insertAdjacentHTML("beforeend", `<option>${v}</option>`));
-    selDist.disabled = false;
+  async function boundaryLayer(url, title, color, width, minScale){
+    const lyr = new FeatureLayer({ url, title, visible:true, minScale, maxScale:0 });
+    try{
+      await lyr.load();
+      lyr.renderer = (lyr.geometryType === "polygon") ? outlineRenderer(color, width) : lineRenderer(color, width);
+    }catch{
+      lyr.renderer = lineRenderer(color, width);
+    }
+    return lyr;
   }
 
-  async function applyAll(){
-    const where = buildWhereUbic();
-    layer.definitionExpression = where;
-    await Promise.all([ updateKPIsTop(where), updateBottom(where) ]);
-  }
+  Promise.all([
+    boundaryLayer(LIM0, "Límite Departamental", [0,0,0,0.85], 2.0, 0),
+    boundaryLayer(LIM1, "Límite Provincial",    [0,0,0,0.70], 1.5, 2000000),
+    boundaryLayer(LIM2, "Límite Distrital",     [0,0,0,0.55], 1.0, 600000)
+  ]).then((limites) => {
+    const layers = [ ...limites, viviendaRural, ...ccppLayers ];
+    map.addMany(layers);
 
-  selDep.addEventListener("change", async ()=>{ await refreshProv(); applyAll(); });
-  selProv.addEventListener("change", async ()=>{ await refreshDist(); applyAll(); });
-  selDist.addEventListener("change", ()=>{ applyAll(); });
-  btnClear.addEventListener("click", async ()=>{
-    selDep.value = ""; await refreshProv(); // resetea provincia y distrito
-    applyAll();
+    // Widgets en paneles flotantes (cerrados por defecto)
+    new Legend({ view, container: "legendNode" });
+    new LayerList({
+      view,
+      container: "layerListNode",
+      selectionEnabled: true,
+      listItemCreatedFunction: (e)=>{ e.item.panel = { content: "legend", open: false }; }
+    });
   });
 
-  (async function init(){
-    await refreshDep();
-    applyAll();
-  })();
 });
 </script>
 </body>
