@@ -286,11 +286,53 @@ async function updateBottom(whereBase){
 
 /* ===== Mapa + filtros ===== */
 require([
-  "esri/Map","esri/views/MapView","esri/layers/FeatureLayer","esri/widgets/ScaleBar"
-], (Map,MapView,FeatureLayer,ScaleBar)=>{
+  "esri/Map","esri/views/MapView","esri/layers/FeatureLayer","esri/widgets/ScaleBar",
+  "esri/widgets/BasemapToggle"
+], (Map,MapView,FeatureLayer,ScaleBar,BasemapToggle)=>{
 
-  const map = new Map({ basemap:"osm" });
+  /* basemap por defecto: satélite */
+  const map = new Map({ basemap:"satellite" });
   const view = new MapView({ container:"viewDiv", map, center:[-75.2,-9.3], zoom:5 });
+
+  /* Alternador de basemap */
+  const toggle = new BasemapToggle({ view, nextBasemap: "osm" });
+  view.ui.add(toggle, "top-right");
+
+  /* ===== LAYER DE LÍMITES (línea sutil para contexto) ===== */
+  const limites = new FeatureLayer({
+    url: "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/COES/Limites_Pol%C3%ADticos/MapServer/0",
+    title: "Límites políticos",
+    popupEnabled: false,
+    opacity: 1,
+    listMode: "hide"     // no mostramos en UI
+  });
+
+  // Ajusta el símbolo según el tipo geométrico del servicio (polígono o línea)
+  limites.when(() => {
+    const gt = limites.geometryType;
+    if (gt === "polygon") {
+      limites.renderer = {
+        type: "simple",
+        symbol: {
+          type: "simple-fill",
+          color: [0,0,0,0],                 // sin relleno
+          outline: { color: [255,255,255,220], width: 0.8 }  // línea blanca sutil
+        }
+      };
+    } else if (gt === "polyline") {
+      limites.renderer = {
+        type: "simple",
+        symbol: {
+          type: "simple-line",
+          color: [255,255,255,220],
+          width: 0.8
+        }
+      };
+    }
+  });
+
+  /* Añadimos primero los límites (debajo de los puntos) */
+  map.add(limites);
 
   /* Ocultar cabecera nativa del popup */
   view.popup.title = "";
@@ -304,7 +346,7 @@ require([
     url: FS_URL, outFields:["*"], title:"Proyectos MEF",
     renderer:{
       type:"simple",
-      symbol:{ type:"simple-marker", color:[31,112,102,0.95], size:6, outline:{ color:[255,255,255,140], width:0.5 } }
+      symbol:{ type:"simple-marker", color:[255,234,0,0.95], size:7, outline:{ color:[0,0,0,220], width:0.6 } }
     },
     popupEnabled:true,
     popupTemplate:{
@@ -354,7 +396,9 @@ require([
     }
   });
 
+  /* Añadimos los puntos encima */
   map.add(layer);
+
   view.ui.add(new ScaleBar({view,unit:"metric"}),"bottom-left");
 
   const selProg = document.getElementById('selProg');
