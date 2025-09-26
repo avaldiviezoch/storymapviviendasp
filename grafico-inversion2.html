@@ -3,39 +3,81 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Devengado Acumulado vs Monto de Inversión — con Zoom tipo ECharts</title>
-<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<title>Devengado Acumulado VS Monto de Inversión</title>
 <style>
   :root{ --ink:#0b2532; --muted:#64748b; --grid:#e5e7eb; }
   html,body{height:100%;margin:0;background:#fff;color:var(--ink);
     font-family:system-ui,Segoe UI,Roboto,Arial}
-  /* Layout: título + gráfico */
-  .stage{
-    height:100vh;width:100vw;display:grid;grid-template-rows:auto 1fr;
-    gap:6px;padding:clamp(8px,2vw,16px); box-sizing:border-box
-  }
+  .stage{height:100vh;width:100vw;display:grid;grid-template-rows:auto auto 1fr;
+    gap:10px;padding:clamp(8px,2vw,20px); box-sizing:border-box}
   h1{margin:0;text-align:center;font-weight:900;letter-spacing:.3px;
-     font-size:clamp(20px,3vw,38px)}
-  /* Contenedor DEL GRÁFICO con altura explícita */
-  .wrap{position:relative;height:100%}
-  #chart{height:100%;width:100%;border-radius:14px;border:1px solid #eef2f7}
-
-  /* Leyenda “chips” (no bloquea zoom) */
-  .legendBar{position:absolute; left:50%; transform:translateX(-50%);
-    top:56px; z-index:5; display:flex; gap:10px; flex-wrap:wrap; pointer-events:none;}
-  .leg{pointer-events:auto; display:inline-flex; align-items:center; gap:8px;
-    padding:6px 10px; border:1px solid #e5e7eb; border-radius:999px; background:#fff;
-    font-size:12px; font-weight:700; cursor:pointer; box-shadow:0 2px 10px rgba(0,0,0,.05);}
-  .leg[aria-pressed="false"]{opacity:.35; background:#f8fafc}
+     font-size:clamp(20px,3vw,42px)}
+  .legendBar{display:flex;justify-content:center;align-items:center;gap:14px;flex-wrap:wrap;min-height:28px}
+  .leg-btn{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid #e5e7eb;border-radius:999px;cursor:pointer;background:#fff;font-weight:700;font-size:13px}
+  .leg-btn[aria-pressed="false"]{opacity:.35;background:#f8fafc}
   .sw{width:12px;height:12px;border-radius:50%}
+  .chartWrap{position:relative;overflow:hidden;border-radius:14px}
+  canvas{display:block;width:100%;height:100%}
+  .empty{display:grid;place-items:center;height:100%;color:#64748b;font-size:clamp(13px,1.6vw,16px);padding:12px;text-align:center}
+
+  /* ===== Tooltip (MEJORADO - posicionamiento inteligente) ===== */
+  .tip{
+    position:absolute; pointer-events:none; color:#0b2532;
+    background:#ffffff; border:1px solid #e5e7eb;
+    box-shadow:0 10px 24px rgba(2,6,23,.12), 0 2px 6px rgba(2,6,23,.08);
+    border-radius:10px; padding:8px 10px; font-size:11px; line-height:1.25;
+    opacity:0; transition:opacity .12s ease;
+    max-width:min(360px,68vw); z-index:1000;
+    /* Eliminamos transform fijo para posicionamiento flexible */
+  }
+  .tip .chip{
+    display:inline-flex; align-items:center; gap:6px;
+    font-weight:800; padding:3px 8px; border-radius:999px;
+    background:#f8fafc; border:1px solid #e5e7eb; font-size:10.5px;
+    letter-spacing:.02em;
+  }
+  .tip .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+  .tip .grid{
+    margin-top:6px; display:grid; grid-template-columns:auto 1fr; gap:4px 10px;
+  }
+  .tip .k{color:#64748b}
+  .tip .v{font-weight:700; text-align:right}
+  .tip .hr{margin:6px 0; height:1px; background:#eef2f7; grid-column:1/-1}
+  .tip .long{grid-column:1/-1; text-align:left; font-weight:600}
+
+  /* ===== Controles de Zoom ===== */
+  .zoom-controls{
+    position:absolute; right:20px; top:20px; display:flex; flex-direction:column; gap:8px;
+    z-index:10;
+  }
+  .zoom-btn{
+    width:36px; height:36px; border-radius:8px; border:1px solid #e5e7eb;
+    background:#fff; cursor:pointer; display:grid; place-items:center;
+    font-size:18px; font-weight:bold; color:#374151;
+    box-shadow:0 2px 8px rgba(0,0,0,0.1); transition:all 0.2s;
+  }
+  .zoom-btn:hover{ background:#f8fafc; border-color:#d1d5db; }
+  .zoom-btn:active{ background:#e5e7eb; }
 </style>
 </head>
 <body>
   <div class="stage">
-    <h1>Devengado Acumulado vs Monto de Inversión</h1>
-    <div class="wrap">
-      <div id="chart" role="img" aria-label="Dispersión de proyectos por devengado, inversión y beneficiarios"></div>
-      <div class="legendBar" id="legendBar" aria-label="Filtrar por nivel de avance"></div>
+    <h1>Devengado Acumulado VS Monto de Inversión</h1>
+
+    <!-- Leyenda interactiva centrada -->
+    <div class="legendBar" id="legendBar" role="toolbar" aria-label="Filtrar por Nivel de Avance"></div>
+
+    <div class="chartWrap" id="wrap" aria-live="polite">
+      <canvas id="chart"></canvas>
+      <div id="empty" class="empty" style="display:none">Sin datos que cumplan los filtros.</div>
+      <div id="tip" class="tip" role="status"></div>
+      
+      <!-- Controles de Zoom -->
+      <div class="zoom-controls">
+        <button class="zoom-btn" id="zoomIn" title="Acercar">+</button>
+        <button class="zoom-btn" id="zoomOut" title="Alejar">−</button>
+        <button class="zoom-btn" id="zoomReset" title="Restablecer zoom">↺</button>
+      </div>
     </div>
   </div>
 
@@ -44,20 +86,26 @@
 const LYR13 = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/OGEI/Mapa_Inversiones_MEF/FeatureServer/13/query";
 const LYR1  = "https://pportalgis.vivienda.gob.pe/phtserver/rest/services/Hosted/story_monitoreo_inversiones/FeatureServer/1/query";
 
-/* -------- Filtros -------- */
+/* -------- Filtros CAPA 13 (válidos) -------- */
 const WHERE_13 = "monto_pim > 0 AND producto_proyecto IS NOT NULL AND producto_proyecto <> 2193247";
-const WHERE_1  = "etapa IN ('OBRA','OBRA (SALDO)') AND montoactualizadopip_decimal > 0 AND devengadoacumulado >= 0";
+
+/* -------- Filtros CAPA 1 (datos del scatter) -------- */
+const WHERE_1 = "etapa IN ('OBRA','OBRA (SALDO)') AND montoactualizadopip_decimal > 0 AND devengadoacumulado >= 0";
 
 /* -------- Categorías por % -------- */
 const CATS = [
   {key:"Bajo (0%–30%)",   short:"Bajo",  color:"#dc2626", match:p=> p<=30},
   {key:"Medio (30%–70%)", short:"Medio", color:"#f59e0b", match:p=> p>30 && p<70},
-  {key:"Alto (70%–100%)", short:"Alto",  color:"#22c55e", match:p=> p>=70}
+  {key:"Alto (70%–100%)", short:"Alto",  color:"#22c55e", match:p=> p>=70},
 ];
 
 /* -------- Utils -------- */
-function pct(dev, inv){ const d=+dev||0, m=+inv||0; return m>0 ? (d/m)*100 : 0; }
-function catFromPct(p){ for(const c of CATS) if(c.match(p)) return c.short; return "Bajo"; }
+function pct(dev, inv){
+  const d=Number(dev), m=Number(inv);
+  if(!isFinite(d)||!isFinite(m)||m<=0) return 0;
+  return (d/m)*100;
+}
+function catFromPct(p){ for(const c of CATS){ if(c.match(p)) return c.short; } return "Bajo"; }
 function fmtCompact(n){
   const v=Number(n)||0, a=Math.abs(v);
   if(a>=1e9) return (v/1e9).toFixed(1).replace(/\.0$/,'')+" B";
@@ -67,7 +115,7 @@ function fmtCompact(n){
 }
 function fmtPct(p){ return (Math.round(p*10)/10).toLocaleString('es-PE')+"%"; }
 
-/* ArcGIS helpers (POST + paginado) */
+/* ArcGIS helpers */
 async function fetchAllPOST(url, baseParams){
   const pageSize=2000; let offset=0, out=[];
   while(true){
@@ -93,12 +141,10 @@ async function fetchAllPOST(url, baseParams){
 
 /* -------- Carga de datos -------- */
 async function loadData(){
-  // 1) IDs válidos desde CAPA 13
   const rows13 = await fetchAllPOST(LYR13, { where: WHERE_13, outFields: "producto_proyecto" });
   const idSet = new Set(rows13.map(r=>r.producto_proyecto).filter(v=>v!=null));
-  if(idSet.size===0) return { Bajo:[], Medio:[], Alto:[], allX:[], allY:[], allSize:[] };
+  if(idSet.size===0) return [];
 
-  // 2) CAPA 1 con IN (…) en chunks
   const ids = Array.from(idSet);
   const chunkSize = 900;
   let rows1 = [];
@@ -112,154 +158,410 @@ async function loadData(){
     rows1.push(...part);
   }
 
-  // 3) Transformación
-  const byCat = { Bajo:[], Medio:[], Alto:[] };
-  const allX=[], allY=[], allSize=[];
-  for(const r of rows1){
-    const x = +r.devengadoacumulado || 0;               // X: Devengado
-    const y = +r.montoactualizadopip_decimal || 0;      // Y: Inversión
-    const bens = +r.beneficiarios || 0;
-    if(y<=0) continue;
+  const pts = rows1.map(r=>{
+    const x = Number(r.devengadoacumulado)||0;
+    const y = Number(r.montoactualizadopip_decimal)||0;
+    const bens = Number(r.beneficiarios)||0;
     const p = pct(x,y);
-    const c = catFromPct(p);
-    byCat[c].push({ value:[x,y,bens,p,(r.icodunificado??""),(r.nombreproyecto??"").toString().trim()] });
-    allX.push(x); allY.push(y); allSize.push(bens);
-  }
-  return { Bajo:byCat.Bajo, Medio:byCat.Medio, Alto:byCat.Alto, allX, allY, allSize };
+    return {
+      x, y, bens, pct: p, nivel: catFromPct(p),
+      icod: r.icodunificado ?? "",
+      nombre: (r.nombreproyecto ?? "").toString().trim()
+    };
+  }).filter(d=>d.y>0);
+
+  return pts;
 }
 
-/* ====== Render con ECharts ====== */
-(async function run(){
-  const el = document.getElementById('chart');
-  const chart = echarts.init(el, null, { renderer: 'canvas' });
+/* -------- Gráfico con Tooltip Mejorado -------- */
+function makeChart(points){
+  const wrap   = document.getElementById("wrap");
+  const canvas = document.getElementById("chart");
+  const ctx    = canvas.getContext("2d");
+  const empty  = document.getElementById("empty");
+  const tip    = document.getElementById("tip");
+  const legend = document.getElementById("legendBar");
 
-  try{
-    chart.showLoading({ text: 'Cargando datos…' });
-    const { Bajo, Medio, Alto, allX, allY, allSize } = await loadData();
+  if(!points.length){ empty.style.display="grid"; return; }
+  empty.style.display="none";
 
-    // Si no hay datos, mostramos mensaje
-    if (!allX.length){
-      chart.hideLoading();
-      chart.setOption({
-        title:{ text:'Sin datos para mostrar', left:'center', top:'middle' }
-      });
-      return;
+  // Leyenda interactiva
+  const visible = new Map(CATS.map(c=>[c.short,true]));
+  legend.innerHTML="";
+  CATS.forEach(c=>{
+    const b=document.createElement("button");
+    b.className="leg-btn"; b.type="button"; b.setAttribute("aria-pressed","true");
+    b.innerHTML=`<span class="sw" style="background:${c.color}"></span>${c.key}`;
+    b.onclick=()=>{ const cur=visible.get(c.short); visible.set(c.short,!cur); b.setAttribute("aria-pressed",String(!cur)); draw(); };
+    legend.appendChild(b);
+  });
+
+  // Tamaño por beneficiarios
+  const maxB = Math.max(1, ...points.map(p=>p.bens||0));
+  const minR = 4, maxR = 22;
+  const rScale = (b)=> {
+    const t = Math.sqrt((b||0)/maxB);
+    return minR + t * (maxR - minR);
+  };
+
+  // ===== SISTEMA DE ZOOM MEJORADO =====
+  let dims={}, scale={};
+  let dataMaxX=1, dataMaxY=1;
+  
+  // Viewport con límites más inteligentes
+  let view = {
+    minX: 0, maxX: 1, 
+    minY: 0, maxY: 1,
+    // Límites máximos basados en datos
+    dataMinX: 0, dataMaxX: 1,
+    dataMinY: 0, dataMaxY: 1
+  };
+
+  function computeDataExtents(){
+    const act=points.filter(p=>visible.get(p.nivel));
+    view.dataMaxX = Math.max(1, ...act.map(p=>p.x));
+    view.dataMaxY = Math.max(1, ...act.map(p=>p.y));
+    
+    // Si es la primera vez, establecer vista inicial
+    if(view.maxX === 1 && view.maxY === 1){
+      view.minX = 0;
+      view.maxX = view.dataMaxX;
+      view.minY = 0;
+      view.maxY = view.dataMaxY;
+    }
+  }
+
+  function compute(){
+    const dpr=Math.max(1,window.devicePixelRatio||1);
+    const W=wrap.clientWidth, H=wrap.clientHeight;
+    canvas.width=W*dpr; canvas.height=H*dpr; 
+    canvas.style.width=W+"px"; canvas.style.height=H+"px";
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    dims={W,H};
+    
+    const pad={t:40, r:24, b:64, l:86};
+    scale={
+      pad,
+      x: v => pad.l + (W - pad.l - pad.r) * ((v - view.minX) / ((view.maxX - view.minX) || 1)),
+      y: v => pad.t + (H - pad.t - pad.b) * (1 - (v - view.minY) / ((view.maxY - view.minY) || 1)),
+      // Funciones inversas para convertir coordenadas de pantalla a datos
+      invX: px => view.minX + (view.maxX - view.minX) * ((px - pad.l) / (W - pad.l - pad.r)),
+      invY: py => view.minY + (view.maxY - view.minY) * (1 - (py - pad.t) / (H - pad.t - pad.b))
+    };
+  }
+
+  // ===== FUNCIONES DE ZOOM MEJORADAS =====
+  function zoom(factor, centerX = null, centerY = null){
+    if(centerX === null) centerX = (view.minX + view.maxX) / 2;
+    if(centerY === null) centerY = (view.minY + view.maxY) / 2;
+    
+    const newWidth = (view.maxX - view.minX) * factor;
+    const newHeight = (view.maxY - view.minY) * factor;
+    
+    view.minX = centerX - newWidth / 2;
+    view.maxX = centerX + newWidth / 2;
+    view.minY = centerY - newHeight / 2;
+    view.maxY = centerY + newHeight / 2;
+    
+    clampView();
+    draw();
+  }
+
+  function pan(deltaX, deltaY){
+    const spanX = view.maxX - view.minX;
+    const spanY = view.maxY - view.minY;
+    
+    view.minX -= deltaX * spanX;
+    view.maxX -= deltaX * spanX;
+    view.minY += deltaY * spanY; // Y invertida
+    view.maxY += deltaY * spanY;
+    
+    clampView();
+    draw();
+  }
+
+  function resetZoom(){
+    view.minX = 0;
+    view.maxX = view.dataMaxX;
+    view.minY = 0;
+    view.maxY = view.dataMaxY;
+    draw();
+  }
+
+  function clampView(){
+    // Límites mínimos para evitar zoom excesivo
+    const minSpanX = (view.dataMaxX - 0) / 1000;
+    const minSpanY = (view.dataMaxY - 0) / 1000;
+    
+    if(view.maxX - view.minX < minSpanX){
+      const center = (view.minX + view.maxX) / 2;
+      view.minX = center - minSpanX / 2;
+      view.maxX = center + minSpanX / 2;
+    }
+    
+    if(view.maxY - view.minY < minSpanY){
+      const center = (view.minY + view.maxY) / 2;
+      view.minY = center - minSpanY / 2;
+      view.maxY = center + minSpanY / 2;
+    }
+    
+    // Mantener dentro de los límites de datos
+    view.minX = Math.max(0, view.minX);
+    view.maxX = Math.min(view.dataMaxX, view.maxX);
+    view.minY = Math.max(0, view.minY);
+    view.maxY = Math.min(view.dataMaxY, view.maxY);
+    
+    // Asegurar que min < max
+    if(view.minX >= view.maxX) view.maxX = view.minX + minSpanX;
+    if(view.minY >= view.maxY) view.maxY = view.minY + minSpanY;
+  }
+
+  function drawAxes(){
+    const {pad} = scale;
+    const W = dims.W, H = dims.H;
+    ctx.clearRect(0, 0, W, H);
+
+    // Eje Y
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    ctx.font = "12px system-ui";
+    ctx.fillStyle = "#0b2532";
+    
+    const yTicks = 5;
+    for(let i = 0; i <= yTicks; i++){
+      const v = view.minY + (view.maxY - view.minY) * i / yTicks;
+      const yy = scale.y(v);
+      ctx.strokeStyle = i === 0 ? "#e5e7eb" : "#f3f4f6";
+      ctx.beginPath();
+      ctx.moveTo(pad.l, yy);
+      ctx.lineTo(W - pad.r, yy);
+      ctx.stroke();
+      ctx.fillText(fmtCompact(v), pad.l - 8, yy);
     }
 
-    // Tamaño por beneficiarios (6–60 px)
-    function extent(arr){let m=+Infinity,M=-Infinity;for(const v of arr)if(Number.isFinite(v)){if(v<m)m=v;if(v>M)M=v}if(!Number.isFinite(m)||!Number.isFinite(M))return[0,1];if(m===M)return[0,M||1];return[m,M]}
-    const [minS,maxS]=extent(allSize);
-    const sizeFn = (v)=>{
-      const t = (maxS>minS) ? (Math.max(0,Number(v)||0)-minS)/(maxS-minS) : 0.5;
-      return 6 + Math.sqrt(Math.max(0,Math.min(1,t))) * (60-6);
-    };
+    // Eje X
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    ctx.font = "12px system-ui";
+    
+    const xTicks = 5;
+    for(let i = 0; i <= xTicks; i++){
+      const v = view.minX + (view.maxX - view.minX) * i / xTicks;
+      const xx = scale.x(v);
+      const y0 = H - pad.b;
+      ctx.strokeStyle = "#e5e7eb";
+      ctx.beginPath();
+      ctx.moveTo(xx, pad.t);
+      ctx.lineTo(xx, y0);
+      ctx.stroke();
+      ctx.fillText(fmtCompact(v), xx, y0 + 10);
+    }
 
-    // Rango inicial (percentiles)
-    function quantile(a,q){const s=a.slice().sort((x,y)=>x-y);if(!s.length)return NaN;const p=(s.length-1)*q,lo=Math.floor(p),hi=Math.ceil(p);return lo===hi?s[lo]:s[hi]+(s[hi]-s[lo])*(p-lo)}
-    const xQ05=quantile(allX,0.05), xQ95=quantile(allX,0.95);
-    const yQ05=quantile(allY,0.05), yQ95=quantile(allY,0.95);
-    const xPad=(xQ95-xQ05)*0.05, yPad=(yQ95-yQ05)*0.05;
-    const [xMinAll,xMaxAll]=extent(allX), [yMinAll,yMaxAll]=extent(allY);
-    const xInitMin = Math.min(xQ05 - xPad, xMinAll);
-    const xInitMax = Math.max(xQ95 + xPad, xMaxAll);
-    const yInitMin = Math.min(yQ05 - yPad, yMinAll);
-    const yInitMax = Math.max(yQ95 + yPad, yMaxAll);
+    // Etiquetas de ejes
+    ctx.save();
+    ctx.fillStyle = "#0b2532";
+    ctx.font = "600 13px system-ui";
+    ctx.translate(28, H / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText("Monto de Inversión", 0, 0);
+    ctx.restore();
+    
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    ctx.fillText("Devengado Acumulado", pad.l + (W - pad.l - pad.r) / 2, H - 6);
+  }
 
-    const series = [
-      {name:'Bajo',  color:'#dc2626', data:Bajo},
-      {name:'Medio', color:'#f59e0b', data:Medio},
-      {name:'Alto',  color:'#22c55e', data:Alto}
-    ].map(s=>({
-      name:s.name, type:'scatter', data:s.data,
-      itemStyle:{ color:s.color, opacity:0.9 },
-      emphasis:{ itemStyle:{ borderColor:'#0f172a', borderWidth:1 }, scale:1.08 },
-      symbolSize: params => sizeFn(params.value[2])
-    }));
-
-    const option = {
-      title: { text: 'Devengado vs Inversión (burbuja = beneficiarios)', left:'center', top:8, textStyle:{ fontWeight:700, fontSize:16 } },
-      legend: { top: 40, left: 'center', icon:'circle' },
-      grid: { top: 86, left: 60, right: 24, bottom: 64, containLabel: true },
-      tooltip: {
-        trigger: 'item',
-        borderWidth: 1,
-        padding: 8,
-        confine: true,           // 🔒 evita que se salga del canvas
-        appendToBody: true,      // 📎 mejor posicionamiento en overflow
-        extraCssText: 'max-width:320px;white-space:normal;box-shadow:0 10px 24px rgba(2,6,23,.12),0 2px 6px rgba(2,6,23,.08);',
-        formatter: (obj) => {
-          const [dev, inv, bens, p, cui, nombre] = obj.value;
-          return `
-            <div style="font-weight:700;margin-bottom:4px">${obj.seriesName}</div>
-            <div><span style="color:#64748b">Devengado:</span> <b>${fmtCompact(dev)}</b></div>
-            <div><span style="color:#64748b">Monto inversión:</span> <b>${fmtCompact(inv)}</b></div>
-            <div><span style="color:#64748b">Beneficiarios:</span> <b>${(bens||0).toLocaleString('es-PE')}</b></div>
-            <div><span style="color:#64748b">% Avance:</span> <b>${fmtPct(p)}</b></div>
-            ${cui ? `<div><span style="color:#64748b">CUI:</span> <b>${cui}</b></div>` : ''}
-            ${nombre ? `<div style="margin-top:6px"><b>${nombre}</b></div>` : ''}
-          `;
+  let HIT = [];
+  function drawPoints(){
+    HIT = [];
+    CATS.forEach(c => {
+      if(!visible.get(c.short)) return;
+      ctx.fillStyle = c.color;
+      points.forEach(p => {
+        if(p.nivel !== c.short) return;
+        const x = scale.x(p.x), y = scale.y(p.y), r = rScale(p.bens);
+        if(isFinite(x) && isFinite(y)){
+          ctx.beginPath();
+          ctx.arc(x, y, r, 0, 2 * Math.PI);
+          ctx.fill();
+          HIT.push({x, y, r: Math.max(r + 2, 8), data: p, color: c.color, key: c.key});
         }
-      },
-      xAxis: {
-        type: 'value',
-        name: 'Devengado Acumulado',
-        nameLocation: 'middle',
-        nameGap: 28,
-        min: xInitMin, max: xInitMax,
-        splitLine: { show: true },
-        axisLabel: { formatter: v => fmtCompact(v) },
-        scale: true
-      },
-      yAxis: {
-        type: 'value',
-        name: 'Monto de Inversión',
-        nameLocation: 'middle',
-        nameGap: 42,
-        min: yInitMin, max: yInitMax,
-        splitLine: { show: true },
-        axisLabel: { formatter: v => fmtCompact(v) },
-        scale: true
-      },
-      /* Zoom como tu ejemplo 2 */
-      dataZoom: [
-        { type:'slider', xAxisIndex:0, filterMode:'none', bottom:12, height:28 },
-        { type:'inside', xAxisIndex:0, filterMode:'none' },
-        { type:'slider', yAxisIndex:0, filterMode:'none', right:6, width:12 },
-        { type:'inside', yAxisIndex:0, filterMode:'none' }
-      ],
-      series
-    };
-
-    chart.hideLoading();
-    chart.setOption(option);
-    window.addEventListener('resize', ()=>chart.resize());
-
-    /* Leyenda externa opcional (toggle por serie) */
-    const legendBar = document.getElementById('legendBar');
-    if (legendBar) {
-      legendBar.innerHTML = '';
-      ['Bajo','Medio','Alto'].forEach((name) => {
-        const color = name==='Bajo' ? '#dc2626' : name==='Medio' ? '#f59e0b' : '#22c55e';
-        const key   = name==='Bajo' ? 'Bajo (0%–30%)' : name==='Medio' ? 'Medio (30%–70%)' : 'Alto (70%–100%)';
-        const b = document.createElement('button');
-        b.className = 'leg'; b.type='button'; b.setAttribute('aria-pressed','true');
-        b.innerHTML = `<span class="sw" style="background:${color}"></span>${key}`;
-        b.onclick = () => {
-          const pressed = b.getAttribute('aria-pressed') === 'true';
-          b.setAttribute('aria-pressed', String(!pressed));
-          chart.dispatchAction({ type: 'legendToggleSelect', name });
-        };
-        legendBar.appendChild(b);
       });
+    });
+  }
+
+  function draw(){ 
+    computeDataExtents(); 
+    compute(); 
+    drawAxes(); 
+    drawPoints(); 
+  }
+
+  // ===== POSICIONAMIENTO INTELIGENTE DEL TOOLTIP =====
+  function positionTooltip(tipElement, mouseX, mouseY) {
+    const wrapRect = wrap.getBoundingClientRect();
+    const tipRect = tipElement.getBoundingClientRect();
+    
+    // Margen de seguridad
+    const margin = 10;
+    
+    // Posición inicial (arriba a la derecha del cursor)
+    let left = mouseX + 12;
+    let top = mouseY - tipRect.height - 10;
+    
+    // Verificar límites horizontales
+    if (left + tipRect.width > wrapRect.width - margin) {
+      // Si se sale por la derecha, poner a la izquierda del cursor
+      left = mouseX - tipRect.width - 12;
     }
+    
+    if (left < margin) {
+      // Si se sale por la izquierda, ajustar al margen
+      left = margin;
+    }
+    
+    // Verificar límites verticales
+    if (top < margin) {
+      // Si se sale por arriba, poner abajo del cursor
+      top = mouseY + 20;
+    }
+    
+    if (top + tipRect.height > wrapRect.height - margin) {
+      // Si se sale por abajo, ajustar al margen inferior
+      top = wrapRect.height - tipRect.height - margin;
+    }
+    
+    // Aplicar posición
+    tipElement.style.left = left + "px";
+    tipElement.style.top = top + "px";
+  }
+
+  // ===== EVENTOS DE INTERACCIÓN MEJORADOS =====
+  function setupInteractions(){
+    // Controles de zoom
+    document.getElementById('zoomIn').addEventListener('click', () => zoom(0.7));
+    document.getElementById('zoomOut').addEventListener('click', () => zoom(1.3));
+    document.getElementById('zoomReset').addEventListener('click', resetZoom);
+
+    // Zoom con rueda del mouse (suave)
+    canvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      
+      const dataX = scale.invX(mx);
+      const dataY = scale.invY(my);
+      
+      const factor = e.deltaY > 0 ? 1.2 : 1/1.2;
+      zoom(factor, dataX, dataY);
+    }, { passive: false });
+
+    // Pan con arrastre
+    let isDragging = false;
+    let lastX, lastY;
+
+    canvas.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      canvas.style.cursor = 'grabbing';
+      tip.style.opacity = 0;
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      
+      const deltaX = (e.clientX - lastX) / (dims.W - scale.pad.l - scale.pad.r);
+      const deltaY = (e.clientY - lastY) / (dims.H - scale.pad.t - scale.pad.b);
+      
+      pan(deltaX, deltaY);
+      
+      lastX = e.clientX;
+      lastY = e.clientY;
+    });
+
+    window.addEventListener('mouseup', () => {
+      isDragging = false;
+      canvas.style.cursor = 'default';
+    });
+
+    // Doble clic para reset
+    canvas.addEventListener('dblclick', resetZoom);
+
+    // Tooltip con posicionamiento inteligente
+    function hitTest(mx, my){
+      for(let i = HIT.length - 1; i >= 0; i--){
+        const h = HIT[i];
+        const dx = mx - h.x, dy = my - h.y;
+        if(dx * dx + dy * dy <= h.r * h.r) return h;
+      }
+      return null;
+    }
+
+    function showTooltip(hit, mouseX, mouseY){
+      const d = hit.data;
+      tip.innerHTML = `
+        <span class="chip"><span class="dot" style="background:${hit.color}"></span>${hit.key}</span>
+        <div class="grid">
+          <div class="k">Devengado Acumulado</div><div class="v">${fmtCompact(d.x)}</div>
+          <div class="k">Monto de inversión</div><div class="v">${fmtCompact(d.y)}</div>
+          <div class="k">Beneficiarios</div><div class="v">${(d.bens||0).toLocaleString('es-PE')}</div>
+          <div class="k">% Avance</div><div class="v">${fmtPct(d.pct)}</div>
+          ${d.icod ? `<div class="k">CUI</div><div class="v">${d.icod}</div>` : ''}
+          ${d.nombre ? `<div class="hr"></div><div class="long">${d.nombre}</div>` : ''}
+        </div>
+      `;
+      
+      // Forzar cálculo del tamaño del tooltip
+      tip.style.display = 'block';
+      tip.style.opacity = '0'; // invisible temporalmente para calcular tamaño
+      
+      // Posicionar inteligentemente
+      positionTooltip(tip, mouseX, mouseY);
+      
+      // Mostrar con opacidad
+      tip.style.opacity = '1';
+    }
+
+    canvas.addEventListener('mousemove', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      
+      const hit = hitTest(mouseX, mouseY);
+      canvas.style.cursor = hit ? 'pointer' : 'default';
+      
+      if(hit) {
+        showTooltip(hit, mouseX, mouseY);
+      } else {
+        tip.style.opacity = '0';
+        tip.style.display = 'none';
+      }
+    });
+
+    canvas.addEventListener('mouseleave', () => {
+      tip.style.opacity = '0';
+      tip.style.display = 'none';
+    });
+  }
+
+  // Inicializar
+  draw();
+  window.addEventListener('resize', draw, { passive: true });
+  setupInteractions();
+}
+
+/* -------- Run -------- */
+(async function(){
+  try{
+    const pts = await loadData();
+    makeChart(pts);
   }catch(err){
     console.error(err);
-    chart.hideLoading();
-    chart.setOption({
-      title:{ text:'Error al cargar datos', left:'center', top:'middle' },
-      graphic:{ type:'text', left:'center', top:'middle',
-        style:{ text: (err&&err.message)? err.message : 'Fallo de carga.', fontSize:14 } }
-    });
+    const el = document.getElementById("empty");
+    el.style.display = "grid";
+    el.textContent = "Error al cargar datos: " + (err.message || err);
   }
 })();
 </script>
