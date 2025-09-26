@@ -20,7 +20,7 @@
   canvas{display:block;width:100%;height:100%}
   .empty{display:grid;place-items:center;height:100%;color:#64748b;font-size:clamp(13px,1.6vw,16px);padding:12px;text-align:center}
 
-  /* ===== Tooltip (MEJORADO - posicionamiento inteligente) ===== */
+  /* Tooltip */
   .tip{
     position:absolute; pointer-events:none; color:#0b2532;
     background:#ffffff; border:1px solid #e5e7eb;
@@ -28,7 +28,6 @@
     border-radius:10px; padding:8px 10px; font-size:11px; line-height:1.25;
     opacity:0; transition:opacity .12s ease;
     max-width:min(360px,68vw); z-index:1000;
-    /* Eliminamos transform fijo para posicionamiento flexible */
   }
   .tip .chip{
     display:inline-flex; align-items:center; gap:6px;
@@ -37,15 +36,13 @@
     letter-spacing:.02em;
   }
   .tip .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
-  .tip .grid{
-    margin-top:6px; display:grid; grid-template-columns:auto 1fr; gap:4px 10px;
-  }
+  .tip .grid{ margin-top:6px; display:grid; grid-template-columns:auto 1fr; gap:4px 10px; }
   .tip .k{color:#64748b}
   .tip .v{font-weight:700; text-align:right}
   .tip .hr{margin:6px 0; height:1px; background:#eef2f7; grid-column:1/-1}
   .tip .long{grid-column:1/-1; text-align:left; font-weight:600}
 
-  /* ===== Controles de Zoom ===== */
+  /* Zoom */
   .zoom-controls{
     position:absolute; right:20px; top:20px; display:flex; flex-direction:column; gap:8px;
     z-index:10;
@@ -63,16 +60,12 @@
 <body>
   <div class="stage">
     <h1>Devengado Acumulado VS Monto de Inversión</h1>
-
-    <!-- Leyenda interactiva centrada -->
     <div class="legendBar" id="legendBar" role="toolbar" aria-label="Filtrar por Nivel de Avance"></div>
 
     <div class="chartWrap" id="wrap" aria-live="polite">
       <canvas id="chart"></canvas>
       <div id="empty" class="empty" style="display:none">Sin datos que cumplan los filtros.</div>
       <div id="tip" class="tip" role="status"></div>
-      
-      <!-- Controles de Zoom -->
       <div class="zoom-controls">
         <button class="zoom-btn" id="zoomIn" title="Acercar">+</button>
         <button class="zoom-btn" id="zoomOut" title="Alejar">−</button>
@@ -86,25 +79,19 @@
 const LYR13 = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/OGEI/Mapa_Inversiones_MEF/FeatureServer/13/query";
 const LYR1  = "https://pportalgis.vivienda.gob.pe/phtserver/rest/services/Hosted/story_monitoreo_inversiones/FeatureServer/1/query";
 
-/* -------- Filtros CAPA 13 (válidos) -------- */
+/* -------- Filtros -------- */
 const WHERE_13 = "monto_pim > 0 AND producto_proyecto IS NOT NULL AND producto_proyecto <> 2193247";
-
-/* -------- Filtros CAPA 1 (datos del scatter) -------- */
 const WHERE_1 = "etapa IN ('OBRA','OBRA (SALDO)') AND montoactualizadopip_decimal > 0 AND devengadoacumulado >= 0";
 
-/* -------- Categorías por % -------- */
+/* -------- Categorías -------- */
 const CATS = [
   {key:"Bajo (0%–30%)",   short:"Bajo",  color:"#dc2626", match:p=> p<=30},
   {key:"Medio (30%–70%)", short:"Medio", color:"#f59e0b", match:p=> p>30 && p<70},
   {key:"Alto (70%–100%)", short:"Alto",  color:"#22c55e", match:p=> p>=70},
 ];
 
-/* -------- Utils -------- */
-function pct(dev, inv){
-  const d=Number(dev), m=Number(inv);
-  if(!isFinite(d)||!isFinite(m)||m<=0) return 0;
-  return (d/m)*100;
-}
+/* Utils */
+function pct(dev, inv){ const d=+dev, m=+inv; return (!isFinite(d)||!isFinite(m)||m<=0)?0:(d/m)*100; }
 function catFromPct(p){ for(const c of CATS){ if(c.match(p)) return c.short; } return "Bajo"; }
 function fmtCompact(n){
   const v=Number(n)||0, a=Math.abs(v);
@@ -139,12 +126,11 @@ async function fetchAllPOST(url, baseParams){
   return out;
 }
 
-/* -------- Carga de datos -------- */
+/* Carga */
 async function loadData(){
   const rows13 = await fetchAllPOST(LYR13, { where: WHERE_13, outFields: "producto_proyecto" });
   const idSet = new Set(rows13.map(r=>r.producto_proyecto).filter(v=>v!=null));
   if(idSet.size===0) return [];
-
   const ids = Array.from(idSet);
   const chunkSize = 900;
   let rows1 = [];
@@ -157,23 +143,17 @@ async function loadData(){
     });
     rows1.push(...part);
   }
-
-  const pts = rows1.map(r=>{
-    const x = Number(r.devengadoacumulado)||0;
-    const y = Number(r.montoactualizadopip_decimal)||0;
-    const bens = Number(r.beneficiarios)||0;
+  return rows1.map(r=>{
+    const x = +r.devengadoacumulado||0;
+    const y = +r.montoactualizadopip_decimal||0;
+    const bens = +r.beneficiarios||0;
     const p = pct(x,y);
-    return {
-      x, y, bens, pct: p, nivel: catFromPct(p),
-      icod: r.icodunificado ?? "",
-      nombre: (r.nombreproyecto ?? "").toString().trim()
-    };
+    return { x, y, bens, pct:p, nivel:catFromPct(p),
+             icod: r.icodunificado ?? "", nombre: (r.nombreproyecto ?? "").toString().trim() };
   }).filter(d=>d.y>0);
-
-  return pts;
 }
 
-/* -------- Gráfico con Tooltip Mejorado -------- */
+/* Gráfico */
 function makeChart(points){
   const wrap   = document.getElementById("wrap");
   const canvas = document.getElementById("chart");
@@ -185,7 +165,7 @@ function makeChart(points){
   if(!points.length){ empty.style.display="grid"; return; }
   empty.style.display="none";
 
-  // Leyenda interactiva
+  // Leyenda
   const visible = new Map(CATS.map(c=>[c.short,true]));
   legend.innerHTML="";
   CATS.forEach(c=>{
@@ -204,30 +184,17 @@ function makeChart(points){
     return minR + t * (maxR - minR);
   };
 
-  // ===== SISTEMA DE ZOOM MEJORADO =====
-  let dims={}, scale={};
-  let dataMaxX=1, dataMaxY=1;
-  
-  // Viewport con límites más inteligentes
-  let view = {
-    minX: 0, maxX: 1, 
-    minY: 0, maxY: 1,
-    // Límites máximos basados en datos
-    dataMinX: 0, dataMaxX: 1,
-    dataMinY: 0, dataMaxY: 1
-  };
+  // Estado
+  let dims={}, scale={}, plot={}, HIT=[];
+  let view = { minX:0, maxX:1, minY:0, maxY:1, dataMinX:0, dataMaxX:1, dataMinY:0, dataMaxY:1 };
 
   function computeDataExtents(){
     const act=points.filter(p=>visible.get(p.nivel));
     view.dataMaxX = Math.max(1, ...act.map(p=>p.x));
     view.dataMaxY = Math.max(1, ...act.map(p=>p.y));
-    
-    // Si es la primera vez, establecer vista inicial
-    if(view.maxX === 1 && view.maxY === 1){
-      view.minX = 0;
-      view.maxX = view.dataMaxX;
-      view.minY = 0;
-      view.maxY = view.dataMaxY;
+    if(view.maxX===1 && view.maxY===1){
+      view.minX=0; view.maxX=view.dataMaxX;
+      view.minY=0; view.maxY=view.dataMaxY;
     }
   }
 
@@ -238,263 +205,198 @@ function makeChart(points){
     canvas.style.width=W+"px"; canvas.style.height=H+"px";
     ctx.setTransform(dpr,0,0,dpr,0,0);
     dims={W,H};
-    
+
     const pad={t:40, r:24, b:64, l:86};
+    plot = { x:pad.l, y:pad.t, w: W - pad.l - pad.r, h: H - pad.t - pad.b };
     scale={
-      pad,
-      x: v => pad.l + (W - pad.l - pad.r) * ((v - view.minX) / ((view.maxX - view.minX) || 1)),
-      y: v => pad.t + (H - pad.t - pad.b) * (1 - (v - view.minY) / ((view.maxY - view.minY) || 1)),
-      // Funciones inversas para convertir coordenadas de pantalla a datos
-      invX: px => view.minX + (view.maxX - view.minX) * ((px - pad.l) / (W - pad.l - pad.r)),
-      invY: py => view.minY + (view.maxY - view.minY) * (1 - (py - pad.t) / (H - pad.t - pad.b))
+      pad, plot,
+      x: v => pad.l + plot.w * ((v - view.minX) / ((view.maxX - view.minX) || 1)),
+      y: v => pad.t + plot.h * (1 - (v - view.minY) / ((view.maxY - view.minY) || 1)),
+      invX: px => view.minX + (view.maxX - view.minX) * ((px - pad.l) / (plot.w || 1)),
+      invY: py => view.minY + (view.maxY - view.minY) * (1 - (py - pad.t) / (plot.h || 1))
     };
   }
 
-  // ===== FUNCIONES DE ZOOM MEJORADAS =====
   function zoom(factor, centerX = null, centerY = null){
     if(centerX === null) centerX = (view.minX + view.maxX) / 2;
     if(centerY === null) centerY = (view.minY + view.maxY) / 2;
-    
     const newWidth = (view.maxX - view.minX) * factor;
     const newHeight = (view.maxY - view.minY) * factor;
-    
     view.minX = centerX - newWidth / 2;
     view.maxX = centerX + newWidth / 2;
     view.minY = centerY - newHeight / 2;
     view.maxY = centerY + newHeight / 2;
-    
-    clampView();
-    draw();
+    clampView(); draw();
   }
 
   function pan(deltaX, deltaY){
     const spanX = view.maxX - view.minX;
     const spanY = view.maxY - view.minY;
-    
     view.minX -= deltaX * spanX;
     view.maxX -= deltaX * spanX;
     view.minY += deltaY * spanY; // Y invertida
     view.maxY += deltaY * spanY;
-    
-    clampView();
-    draw();
+    clampView(); draw();
   }
 
   function resetZoom(){
-    view.minX = 0;
-    view.maxX = view.dataMaxX;
-    view.minY = 0;
-    view.maxY = view.dataMaxY;
+    view.minX=0; view.maxX=view.dataMaxX;
+    view.minY=0; view.maxY=view.dataMaxY;
     draw();
   }
 
   function clampView(){
-    // Límites mínimos para evitar zoom excesivo
     const minSpanX = (view.dataMaxX - 0) / 1000;
     const minSpanY = (view.dataMaxY - 0) / 1000;
-    
     if(view.maxX - view.minX < minSpanX){
-      const center = (view.minX + view.maxX) / 2;
-      view.minX = center - minSpanX / 2;
-      view.maxX = center + minSpanX / 2;
+      const cx=(view.minX+view.maxX)/2; view.minX=cx-minSpanX/2; view.maxX=cx+minSpanX/2;
     }
-    
     if(view.maxY - view.minY < minSpanY){
-      const center = (view.minY + view.maxY) / 2;
-      view.minY = center - minSpanY / 2;
-      view.maxY = center + minSpanY / 2;
+      const cy=(view.minY+view.maxY)/2; view.minY=cy-minSpanY/2; view.maxY=cy+minSpanY/2;
     }
-    
-    // Mantener dentro de los límites de datos
     view.minX = Math.max(0, view.minX);
     view.maxX = Math.min(view.dataMaxX, view.maxX);
     view.minY = Math.max(0, view.minY);
     view.maxY = Math.min(view.dataMaxY, view.maxY);
-    
-    // Asegurar que min < max
     if(view.minX >= view.maxX) view.maxX = view.minX + minSpanX;
     if(view.minY >= view.maxY) view.maxY = view.minY + minSpanY;
   }
 
   function drawAxes(){
-    const {pad} = scale;
-    const W = dims.W, H = dims.H;
-    ctx.clearRect(0, 0, W, H);
+    const {pad}=scale; const {W,H}=dims;
+    ctx.clearRect(0,0,W,H);
 
-    // Eje Y
-    ctx.textAlign = "right";
-    ctx.textBaseline = "middle";
-    ctx.font = "12px system-ui";
-    ctx.fillStyle = "#0b2532";
-    
-    const yTicks = 5;
-    for(let i = 0; i <= yTicks; i++){
+    // Grilla + ticks Y
+    ctx.textAlign="right"; ctx.textBaseline="middle"; ctx.font="12px system-ui"; ctx.fillStyle="#0b2532";
+    const yTicks=5;
+    for(let i=0;i<=yTicks;i++){
       const v = view.minY + (view.maxY - view.minY) * i / yTicks;
       const yy = scale.y(v);
-      ctx.strokeStyle = i === 0 ? "#e5e7eb" : "#f3f4f6";
-      ctx.beginPath();
-      ctx.moveTo(pad.l, yy);
-      ctx.lineTo(W - pad.r, yy);
-      ctx.stroke();
+      ctx.strokeStyle = i===0 ? "#e5e7eb" : "#f3f4f6";
+      ctx.beginPath(); ctx.moveTo(pad.l, yy); ctx.lineTo(pad.l + scale.plot.w, yy); ctx.stroke();
       ctx.fillText(fmtCompact(v), pad.l - 8, yy);
     }
 
-    // Eje X
-    ctx.textAlign = "center";
-    ctx.textBaseline = "top";
-    ctx.font = "12px system-ui";
-    
-    const xTicks = 5;
-    for(let i = 0; i <= xTicks; i++){
+    // Grilla + ticks X
+    ctx.textAlign="center"; ctx.textBaseline="top"; ctx.font="12px system-ui";
+    const xTicks=5; const y0=H - pad.b;
+    for(let i=0;i<=xTicks;i++){
       const v = view.minX + (view.maxX - view.minX) * i / xTicks;
       const xx = scale.x(v);
-      const y0 = H - pad.b;
-      ctx.strokeStyle = "#e5e7eb";
-      ctx.beginPath();
-      ctx.moveTo(xx, pad.t);
-      ctx.lineTo(xx, y0);
-      ctx.stroke();
+      ctx.strokeStyle="#e5e7eb";
+      ctx.beginPath(); ctx.moveTo(xx, pad.t); ctx.lineTo(xx, y0); ctx.stroke();
       ctx.fillText(fmtCompact(v), xx, y0 + 10);
     }
 
-    // Etiquetas de ejes
-    ctx.save();
-    ctx.fillStyle = "#0b2532";
-    ctx.font = "600 13px system-ui";
-    ctx.translate(28, H / 2);
-    ctx.rotate(-Math.PI / 2);
-    ctx.fillText("Monto de Inversión", 0, 0);
-    ctx.restore();
-    
-    ctx.textAlign = "center";
-    ctx.textBaseline = "bottom";
-    ctx.fillText("Devengado Acumulado", pad.l + (W - pad.l - pad.r) / 2, H - 6);
+    // Etiquetas
+    ctx.save(); ctx.fillStyle="#0b2532"; ctx.font="600 13px system-ui";
+    ctx.translate(28, H/2); ctx.rotate(-Math.PI/2); ctx.fillText("Monto de Inversión", 0, 0); ctx.restore();
+    ctx.textAlign="center"; ctx.textBaseline="bottom";
+    ctx.fillText("Devengado Acumulado", pad.l + scale.plot.w/2, H - 6);
   }
 
-  let HIT = [];
+  function inPlot(px, py){
+    return px >= plot.x && px <= plot.x + plot.w && py >= plot.y && py <= plot.y + plot.h;
+  }
+
   function drawPoints(){
     HIT = [];
-    CATS.forEach(c => {
+    // CLIP al rectángulo de trazado
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(plot.x, plot.y, plot.w, plot.h);
+    ctx.clip();
+
+    CATS.forEach(c=>{
       if(!visible.get(c.short)) return;
       ctx.fillStyle = c.color;
-      points.forEach(p => {
+      points.forEach(p=>{
         if(p.nivel !== c.short) return;
-        const x = scale.x(p.x), y = scale.y(p.y), r = rScale(p.bens);
-        if(isFinite(x) && isFinite(y)){
-          ctx.beginPath();
-          ctx.arc(x, y, r, 0, 2 * Math.PI);
-          ctx.fill();
-          HIT.push({x, y, r: Math.max(r + 2, 8), data: p, color: c.color, key: c.key});
+        const x=scale.x(p.x), y=scale.y(p.y), r=rScale(p.bens);
+        if(!isFinite(x)||!isFinite(y)) return;
+        // Dibujar (el clip evita que se salga)
+        ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
+        // Para interacción, solo guardamos si el centro cae dentro del plano
+        if(inPlot(x,y)){
+          HIT.push({x, y, r: Math.max(r + 2, 8), data:p, color:c.color, key:c.key});
         }
       });
     });
+
+    ctx.restore();
   }
 
-  function draw(){ 
-    computeDataExtents(); 
-    compute(); 
-    drawAxes(); 
-    drawPoints(); 
-  }
+  function draw(){ computeDataExtents(); compute(); drawAxes(); drawPoints(); }
 
-  // ===== POSICIONAMIENTO INTELIGENTE DEL TOOLTIP =====
-  function positionTooltip(tipElement, mouseX, mouseY) {
+  // Tooltip posicionado
+  function positionTooltip(tipElement, mouseX, mouseY){
     const wrapRect = wrap.getBoundingClientRect();
     const tipRect = tipElement.getBoundingClientRect();
-    
-    // Margen de seguridad
     const margin = 10;
-    
-    // Posición inicial (arriba a la derecha del cursor)
     let left = mouseX + 12;
-    let top = mouseY - tipRect.height - 10;
-    
-    // Verificar límites horizontales
-    if (left + tipRect.width > wrapRect.width - margin) {
-      // Si se sale por la derecha, poner a la izquierda del cursor
-      left = mouseX - tipRect.width - 12;
-    }
-    
-    if (left < margin) {
-      // Si se sale por la izquierda, ajustar al margen
-      left = margin;
-    }
-    
-    // Verificar límites verticales
-    if (top < margin) {
-      // Si se sale por arriba, poner abajo del cursor
-      top = mouseY + 20;
-    }
-    
-    if (top + tipRect.height > wrapRect.height - margin) {
-      // Si se sale por abajo, ajustar al margen inferior
-      top = wrapRect.height - tipRect.height - margin;
-    }
-    
-    // Aplicar posición
+    let top  = mouseY - tipRect.height - 10;
+    if (left + tipRect.width > wrapRect.width - margin) left = mouseX - tipRect.width - 12;
+    if (left < margin) left = margin;
+    if (top < margin) top = mouseY + 20;
+    if (top + tipRect.height > wrapRect.height - margin) top = wrapRect.height - tipRect.height - margin;
     tipElement.style.left = left + "px";
-    tipElement.style.top = top + "px";
+    tipElement.style.top  = top  + "px";
   }
 
-  // ===== EVENTOS DE INTERACCIÓN MEJORADOS =====
+  /* Interacciones */
   function setupInteractions(){
-    // Controles de zoom
-    document.getElementById('zoomIn').addEventListener('click', () => zoom(0.7));
-    document.getElementById('zoomOut').addEventListener('click', () => zoom(1.3));
+    document.getElementById('zoomIn').addEventListener('click', ()=> zoom(0.7));
+    document.getElementById('zoomOut').addEventListener('click', ()=> zoom(1.3));
     document.getElementById('zoomReset').addEventListener('click', resetZoom);
 
-    // Zoom con rueda del mouse (suave)
-    canvas.addEventListener('wheel', (e) => {
+    // Wheel zoom solo dentro del plano
+    canvas.addEventListener('wheel', (e)=>{
       e.preventDefault();
       const rect = canvas.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
-      
+      if(!inPlot(mx,my)) return; // ignorar fuera del plano
       const dataX = scale.invX(mx);
       const dataY = scale.invY(my);
-      
       const factor = e.deltaY > 0 ? 1.2 : 1/1.2;
       zoom(factor, dataX, dataY);
-    }, { passive: false });
+    }, { passive:false });
 
-    // Pan con arrastre
-    let isDragging = false;
-    let lastX, lastY;
-
-    canvas.addEventListener('mousedown', (e) => {
-      isDragging = true;
-      lastX = e.clientX;
-      lastY = e.clientY;
-      canvas.style.cursor = 'grabbing';
-      tip.style.opacity = 0;
+    // Drag pan solo si el mousedown fue dentro del plano
+    let isDragging=false, lastX=0, lastY=0;
+    canvas.addEventListener('mousedown', (e)=>{
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      if(!inPlot(mx,my)) return;
+      isDragging=true; lastX=e.clientX; lastY=e.clientY;
+      canvas.style.cursor='grabbing'; tip.style.opacity=0;
     });
-
-    window.addEventListener('mousemove', (e) => {
-      if (!isDragging) return;
-      
-      const deltaX = (e.clientX - lastX) / (dims.W - scale.pad.l - scale.pad.r);
-      const deltaY = (e.clientY - lastY) / (dims.H - scale.pad.t - scale.pad.b);
-      
-      pan(deltaX, deltaY);
-      
-      lastX = e.clientX;
-      lastY = e.clientY;
+    window.addEventListener('mousemove', (e)=>{
+      if(!isDragging) return;
+      const dx = (e.clientX - lastX) / (scale.plot.w || 1);
+      const dy = (e.clientY - lastY) / (scale.plot.h || 1);
+      pan(dx, dy);
+      lastX=e.clientX; lastY=e.clientY;
     });
-
-    window.addEventListener('mouseup', () => {
-      isDragging = false;
-      canvas.style.cursor = 'default';
+    window.addEventListener('mouseup', ()=>{
+      isDragging=false; canvas.style.cursor='default';
     });
 
     // Doble clic para reset
-    canvas.addEventListener('dblclick', resetZoom);
+    canvas.addEventListener('dblclick', (e)=>{
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      if(inPlot(mx,my)) resetZoom();
+    });
 
-    // Tooltip con posicionamiento inteligente
-    function hitTest(mx, my){
-      for(let i = HIT.length - 1; i >= 0; i--){
-        const h = HIT[i];
-        const dx = mx - h.x, dy = my - h.y;
-        if(dx * dx + dy * dy <= h.r * h.r) return h;
+    // Tooltip dentro del plano
+    function hitTest(mx,my){
+      if(!inPlot(mx,my)) return null;
+      for(let i=HIT.length-1;i>=0;i--){
+        const h=HIT[i], dx=mx-h.x, dy=my-h.y;
+        if(dx*dx + dy*dy <= h.r*h.r) return h;
       }
       return null;
     }
@@ -510,49 +412,33 @@ function makeChart(points){
           <div class="k">% Avance</div><div class="v">${fmtPct(d.pct)}</div>
           ${d.icod ? `<div class="k">CUI</div><div class="v">${d.icod}</div>` : ''}
           ${d.nombre ? `<div class="hr"></div><div class="long">${d.nombre}</div>` : ''}
-        </div>
-      `;
-      
-      // Forzar cálculo del tamaño del tooltip
-      tip.style.display = 'block';
-      tip.style.opacity = '0'; // invisible temporalmente para calcular tamaño
-      
-      // Posicionar inteligentemente
+        </div>`;
+      tip.style.display='block'; tip.style.opacity='0';
       positionTooltip(tip, mouseX, mouseY);
-      
-      // Mostrar con opacidad
-      tip.style.opacity = '1';
+      tip.style.opacity='1';
     }
 
-    canvas.addEventListener('mousemove', (e) => {
+    canvas.addEventListener('mousemove', (e)=>{
       const rect = canvas.getBoundingClientRect();
-      const mouseX = e.clientX - rect.left;
-      const mouseY = e.clientY - rect.top;
-      
-      const hit = hitTest(mouseX, mouseY);
-      canvas.style.cursor = hit ? 'pointer' : 'default';
-      
-      if(hit) {
-        showTooltip(hit, mouseX, mouseY);
-      } else {
-        tip.style.opacity = '0';
-        tip.style.display = 'none';
-      }
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      const hit = hitTest(mx,my);
+      canvas.style.cursor = hit ? 'pointer' : (inPlot(mx,my) ? 'crosshair' : 'default');
+      if(hit){ showTooltip(hit, mx, my); }
+      else { tip.style.opacity='0'; tip.style.display='none'; }
     });
-
-    canvas.addEventListener('mouseleave', () => {
-      tip.style.opacity = '0';
-      tip.style.display = 'none';
+    canvas.addEventListener('mouseleave', ()=>{
+      tip.style.opacity='0'; tip.style.display='none';
     });
   }
 
-  // Inicializar
+  // Init
   draw();
-  window.addEventListener('resize', draw, { passive: true });
+  window.addEventListener('resize', draw, { passive:true });
   setupInteractions();
 }
 
-/* -------- Run -------- */
+/* Run */
 (async function(){
   try{
     const pts = await loadData();
@@ -567,3 +453,4 @@ function makeChart(points){
 </script>
 </body>
 </html>
+
