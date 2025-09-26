@@ -34,7 +34,6 @@
   .tip .k{color:var(--muted)}
   .tip .v{font-weight:800}
 
-  /* === Fuente estandarizada (igual que indicadores) === */
   .source{
     margin: 0 0 clamp(6px,1.5vh,14px) 0;
     text-align:center;
@@ -79,6 +78,7 @@ function fmtAxis(v){
   if (n>=1e6) return (n/1e6).toFixed(0)+" M";
   return n.toLocaleString('es-PE');
 }
+function fmtPct(p){ return `${Math.round((p||0))}%`; }
 
 async function fetchStats(){
   const params = new URLSearchParams({
@@ -111,11 +111,15 @@ async function fetchStats(){
     return (ai<0?99:ai) - (bi<0?99:bi);
   });
 
-  return rows.map(r=>({
-    cat: r.tipo_act_proy_nombre || "—",
-    pim: Number(r.sum_pim)||0,
-    dev: Number(r.sum_dev)||0
-  }));
+  return rows.map(r=>{
+    const pim = Number(r.sum_pim)||0;
+    const dev = Number(r.sum_dev)||0;
+    return {
+      cat: r.tipo_act_proy_nombre || "—",
+      pim, dev,
+      pct: pim>0 ? (dev/pim*100) : 0
+    };
+  });
 }
 
 /* === Traer fecha más reciente === */
@@ -159,7 +163,7 @@ function makeChart(data){
     ctx.setTransform(dpr,0,0,dpr,0,0);
     dims={W,H};
 
-    const pad = {t:26, r:24, b:50, l:110};
+    const pad = {t:26, r:28, b:50, l:110}; // +4px a la derecha para texto %
     const maxVal = Math.max(1, ...data.map(d=>Math.max(d.pim,d.dev)));
     const pow = Math.pow(10, Math.floor(Math.log10(maxVal)));
     const XMAX = Math.ceil(maxVal / (pow/2)) * (pow/2);
@@ -182,7 +186,7 @@ function makeChart(data){
       const pimW = Math.max(0, scale.x(d.pim)-scale.x(0));
       const devW = Math.max(0, scale.x(d.dev)-scale.x(0));
       return {
-        cat:d.cat, pim:d.pim, dev:d.dev,
+        cat:d.cat, pim:d.pim, dev:d.dev, pct:d.pct,
         pimRect:{x:scale.x(0), y:yTop, w:pimW, h:barH},
         devRect:{x:scale.x(0), y:yTop, w:devW, h:barH*0.68},
         cy, barH
@@ -218,20 +222,45 @@ function makeChart(data){
   }
 
   function drawBars(){
+    const css = getComputedStyle(document.documentElement);
+    const colPIM = css.getPropertyValue('--pim').trim() || "#f59e0b";
+    const colDEV = css.getPropertyValue('--dev').trim() || "#1f77b4";
+    const ink    = "#111827";
+
     bars.forEach(b=>{
-      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--pim').trim() || "#f59e0b";
+      // PIM (100%)
+      ctx.fillStyle = colPIM;
       roundRect(ctx, b.pimRect.x, b.pimRect.y, b.pimRect.w, b.pimRect.h, 8); ctx.fill();
 
-      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--dev').trim() || "#1f77b4";
+      // Devengado (avance)
+      ctx.fillStyle = colDEV;
       roundRect(ctx, b.devRect.x, b.devRect.y, b.devRect.w, b.devRect.h, 8); ctx.fill();
 
+      // Valores dentro de las barras (como antes)
       ctx.fillStyle="#fff"; ctx.font="600 12px system-ui";
       ctx.textAlign="right"; ctx.textBaseline="middle";
       if (b.devRect.w>42) ctx.fillText(fmtM(b.dev), b.devRect.x + b.devRect.w - 6, b.devRect.y + b.devRect.h/2);
-      ctx.fillStyle="#000000b0";
+      ctx.fillStyle=ink;
       ctx.textAlign="left";
       if (b.pimRect.w - b.devRect.w > 46)
         ctx.fillText(fmtM(b.pim), b.devRect.x + b.devRect.w + 8, b.pimRect.y + b.pimRect.h/2);
+
+      // === Porcentaje al lado derecho (Dev/PIM) ===
+      const pctText = fmtPct(b.pct);
+      const maxX = dims.W - scale.pad.r - 2;
+      let x = b.pimRect.x + b.pimRect.w + 8;
+      const y = b.cy;
+      ctx.font = "700 12px system-ui";
+      if (x + ctx.measureText(pctText).width > maxX){
+        // Si no cabe afuera, lo anclamos al borde derecho
+        ctx.textAlign = "right";
+        ctx.fillStyle = ink;
+        ctx.fillText(pctText, maxX, y);
+      } else {
+        ctx.textAlign = "left";
+        ctx.fillStyle = ink;
+        ctx.fillText(pctText, x, y);
+      }
     });
   }
 
@@ -259,6 +288,7 @@ function makeChart(data){
       <div class="row"><span class="k">Categoría</span><span class="v">${b.cat}</span></div>
       <div class="row"><span class="k">monto PIM</span><span class="v">${fmtAxis(b.pim)}</span></div>
       <div class="row"><span class="k">monto devengado</span><span class="v">${fmtAxis(b.dev)}</span></div>
+      <div class="row"><span class="k">avance</span><span class="v">${fmtPct(b.pct)}</span></div>
     `;
     tip.style.left = (e.clientX - rect.left + 14) + "px";
     tip.style.top  = (e.clientY - rect.top  - 14) + "px";
