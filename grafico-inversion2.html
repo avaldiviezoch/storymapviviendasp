@@ -139,7 +139,8 @@ async function loadData(){
     const where = `${WHERE_1} AND icodunificado IN (${slice.join(",")})`;
     const part = await fetchAllPOST(LYR1, {
       where,
-      outFields: "icodunificado,devengadoacumulado,montoactualizadopip_decimal,nombreproyecto,beneficiarios"
+      /* <-- añadimos 'programa' para el tooltip */
+      outFields: "icodunificado,devengadoacumulado,montoactualizadopip_decimal,nombreproyecto,beneficiarios,programa"
     });
     rows1.push(...part);
   }
@@ -148,8 +149,13 @@ async function loadData(){
     const y = +r.montoactualizadopip_decimal||0;
     const bens = +r.beneficiarios||0;
     const p = pct(x,y);
-    return { x, y, bens, pct:p, nivel:catFromPct(p),
-             icod: r.icodunificado ?? "", nombre: (r.nombreproyecto ?? "").toString().trim() };
+    return {
+      x, y, bens, pct:p,
+      nivel:catFromPct(p),
+      icod: r.icodunificado ?? "",
+      nombre: (r.nombreproyecto ?? "").toString().trim(),
+      prog: (r.programa ?? "").toString().trim()          // ← guardamos programa
+    };
   }).filter(d=>d.y>0);
 }
 
@@ -314,9 +320,7 @@ function makeChart(points){
         if(p.nivel !== c.short) return;
         const x=scale.x(p.x), y=scale.y(p.y), r=rScale(p.bens);
         if(!isFinite(x)||!isFinite(y)) return;
-        // Dibujar (el clip evita que se salga)
         ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
-        // Para interacción, solo guardamos si el centro cae dentro del plano
         if(inPlot(x,y)){
           HIT.push({x, y, r: Math.max(r + 2, 8), data:p, color:c.color, key:c.key});
         }
@@ -355,14 +359,14 @@ function makeChart(points){
       const rect = canvas.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
-      if(!inPlot(mx,my)) return; // ignorar fuera del plano
+      if(!inPlot(mx,my)) return;
       const dataX = scale.invX(mx);
       const dataY = scale.invY(my);
       const factor = e.deltaY > 0 ? 1.2 : 1/1.2;
       zoom(factor, dataX, dataY);
     }, { passive:false });
 
-    // Drag pan solo si el mousedown fue dentro del plano
+    // Drag pan
     let isDragging=false, lastX=0, lastY=0;
     canvas.addEventListener('mousedown', (e)=>{
       const rect = canvas.getBoundingClientRect();
@@ -383,7 +387,7 @@ function makeChart(points){
       isDragging=false; canvas.style.cursor='default';
     });
 
-    // Doble clic para reset
+    // Doble clic reset
     canvas.addEventListener('dblclick', (e)=>{
       const rect = canvas.getBoundingClientRect();
       const mx = e.clientX - rect.left;
@@ -391,7 +395,7 @@ function makeChart(points){
       if(inPlot(mx,my)) resetZoom();
     });
 
-    // Tooltip dentro del plano
+    // Tooltip
     function hitTest(mx,my){
       if(!inPlot(mx,my)) return null;
       for(let i=HIT.length-1;i>=0;i--){
@@ -410,6 +414,7 @@ function makeChart(points){
           <div class="k">Monto de inversión</div><div class="v">${fmtCompact(d.y)}</div>
           <div class="k">Beneficiarios</div><div class="v">${(d.bens||0).toLocaleString('es-PE')}</div>
           <div class="k">% Avance</div><div class="v">${fmtPct(d.pct)}</div>
+          ${d.prog ? `<div class="k">Programa</div><div class="v">${d.prog}</div>` : ''}   <!-- ← Programa -->
           ${d.icod ? `<div class="k">CUI</div><div class="v">${d.icod}</div>` : ''}
           ${d.nombre ? `<div class="hr"></div><div class="long">${d.nombre}</div>` : ''}
         </div>`;
@@ -453,4 +458,3 @@ function makeChart(points){
 </script>
 </body>
 </html>
-
