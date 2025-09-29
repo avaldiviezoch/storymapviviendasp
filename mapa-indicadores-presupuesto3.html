@@ -16,7 +16,6 @@
   }
   html,body{margin:0; height:100%; overflow:hidden; background:#eef5f3; color:var(--ink);
     font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial}
-  /* Panel igual; mapa más grande ya que usamos menos padding a la izquierda del view */
   .shell{display:grid; grid-template-columns: 1fr min(40vw, 680px); height:100vh; width:100vw;}
   #viewWrap{ position:sticky; top:0; height:100vh; overflow:hidden; }
   #viewDiv{position:relative; width:100%; height:100%}
@@ -286,24 +285,34 @@ async function updateBottom(whereBase){
 /* ===== Mapa + filtros ===== */
 require([
   "esri/Map","esri/views/MapView","esri/layers/FeatureLayer","esri/widgets/ScaleBar",
-  "esri/widgets/BasemapToggle"
-], (Map,MapView,FeatureLayer,ScaleBar,BasemapToggle)=>{
+  "esri/widgets/BasemapToggle","esri/geometry/Extent"
+], (Map,MapView,FeatureLayer,ScaleBar,BasemapToggle,Extent)=>{
 
   const map = new Map({ basemap:"satellite" });
 
-  /* Menos padding izquierdo => más ancho útil del mapa */
   const view = new MapView({
     container:"viewDiv",
     map,
     center:[-75.2,-9.3],
     zoom:5,
-    padding:{ left: 320 } /* antes 380 */
+    padding:{ left: 16, right: 6, top: 6, bottom: 6 }
   });
 
-  /* Alternador de basemap y controles de zoom colocados debajo del panel (bottom-right) */
+  /* ——— Foco más cerca al Perú ——— */
+  const peruExtent = new Extent({
+    xmin: -81.6, ymin: -18.5,
+    xmax: -68.5, ymax:  -0.03,
+    spatialReference: { wkid: 4326 }
+  });
+  async function fitPeru(tight=0.96){
+    try{ await view.goTo({ target: peruExtent.expand(tight) }, { duration: 0 }); }catch(e){}
+  }
+
+  /* Widgets */
   const toggle = new BasemapToggle({ view, nextBasemap: "osm" });
   view.ui.add(toggle, "bottom-right");
-  view.ui.move("zoom", "bottom-right");  // mueve + / - a la misma esquina
+  view.ui.move("zoom", "bottom-right");
+  view.ui.add(new ScaleBar({view,unit:"metric"}),"bottom-left");
 
   /* ===== LÍMITES ===== */
   const limites = new FeatureLayer({
@@ -322,7 +331,7 @@ require([
         symbol: {
           type: "simple-fill",
           color: [0,0,0,0],
-          outline: { color: [255,255,255,220], width: 0.8 }
+          outline: { color: [255,255,255,230], width: 1.2 }
         }
       };
     } else if (gt === "polyline") {
@@ -330,8 +339,8 @@ require([
         type: "simple",
         symbol: {
           type: "simple-line",
-          color: [255,255,255,220],
-          width: 0.8
+          color: [255,255,255,230],
+          width: 1.2
         }
       };
     }
@@ -339,6 +348,10 @@ require([
 
   map.add(limites);
 
+  view.when(()=>fitPeru(0.96));
+  view.on("resize", ()=>fitPeru(0.96)); // mantener encuadre apretado
+
+  /* ===== POPUP y capa de puntos ===== */
   view.popup.title = "";
   try{ view.popup.visibleElements = { title:false }; }catch(_){}
 
@@ -402,8 +415,7 @@ require([
 
   map.add(layer);
 
-  view.ui.add(new ScaleBar({view,unit:"metric"}),"bottom-left");
-
+  /* Filtros */
   const selProg = document.getElementById('selProg');
   const selDep  = document.getElementById('selDep');
   const selProv = document.getElementById('selProv');
@@ -456,11 +468,13 @@ require([
     selDep.value = "";
     await refreshProv();
     applyAll();
+    fitPeru(0.96);
   });
 
   (async function init(){
     await Promise.all([refreshProg(), refreshDep()]);
-    applyAll();
+    await applyAll();
+    fitPeru(0.96);
   })();
 });
 </script>
