@@ -159,7 +159,7 @@ async function loadData(){
   const byProgram = new Map();
   for (const r of filtered){
     const prog = (r.programa ?? "").toString().trim();
-    const bin = binLabel(r.avancefisicoreal);   // ← corregido (sin variable global)
+    const bin = binLabel(r.avancefisicoreal);
     if (!prog || !bin) continue;
     if (!byProgram.has(prog)) byProgram.set(prog, new Map());
     const m = byProgram.get(prog);
@@ -239,8 +239,29 @@ function makeChart(series){
     for(let t=0;t<=5;t++){ const val=Math.round(yMax/5*t), yy=y(val);
       ctx.strokeStyle="#eef2f7"; ctx.beginPath(); ctx.moveTo(pad.l,yy); ctx.lineTo(W-pad.r,yy); ctx.stroke();
       ctx.fillText(val,pad.l-8,yy); }
-    ctx.textAlign="center"; ctx.textBaseline="top";
+    ctx.textAlign="center"; ctx.textBaseline="top"; ctx.fillStyle="#0b3b38"; ctx.font="12px system-ui";
     BINS.forEach((b,i)=> ctx.fillText(b.label,x(i),y(0)+8));
+
+    /* ======= Nombres de ejes ======= */
+    // X: Avance Físico (centrado, debajo de las etiquetas)
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    ctx.font = "bold 12px system-ui";
+    const xLabelY = y(0) + 24; // un poco debajo de los ticks del eje X
+    ctx.fillText("Avance Físico", (pad.l + (W - pad.r)) / 2, xLabelY);
+    ctx.restore();
+
+    // Y: Recuento por Programa (vertical, al lado izquierdo)
+    ctx.save();
+    ctx.translate(pad.l - 44, pad.t + (H - pad.t - pad.b) / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    ctx.font = "bold 12px system-ui";
+    ctx.fillText("Recuento por Programa", 0, 0);
+    ctx.restore();
+    /* ======= Fin nombres de ejes ======= */
 
     // series
     const POINT_R = 4;
