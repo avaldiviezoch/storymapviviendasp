@@ -21,7 +21,7 @@
   #viewDiv{position:relative; width:100%; height:100%}
 
   .filters{position:absolute; left:14px; top:14px; z-index:6; width:min(360px, 92vw)}
-  .acc{background:#0b3b38;color:#e6fffb;border-radius:14px;box-shadow:0 12px 28px rgba(0,0,0,.18);overflow:hidden}
+  .acc{background:#0b3b38;color:#e6fffb;border-radius:14px;box-shadow:0 12px 28px rgba(0,0,0,.18);}
   .acc summary{list-style:none;cursor:pointer;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;font-weight:800}
   .acc summary::-webkit-details-marker{display:none}
   .acc .content{padding:12px 14px;display:grid;gap:10px}
@@ -74,6 +74,68 @@
 
   .esri-popup__header{display:none !important;}
   .esri-popup__main-container{padding-top:0 !important;}
+
+  /* Estilo para custom multi-select */
+  .custom-select {
+    position: relative;
+    width: 100%;
+  }
+  .select-display {
+    width: 100%;
+    border-radius: 10px;
+    padding: 10px 12px;
+    border: 1px solid #155149;
+    background: #0f2e29;
+    color: #e6fffb;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 14px;
+    box-sizing: border-box;
+    height: 42px; /* Ajuste para igualar altura de selects */
+  }
+  .select-display::after {
+    content: '▾';
+    font-weight: 900;
+  }
+  .dropdown-content {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #155149;
+    border-radius: 10px;
+    background: #0f2e29;
+    z-index: 10;
+    padding: 10px;
+    box-sizing: border-box;
+  }
+  .dropdown-content.show {
+    display: block;
+  }
+  .dropdown-content label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #e6fffb;
+    padding: 6px 8px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .dropdown-content input[type="checkbox"] {
+    accent-color: #e6fffb;
+    width: 16px;
+    height: 16px;
+    margin: 0;
+  }
+  .acc select {
+    height: 42px;
+    box-sizing: border-box;
+  }
 </style>
 </head>
 <body>
@@ -94,16 +156,20 @@
           </div>
           <div>
             <label for="selProv">Provincia</label>
-            <select id="selProv" disabled><option value="">(Todos)</option></select>
+            <select id="selProv"><option value="">(Todos)</option></select>
           </div>
           <div>
             <label for="selDist">Distrito</label>
-            <select id="selDist" disabled><option value="">(Todos)</option></select>
+            <select id="selDist"><option value="">(Todos)</option></select>
           </div>
-          <!-- Programa movido al final -->
           <div>
-            <label for="selProg">Programa</label>
-            <select id="selProg"><option value="">(Todos)</option></select>
+            <label for="progSelect">Programa</label>
+            <div class="custom-select" id="progSelect">
+              <div class="select-display" id="progDisplay">(Todos)</div>
+              <div class="dropdown-content" id="progDropdown">
+                <!-- Checkboxes serán insertados dinámicamente -->
+              </div>
+            </div>
           </div>
           <div class="rowBtns">
             <button id="btnClear" class="btn secondary" type="button">Limpiar filtros</button>
@@ -165,13 +231,17 @@ const fmt = new Intl.NumberFormat('es-PE');
 function esc(v){ return String(v).replaceAll("'", "''"); }
 function cacheBust(){ return String(Date.now()); }
 function buildWhereUbic(){
-  const prog = document.getElementById('selProg').value.trim();
-  const dep  = document.getElementById('selDep').value.trim();
+  const progCheckboxes = document.querySelectorAll('#progDropdown input[type="checkbox"]:checked');
+  const progs = Array.from(progCheckboxes).map(cb => cb.value.trim()).filter(v => v !== "");
+  const dep = document.getElementById('selDep').value.trim();
   const prov = document.getElementById('selProv').value.trim();
   const dist = document.getElementById('selDist').value.trim();
   const parts = ["1=1"];
-  if (prog) parts.push(`programa='${esc(prog)}'`);
-  if (dep)  parts.push(`departamento='${esc(dep)}'`);
+  if (progs.length > 0) {
+    const progClause = `programa IN (${progs.map(p => `'${esc(p)}'`).join(",")})`;
+    parts.push(progClause);
+  }
+  if (dep) parts.push(`departamento='${esc(dep)}'`);
   if (prov) parts.push(`provincia='${esc(prov)}'`);
   if (dist) parts.push(`distrito='${esc(dist)}'`);
   return parts.join(" AND ");
@@ -417,41 +487,67 @@ require([
   map.add(layer);
 
   /* Filtros */
-  const selProg = document.getElementById('selProg');
+  const progDisplay = document.getElementById('progDisplay');
+  const progDropdown = document.getElementById('progDropdown');
   const selDep  = document.getElementById('selDep');
   const selProv = document.getElementById('selProv');
   const selDist = document.getElementById('selDist');
   const btnClear= document.getElementById('btnClear');
 
   async function refreshProg(){
-    selProg.innerHTML = `<option value="">(Todos)</option>`;
+    progDropdown.innerHTML = '';
     const progs = await loadDistinct("programa");
-    progs.forEach(v => selProg.insertAdjacentHTML("beforeend", `<option>${v}</option>`));
+    progs.forEach(v => {
+      const checkboxHtml = `
+        <label>
+          <input type="checkbox" value="${v}">
+          ${v}
+        </label>
+      `;
+      progDropdown.insertAdjacentHTML("beforeend", checkboxHtml);
+    });
+    // Añadir evento change a cada checkbox
+    const checkboxes = progDropdown.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach(cb => cb.addEventListener("change", updateProgDisplay));
   }
+
+  function updateProgDisplay(){
+    const checked = progDropdown.querySelectorAll('input[type="checkbox"]:checked');
+    if (checked.length === 0) {
+      progDisplay.textContent = '(Todos)';
+    } else if (checked.length === 1) {
+      progDisplay.textContent = checked[0].value;
+    } else {
+      progDisplay.textContent = `${checked.length} seleccionados`;
+    }
+    applyAll();
+  }
+
+  progDisplay.addEventListener('click', () => {
+    progDropdown.classList.toggle('show');
+  });
+
+  // Cerrar dropdown al hacer click fuera
+  document.addEventListener('click', (event) => {
+    if (!document.getElementById('progSelect').contains(event.target)) {
+      progDropdown.classList.remove('show');
+    }
+  });
+
   async function refreshDep(){
     selDep.innerHTML = `<option value="">(Todos)</option>`;
     const deps = await loadDistinct("departamento");
     deps.forEach(v => selDep.insertAdjacentHTML("beforeend", `<option>${v}</option>`));
-    selProv.innerHTML = `<option value="">(Todos)</option>`; selProv.disabled = true;
-    selDist.innerHTML = `<option value="">(Todos)</option>`; selDist.disabled = true;
   }
   async function refreshProv(){
-    const dep = selDep.value.trim();
     selProv.innerHTML = `<option value="">(Todos)</option>`;
-    selDist.innerHTML = `<option value="">(Todos)</option>`; selDist.disabled = true;
-    if(!dep){ selProv.disabled=true; applyAll(); return; }
-    const provs = await loadDistinct("provincia", `departamento='${esc(dep)}'`);
+    const provs = await loadDistinct("provincia");
     provs.forEach(v => selProv.insertAdjacentHTML("beforeend", `<option>${v}</option>`));
-    selProv.disabled = false;
   }
   async function refreshDist(){
-    const dep = selDep.value.trim();
-    const prov= selProv.value.trim();
     selDist.innerHTML = `<option value="">(Todos)</option>`;
-    if(!dep || !prov){ selDist.disabled = true; applyAll(); return; }
-    const dists = await loadDistinct("distrito", `departamento='${esc(dep)}' AND provincia='${esc(prov)}'`);
+    const dists = await loadDistinct("distrito");
     dists.forEach(v => selDist.insertAdjacentHTML("beforeend", `<option>${v}</option>`));
-    selDist.disabled = false;
   }
 
   async function applyAll(){
@@ -460,20 +556,22 @@ require([
     await Promise.all([ updateKPIsTop(where), updateBottom(where) ]);
   }
 
-  selProg.addEventListener("change", ()=>{ applyAll(); });
-  selDep.addEventListener("change", async ()=>{ await refreshProv(); applyAll(); });
-  selProv.addEventListener("change", async ()=>{ await refreshDist(); applyAll(); });
-  selDist.addEventListener("change", ()=>{ applyAll(); });
+  selDep.addEventListener("change", applyAll);
+  selProv.addEventListener("change", applyAll);
+  selDist.addEventListener("change", applyAll);
   btnClear.addEventListener("click", async ()=>{
-    selProg.value = "";
+    const checkboxes = progDropdown.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach(cb => cb.checked = false);
+    updateProgDisplay();
     selDep.value = "";
-    await refreshProv();
+    selProv.value = "";
+    selDist.value = "";
     applyAll();
     fitPeru(0.96);
   });
 
   (async function init(){
-    await Promise.all([refreshProg(), refreshDep()]);
+    await Promise.all([refreshProg(), refreshDep(), refreshProv(), refreshDist()]);
     await applyAll();
     fitPeru(0.96);
   })();
