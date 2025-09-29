@@ -72,6 +72,14 @@
   }
   .source b{color:#0369a1}
 
+  .note{
+    text-align:center;
+    font-size:clamp(10px,1.4vw,12px);
+    font-style:italic;
+    color:#475569;
+    margin-top:4px;
+  }
+
   .fade{opacity:0;transform:translateY(8px);transition:.35s ease}
   .fade.on{opacity:1;transform:translateY(0)}
 </style>
@@ -102,6 +110,7 @@
       <b>Fuente:</b> Ministerio de Economía y Finanzas — MEF · Portal de datos Abiertos · 
       <em id="lastUpdate">Actualizado al —</em>
     </div>
+    <div class="note">¹Incluye inversiones cuyo PIM sea mayor a 0</div>
   </main>
 
 <script>
