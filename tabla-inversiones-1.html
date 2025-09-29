@@ -71,7 +71,7 @@
   .chipLink:hover{color:var(--link-h);text-decoration:underline}
   .pill{background:#eef7f6;color:#115750;padding:3px 8px;border-radius:999px;font-weight:800}
 
-  .status{padding:10px 0;color:var(--muted);font-weight:700}
+  .status{padding:10px 0;color:#334155;font-weight:700}
   .error{color:#9b1c1c}
   .note{font-size:10px;font-style:italic;margin-left:6px;color:#64748b}
 
@@ -99,8 +99,24 @@
     </button>
   </div>
 
+  <!-- PANEL DE FILTROS (restaurado) -->
   <div id="panel" class="panel" aria-hidden="true">
-    <!-- filtros -->
+    <div class="row">
+      <div>
+        <label for="selDep">Departamento</label>
+        <select id="selDep"><option value="">(Todos)</option></select>
+      </div>
+      <div>
+        <label for="selProv">Provincia</label>
+        <select id="selProv" disabled><option value="">(Todos)</option></select>
+      </div>
+      <div>
+        <label for="selDist">Distrito</label>
+        <select id="selDist" disabled><option value="">(Todos)</option></select>
+      </div>
+      <button id="btnClear" class="btn small popbtn" type="button">Limpiar</button>
+    </div>
+    <div class="tip">Los filtros se aplican automáticamente y también afectan a la exportación.</div>
   </div>
 
   <div id="state" class="status">Cargando datos…</div>
@@ -152,6 +168,7 @@ function esriPOST(url, obj){
 }
 function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
 
+/* WHERE */
 function buildWhere(){
   const dep=document.getElementById('selDep').value.trim();
   const pro=document.getElementById('selProv').value.trim();
@@ -161,6 +178,21 @@ function buildWhere(){
   if(pro) parts.push(`provincia LIKE '%${escLike(pro)}%' ESCAPE '\\'`);
   if(dis) parts.push(`distrito  LIKE '%${escLike(dis)}%' ESCAPE '\\'`);
   return parts.join(" AND ");
+}
+
+async function loadDistinct(field, where){
+  const page=2000; let offset=0; const vals=new Set();
+  while(true){
+    const j = await esriPOST(FS_URL+"/query",{
+      where:where||"1=1", outFields:field, returnDistinctValues:"true",
+      orderByFields:field, resultRecordCount:page, resultOffset:offset
+    });
+    const rows=(j.features||[]).map(f=>(f.attributes||{})[field]).filter(v=>v!=null&&v!=="");
+    rows.forEach(v=>vals.add(v));
+    if(!j.exceededTransferLimit || rows.length<page) break;
+    offset+=page;
+  }
+  return [...vals];
 }
 
 async function loadRows(where){
@@ -217,10 +249,92 @@ function render(rows){
     </tr>`).join("");
 }
 
-/* resto de funciones sin cambios... */
+/* Export CSV */
+function toCSV(rows){
+  const sep = ";";
+  const header=["CUI","Inversion","Departamento","Provincia","Distrito","PIM","Devengado","Detalle_Proyecto","Ayuda_Memoria"];
+  const esc=v=>`"${String(v??"").replace(/"/g,'""')}"`;
+  const lines = rows.map(r=>[
+    r.cui, r.inv, r.dep, r.pro, r.dis,
+    (r.pim ?? 0), (r.dev ?? 0), r.ssp, r.pdf
+  ].map(esc).join(sep));
+  return header.join(sep)+"\n"+lines.join("\n");
+}
+function downloadCSV(){
+  const csv=toCSV(ROWS);
+  const bom = new Uint8Array([0xEF,0xBB,0xBF]);
+  const blob=new Blob([bom, csv],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob); a.download="inversiones_mef.csv";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1500);
+}
 
+/* UI */
+const panel=document.getElementById('panel');
+document.getElementById('btnFilters').addEventListener('click',()=>{
+  panel.classList.toggle('open');
+  panel.setAttribute('aria-hidden', panel.classList.contains('open') ? "false":"true");
+});
+document.getElementById('btnExcel').addEventListener('click',downloadCSV);
+
+const selDep=document.getElementById('selDep');
+const selProv=document.getElementById('selProv');
+const selDist=document.getElementById('selDist');
+
+async function refreshDep(){
+  selDep.innerHTML = `<option value="">(Todos)</option>`;
+  try{
+    const deps=await loadDistinct("departamento");
+    deps.forEach(v => selDep.insertAdjacentHTML("beforeend", `<option>${escapeHtml(v)}</option>`));
+  }catch(e){ console.warn("Distinct dep falló:", e); }
+  selProv.innerHTML = `<option value="">(Todos)</option>`; selProv.disabled = true;
+  selDist.innerHTML = `<option value="">(Todos)</option>`; selDist.disabled = true;
+}
+async function refreshProv(){
+  const dep = selDep.value.trim();
+  selProv.innerHTML = `<option value="">(Todos)</option>`;
+  selDist.innerHTML = `<option value="">(Todos)</option>`; selDist.disabled = true;
+  if(!dep){ selProv.disabled=true; applyFilters(); return; }
+  try{
+    const provs=await loadDistinct("provincia", `departamento='${escQuotes(dep)}'`);
+    provs.forEach(v => selProv.insertAdjacentHTML("beforeend", `<option>${escapeHtml(v)}</option>`));
+    selProv.disabled = false;
+  }catch(e){ console.warn("Distinct prov falló:", e); selProv.disabled=true; }
+  applyFilters();
+}
+async function refreshDist(){
+  const dep = selDep.value.trim();
+  const pro = selProv.value.trim();
+  selDist.innerHTML = `<option value="">(Todos)</option>`;
+  if(!dep || !pro){ selDist.disabled = true; applyFilters(); return; }
+  try{
+    const dists=await loadDistinct("distrito",
+      `departamento='${escQuotes(dep)}' AND provincia LIKE '%${escLike(pro)}%' ESCAPE '\\'`);
+    dists.forEach(v => selDist.insertAdjacentHTML("beforeend", `<option>${escapeHtml(v)}</option>`));
+    selDist.disabled = false;
+  }catch(e){ console.warn("Distinct dist falló:", e); selDist.disabled=true; }
+  applyFilters();
+}
+function applyFilters(){
+  const where = buildWhere();
+  loadRows(where);
+}
+
+/* eventos: filtro automático */
+selDep.addEventListener('change', refreshProv);
+selProv.addEventListener('change', refreshDist);
+selDist.addEventListener('change', applyFilters);
+
+document.getElementById('btnClear').addEventListener('click', async ()=>{
+  selDep.value = ""; await refreshProv(); selProv.value=""; selDist.value="";
+  await loadRows("1=1");
+});
+
+/* init */
 (async function init(){
   await loadRows("1=1");
+  await refreshDep().catch(()=>{});
 })();
 </script>
 </body>
