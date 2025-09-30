@@ -94,8 +94,18 @@
   .btn{
     border:0; background:transparent; font-weight:800; cursor:pointer; padding:6px 8px; border-radius:8px;
   }
+  /* (existente) chevron gira... */
   .btn .chev{ display:inline-block; transition:transform .18s ease; }
   .btn[aria-expanded="true"] .chev{ transform:rotate(90deg); }
+
+  /* ===== CAMBIO SOLICITADO: flecha “tipo gif” hacia abajo ===== */
+  /* Añadimos animación de rebote al SVG de la flecha */
+  .btn .chev{ width:1rem; height:1rem; display:inline-flex; align-items:center; justify-content:center; margin-right:.3rem; }
+  .btn .chev svg{ width:14px; height:14px; animation:bounce 1.2s ease-in-out infinite; }
+  @keyframes bounce{ 0%,100%{ transform:translateY(0) } 50%{ transform:translateY(2px) } }
+  /* Neutralizamos la rotación previa para que NO cambie a la derecha al expandir */
+  .btn[aria-expanded="true"] .chev{ transform:none; }
+
   .subtle{ color:#0b1220; }
   .subtle small{ color:var(--muted); font-weight:600; letter-spacing:.2px; }
 
@@ -280,10 +290,19 @@ function renderTable(grouped){
     const ava  = s.pim_act>0 ? s.dev_act/s.pim_act : 0;
 
     const gid = 'g_'+Math.random().toString(36).slice(2,9);
+
+    /* ====== CAMBIO: flecha animada “tipo gif” (SVG inline) ======
+       - Sustituimos el carácter ▶ por un SVG de flecha hacia abajo con rebote.
+       - No se altera la lógica de despliegue ni el resto del layout. */
     addRow(tbody, [
       {header:true, html:
         `<button class="btn subtle" aria-expanded="false" aria-controls="${gid}">
-           <span class="chev">▶</span> ${pliego} <br/><small>EJECUTORAS</small>
+           <span class="chev" aria-hidden="true">
+             <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Desplegar">
+               <path d="M12 16a1 1 0 0 1-.71-.29l-6-6a1 1 0 0 1 1.42-1.42L12 13.59l5.29-5.3a1 1 0 1 1 1.42 1.42l-6 6A1 1 0 0 1 12 16z"/>
+             </svg>
+           </span>
+           ${pliego} <br/><small>EJECUTORAS</small>
          </button>`, cls:'group' },
       {html: fmt.format(s.pim), cls:'num'},
       {html: fmt.format(s.dev), cls:'num'},
@@ -338,7 +357,7 @@ function renderTable(grouped){
       <td class="num">${fmt.format(tot.dev_act)}</td>
       <td class="pct"><span class="dot ${chipClass(tava)}"></span>${pctStr(tava)}</td>
     </tr>`;
-  
+
   tbody.querySelectorAll('button[aria-controls]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const id = btn.getAttribute('aria-controls');
