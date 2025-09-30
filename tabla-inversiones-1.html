@@ -9,6 +9,8 @@
     --ink:#0b2532; --muted:#6b7b86; --line:#e6ecea; --bg:#f4faf8;
     --chip:#0b3b38; --chip-ink:#d7fff6;
     --link:#0a5a51; --link-h:#094c45; --row-alt:#f9fcfb;
+    --tip-bg: rgba(15,46,41,.92);  /* mismo tono, sutil */
+    --tip-ink:#eafff9;
   }
   html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);
     font:12px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial}
@@ -60,13 +62,55 @@
   col.det{width:100px}
   col.pdf{width:100px}
 
-  .ellipsis{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .ellipsis[data-tip]{position:relative}
-  .ellipsis[data-tip]:hover:after{
-    content:attr(data-tip);position:absolute;left:0;bottom:100%;transform:translateY(-6px);
-    background:#042825;color:#eafff9;padding:8px 10px;border-radius:10px;max-width:560px;
-    box-shadow:0 14px 28px rgba(0,0,0,.25);white-space:normal;z-index:5;font-size:12px
+  /* === Ellipsis + tooltip accesible para "Inversión" === */
+  .inv-cell{
+    position:relative;          /* contenedor del tooltip */
+    overflow:visible;           /* NO cortamos el tooltip */
   }
+  .ellip-text{
+    display:block;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;     /* hace los puntos suspensivos */
+  }
+  /* Tooltip sutil (hover/focus) */
+  .inv-cell[data-tip]::after{
+    content:attr(data-tip);
+    position:absolute;
+    left:0; bottom:100%;
+    transform:translateY(-6px);
+    background:var(--tip-bg);
+    color:var(--tip-ink);
+    padding:6px 8px;
+    border-radius:6px;
+    max-width:560px;
+    width:max-content; min-width:180px;
+    white-space:normal;
+    line-height:1.25;
+    font-size:11px;
+    pointer-events:none;
+    z-index:50;
+    border:1px solid rgba(8,31,28,.35);
+    box-shadow:0 6px 14px rgba(0,0,0,.18);
+    opacity:0; visibility:hidden; transition:opacity .12s ease, visibility .12s ease;
+  }
+  .inv-cell[data-tip]::before{
+    content:"";
+    position:absolute;
+    left:10px; bottom:100%;
+    transform:translateY(-2px);
+    border:6px solid transparent;
+    border-top-color:var(--tip-bg);
+    z-index:51;
+    opacity:0; visibility:hidden; transition:opacity .12s ease, visibility .12s ease;
+  }
+  .inv-cell:hover::after,
+  .inv-cell:hover::before,
+  .inv-cell:focus-within::after,
+  .inv-cell:focus-within::before{
+    opacity:1; visibility:visible;
+  }
+
   .chipLink{color:var(--link);font-weight:800;text-decoration:none}
   .chipLink:hover{color:var(--link-h);text-decoration:underline}
   .pill{background:#eef7f6;color:#115750;padding:3px 8px;border-radius:999px;font-weight:800}
@@ -238,7 +282,9 @@ function render(rows){
   tb.innerHTML = rows.map(r=>`
     <tr>
       <td class="num">${r.cui||"—"}</td>
-      <td class="ellipsis" data-tip="${escapeHtml(r.inv||"—")}">${escapeHtml(r.inv||"—")}</td>
+      <td class="inv-cell" data-tip="${escapeHtml(r.inv||"—")}">
+        <span class="ellip-text" tabindex="0">${escapeHtml(r.inv||"—")}</span>
+      </td>
       <td>${escapeHtml(r.dep)||"—"}</td>
       <td>${escapeHtml(r.pro)||"—"}</td>
       <td>${escapeHtml(r.dis)||"—"}</td>
@@ -247,6 +293,20 @@ function render(rows){
       <td>${r.ssp?`<a class="chipLink" href="${r.ssp}" target="_blank" rel="noopener">Ver Detalle</a>`:`<span class="pill">—</span>`}</td>
       <td>${r.pdf?`<a class="chipLink" href="${r.pdf}" target="_blank" rel="noopener">Ver PDF</a>`:`<span class="pill">—</span>`}</td>
     </tr>`).join("");
+
+  /* (Opcional) Mostrar tooltip solo si hay truncado */
+  /*
+  requestAnimationFrame(()=>{
+    document.querySelectorAll('td.inv-cell').forEach(td=>{
+      const span = td.querySelector('.ellip-text');
+      if(span && span.scrollWidth <= span.clientWidth){
+        td.removeAttribute('data-tip');
+      }else if(span){
+        td.setAttribute('data-tip', span.textContent.trim());
+      }
+    });
+  });
+  */
 }
 
 /* Export CSV */
