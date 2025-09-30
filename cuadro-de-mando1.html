@@ -94,24 +94,54 @@
   .btn{
     border:0; background:transparent; font-weight:800; cursor:pointer; padding:6px 8px; border-radius:8px;
   }
-  /* (existente) chevron gira... */
-  .btn .chev{ display:inline-block; transition:transform .18s ease; }
-  .btn[aria-expanded="true"] .chev{ transform:rotate(90deg); }
 
-  /* ===== CAMBIO SOLICITADO: flecha “tipo gif” hacia abajo ===== */
-  /* Añadimos animación de rebote al SVG de la flecha */
-  .btn .chev{ width:1rem; height:1rem; display:inline-flex; align-items:center; justify-content:center; margin-right:.3rem; }
-  .btn .chev svg{ width:14px; height:14px; animation:bounce 1.2s ease-in-out infinite; }
-  @keyframes bounce{ 0%,100%{ transform:translateY(0) } 50%{ transform:translateY(2px) } }
-  /* Neutralizamos la rotación previa para que NO cambie a la derecha al expandir */
-  .btn[aria-expanded="true"] .chev{ transform:none; }
+  /* ======================== FLECHA MÁS VISTOSA (sin círculo alrededor) ======================== */
+  .btn .chev{
+    --chev-color:#ea580c;                /* naranja vibrante por defecto */
+    --chev-glow:rgba(234,88,12,.45);     /* halo */
+    width:1.6rem; height:1.6rem;
+    position:relative; display:inline-grid; place-items:center;
+    margin-right:.4rem;
+    color:var(--chev-color);
+  }
+  /* Tres flechas que “gotean” hacia abajo para indicar que hay más */
+  .btn .chev .arrow{
+    position:absolute; width:18px; height:18px; opacity:0;
+    filter:drop-shadow(0 6px 12px var(--chev-glow));
+    animation:chevDrip 1.8s ease-in-out infinite;
+  }
+  .btn .chev .arrow:nth-child(2){ animation-delay:.22s }
+  .btn .chev .arrow:nth-child(3){ animation-delay:.44s }
+
+  @keyframes chevDrip{
+    0%   { transform:translateY(-10px) scale(.95); opacity:0 }
+    20%  { transform:translateY(-2px)  scale(1.00); opacity:1 }
+    60%  { transform:translateY(8px)   scale(1.04); opacity:.95 }
+    100% { transform:translateY(16px)  scale(1.00); opacity:0 }
+  }
+
+  /* Hover y estado expandido (sin anillo/círculo) */
+  .btn:hover .chev{ --chev-color:#ff6b1a; --chev-glow:rgba(255,107,26,.5) }
+  .btn[aria-expanded="true"] .chev{
+    --chev-color:#0ea5e9; --chev-glow:rgba(14,165,233,.45);
+  }
+
+  /* Sin rotaciones laterales */
+  .btn .chev { transform:none }
+  .btn[aria-expanded="true"] .chev { transform:none }
+
+  /* Preferencia de reducir movimiento */
+  @media (prefers-reduced-motion:reduce){
+    .btn .chev .arrow{ animation:none; opacity:1; transform:none }
+  }
+  /* =========================================================================================== */
 
   .subtle{ color:#0b1220; }
-  .subtle small{ color:var(--muted); font-weight:600; letter-spacing:.2px; }
+  .subtle small{ color:#6b7280; font-weight:600; letter-spacing:.2px; }
 
   tfoot td{
     background:#f8fafc; font-weight:800; border-top:2px solid #94a3b8;
-    padding:10px 10px;          /* más aire en el total */
+    padding:10px 10px;
   }
 
   /* Pie de página (fuente centrada) */
@@ -291,15 +321,25 @@ function renderTable(grouped){
 
     const gid = 'g_'+Math.random().toString(36).slice(2,9);
 
-    /* ====== CAMBIO: flecha animada “tipo gif” (SVG inline) ======
-       - Sustituimos el carácter ▶ por un SVG de flecha hacia abajo con rebote.
-       - No se altera la lógica de despliegue ni el resto del layout. */
+    /* Botón con flechas (sin círculo) */
     addRow(tbody, [
       {header:true, html:
         `<button class="btn subtle" aria-expanded="false" aria-controls="${gid}">
            <span class="chev" aria-hidden="true">
-             <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Desplegar">
-               <path d="M12 16a1 1 0 0 1-.71-.29l-6-6a1 1 0 0 1 1.42-1.42L12 13.59l5.29-5.3a1 1 0 1 1 1.42 1.42l-6 6A1 1 0 0 1 12 16z"/>
+             <!-- Flecha 1 -->
+             <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img">
+               <path d="M12 4v12"></path><path d="M8 12l4 4 4-4"></path>
+             </svg>
+             <!-- Flecha 2 -->
+             <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img">
+               <path d="M12 4v12"></path><path d="M8 12l4 4 4-4"></path>
+             </svg>
+             <!-- Flecha 3 -->
+             <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img">
+               <path d="M12 4v12"></path><path d="M8 12l4 4 4-4"></path>
              </svg>
            </span>
            ${pliego} <br/><small>EJECUTORAS</small>
