@@ -225,7 +225,7 @@ async function loadRows(where){
       offset+=page;
     }
     ROWS=out; render(out);
-    state.innerHTML=`Listo (${out.length.toLocaleString('es-PE')} filas) <span class="note">¹Incluye inversiones cuyo PIM sea mayor a 0</span>`;
+    state.innerHTML=`Listo (${out.length.toLocaleString('es-PE')} filas) <span class="note">Incluye inversiones cuyo PIM sea mayor a 0</span>`;
   }catch(e){
     console.error(e);
     state.classList.add('error');
