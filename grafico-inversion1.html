@@ -68,8 +68,8 @@
   .tip{
     position:absolute; pointer-events:none; background:#0b2532; color:#fff;
     padding:8px 10px; border-radius:10px; font-size:12px; line-height:1.25;
-    box-shadow:0 10px 24px rgba(2,6,23,.18); opacity:0; transform:translate(-50%,-110%);
-    transition:opacity .12s ease;
+    box-shadow:0 10px 24px rgba(2,6,23,.18); opacity:0;
+    /* quitamos transform para posicionamiento exacto y clamping */
     max-width:min(320px, 60vw);
   }
   .tip h4{margin:0 0 6px 0; font-size:12px; letter-spacing:.02em; opacity:.9}
@@ -248,7 +248,7 @@ function makeChart(series){
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
     ctx.font = "bold 12px system-ui";
-    const xLabelY = y(0) + 24; // un poco debajo de los ticks del eje X
+    const xLabelY = y(0) + 24;
     ctx.fillText("Avance Físico", (pad.l + (W - pad.r)) / 2, xLabelY);
     ctx.restore();
 
@@ -259,7 +259,7 @@ function makeChart(series){
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
     ctx.font = "bold 12px system-ui";
-    ctx.fillText("Recuento por Programa", 0, 0);
+    ctx.fillText("Recuento por Inversión", 0, 0);
     ctx.restore();
     /* ======= Fin nombres de ejes ======= */
 
@@ -282,13 +282,53 @@ function makeChart(series){
     });
   }
 
+  // ---- Tooltip siempre dentro del contenedor ----
+  function positionTipWithinWrap(localX, localY){
+    // localX/Y: coordenadas relativas a wrap
+    tip.style.visibility = "hidden";
+    tip.style.display = "block";
+    tip.style.opacity = 0;
+
+    const wrapRect = wrap.getBoundingClientRect();
+    const tipRect  = tip.getBoundingClientRect();
+    const W = wrapRect.width, H = wrapRect.height;
+    const margin = 10;
+
+    // Colocación preferente: arriba-derecha del cursor
+    let left = localX + 12;
+    let top  = localY - tipRect.height - 12;
+
+    // Si no hay espacio arriba, coloca abajo
+    if (top < margin) top = localY + 14;
+
+    // Si se sale por la derecha, intenta a la izquierda
+    if (left + tipRect.width > W - margin) left = localX - tipRect.width - 12;
+
+    // Clamp final
+    left = Math.max(margin, Math.min(W - tipRect.width - margin, left));
+    top  = Math.max(margin, Math.min(H - tipRect.height - margin, top));
+
+    tip.style.left = left + "px";
+    tip.style.top  = top  + "px";
+    tip.style.visibility = "visible";
+    tip.style.opacity = 1;
+  }
+
   function handleMove(ev){
-    const rect = canvas.getBoundingClientRect();
-    const x = (ev.clientX - rect.left);
-    const y = (ev.clientY - rect.top);
+    const canvasRect = canvas.getBoundingClientRect();
+    const wrapRect   = wrap.getBoundingClientRect();
+
+    // coords para hit-test (canvas)
+    const cx = ev.clientX - canvasRect.left;
+    const cy = ev.clientY - canvasRect.top;
+
+    // coords para posicionamiento (wrap)
+    const wx = ev.clientX - wrapRect.left;
+    const wy = ev.clientY - wrapRect.top;
+
     let best=null, bestD=Infinity;
     for(const p of hitPoints){
-      const dx = x - p.x, dy = y - p.y;
+      const dx = cx - p.x, dy = cy - p.y;
       const d2 = dx*dx + dy*dy;
       if (d2 < (p.r*p.r) && d2 < bestD){ best=p; bestD=d2; }
     }
@@ -303,9 +343,7 @@ function makeChart(series){
           <span>Conteo</span>
           <strong>${best.value}</strong>
         </div>`;
-      tip.style.left = `${x}px`;
-      tip.style.top  = `${y}px`;
-      tip.style.opacity = 1;
+      positionTipWithinWrap(wx, wy);
     }else{
       tip.style.opacity = 0;
     }
