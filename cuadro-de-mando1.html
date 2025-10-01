@@ -5,72 +5,167 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Tabla MVCS — PIM/Devengado por Pliego y Unidad Ejecutora</title>
 <style>
+  /* ===== Reset mínimo + box-sizing ===== */
+  *,*::before,*::after{box-sizing:border-box}
   :root{
     --bg:#ffffff; --ink:#0f172a; --muted:#6b7280; --line:#e5e7eb;
     --chip-ok:#16a34a; --chip-mid:#f59e0b; --chip-bad:#ef4444; --accent:#0ea5e9;
 
-    /* Anchos consistentes por columna */
-    --w-name:300px;   /* PLIEGO/EJECUTORAS */
-    --w-num:  140px;  /* columnas numéricas */
-    --w-pct:  120px;  /* columnas de % */
+    /* Anchos por columna (se ajustan en breakpoints) */
+    --w-name:280px;   /* PLIEGO/EJECUTORAS */
+    --w-num: 130px;   /* numéricas */
+    --w-pct: 110px;   /* % */
+
+    /* Tipografías base (se ajustan en breakpoints) */
+    --fs-body:13.5px;
+    --fs-head:14px;
   }
 
-  html,body{height:100%;margin:0;background:transparent;font-family:system-ui,Segoe UI,Roboto,Arial;color:var(--ink)}
-  .wrap{min-height:100vh;box-sizing:border-box;padding:10px clamp(6px,2vw,18px);display:flex;align-items:flex-start;justify-content:center}
-  .card{width:min(1400px,100%);background:var(--bg);border-radius:14px;box-shadow:0 10px 30px rgba(2,6,23,.06);overflow:hidden;position:relative}
+  /* ===== Contención total (sin barra externa en Story) ===== */
+  html,body{
+    height:100%;
+    margin:0;
+    background:transparent;
+    font-family:system-ui,Segoe UI,Roboto,Arial;
+    color:var(--ink);
+    overflow:hidden;               /* quita barra del iframe/página */
+  }
 
-  /* Header */
-  .header{text-align:center;padding:16px 18px 10px;border-bottom:1px solid var(--line)}
-  .title{margin:0;font-weight:800;font-size:clamp(16px,2.4vw,22px);letter-spacing:.2px}
-  .legend{margin-top:8px;display:flex;align-items:center;justify-content:center;gap:16px;font-size:13px;color:#111827}
-  .legend .dot{width:.62rem;height:.62rem;border-radius:999px;display:inline-block;margin-right:.4rem}
+  .wrap{
+    height:100%;
+    overflow:hidden;               /* nada se sale del contenedor */
+  }
+
+  .card{
+    height:100%;
+    width:100%;
+    max-width:1400px;
+    margin:0 auto;
+    background:var(--bg);
+    border-radius:12px;
+    box-shadow:0 8px 24px rgba(2,6,23,.06);
+    overflow:hidden;
+    position:relative;
+    display:flex;
+    flex-direction:column;         /* header + table-wrap (flex:1) + footer */
+  }
+
+  /* ===== Header compacto ===== */
+  .header{
+    flex:0 0 auto;
+    text-align:center;
+    padding:8px 10px 6px;          /* más compacto */
+    border-bottom:1px solid var(--line)
+  }
+  .title{
+    margin:0;
+    font-weight:800;
+    font-size:clamp(15px,2vw,20px);/* más pequeño */
+    letter-spacing:.2px
+  }
+  .legend{
+    margin-top:4px;
+    display:flex;align-items:center;justify-content:center;gap:12px;
+    font-size:12px;color:#111827
+  }
+  .legend .dot{width:.58rem;height:.58rem;border-radius:999px;display:inline-block;margin-right:.35rem}
 
   /* Botón Excel */
-  .btnCSV{position:absolute;top:10px;right:10px;display:inline-grid;place-items:center;width:28px;height:28px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;color:#64748b;cursor:pointer;font-size:16px;line-height:1;opacity:.65}
+  .btnCSV{
+    position:absolute;top:8px;right:8px;
+    display:inline-grid;place-items:center;
+    width:26px;height:26px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;color:#64748b;
+    cursor:pointer;font-size:15px;line-height:1;opacity:.65
+  }
   .btnCSV:hover{opacity:1;color:#0f172a;border-color:#cbd5e1}
   .btnCSV:focus{outline:2px solid #bae6fd;outline-offset:2px}
 
-  /* Tabla */
-  .table{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:14px}
-  thead th{position:sticky;top:0;z-index:5;background:linear-gradient(180deg,#111827 0%,#374151 100%);color:#fff;text-align:center;font-weight:800;padding:10px 6px;border-bottom:2px solid #0b1220}
-  .table th+th,.table td+td{border-left:1px solid var(--line)}
-  thead th, tbody td, tbody th{line-height:1.25}     /* alturas uniformes */
-  tbody td,tbody th{padding:8px 8px;border-bottom:1px solid var(--line);background:#fff;box-sizing:border-box;vertical-align:middle}
-  tbody tr.group>th{background:#f8fafc;position:sticky;left:0;z-index:3;font-weight:800;color:#0b1220;border-bottom:1px solid var(--line);text-align:left}
-  tbody tr.item>td:first-child{position:sticky;left:0;background:#fff;z-index:2}
+  /* ===== Tabla (scroll SOLO interno) ===== */
+  .table-wrap{
+    flex:1 1 auto;
+    min-height:0;                  /* evita overflow por flex */
+    overflow:auto;                 /* el único scroll permitido */
+    -webkit-overflow-scrolling:touch;
+    max-width:100%;
+  }
+  .table{
+    width:100%;
+    border-collapse:separate;border-spacing:0;
+    table-layout:fixed;
+    font-size:var(--fs-body);
+  }
 
+  /* Encabezados */
+  thead th{
+    position:sticky;top:0;z-index:40;
+    background:linear-gradient(180deg,#111827 0%,#374151 100%);
+    color:#fff;text-align:center;font-weight:800;
+    padding:8px 6px;               /* más compacto */
+    border-bottom:2px solid #0b1220;
+    font-size:var(--fs-head);
+  }
+
+  /* Columna fija: PLIEGO/EJECUTORAS */
+  thead th:first-child{position:sticky;left:0;z-index:50}
+  tbody tr.group>th{
+    position:sticky;left:0;z-index:45;background:#f8fafc;text-align:left;
+    border-bottom:1px solid var(--line)
+  }
+  tbody tr.item>td:first-child{
+    position:sticky;left:0;z-index:44;background:#fff
+  }
+  thead th:first-child,
+  tbody tr.group>th,
+  tbody tr.item>td:first-child{
+    box-shadow:6px 0 8px -6px rgba(0,0,0,.18);
+  }
+
+  .table th+th,.table td+td{border-left:1px solid var(--line)}
+  thead th, tbody td, tbody th{line-height:1.2}
+  tbody td,tbody th{
+    padding:7px 6px;               /* filas más delgadas */
+    border-bottom:1px solid var(--line);
+    background:#fff;box-sizing:border-box;vertical-align:middle
+  }
+
+  /* Tipos de celda */
   .num{ text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
-  /* % SIN flex, una sola línea para evitar alturas diferentes */
   .pct{ text-align:center; white-space:nowrap; font-variant-numeric:tabular-nums; }
-  .dot{display:inline-block;width:.62rem;height:.62rem;border-radius:999px;vertical-align:-.08rem;margin-right:.35rem}
+  .dot{display:inline-block;width:.58rem;height:.58rem;border-radius:999px;vertical-align:-.08rem;margin-right:.32rem}
   .ok{background:var(--chip-ok)} .mid{background:var(--chip-mid)} .bad{background:var(--chip-bad)}
 
-  .btn{border:0;background:transparent;font-weight:800;cursor:pointer;padding:6px 8px;border-radius:8px}
+  .btn{border:0;background:transparent;font-weight:800;cursor:pointer;padding:4px 6px;border-radius:8px}
 
   /* Flecha (sin círculo) */
-  .btn .chev{--chev-color:#ea580c;--chev-glow:rgba(234,88,12,.45);width:1.6rem;height:1.6rem;position:relative;display:inline-grid;place-items:center;margin-right:.4rem;color:var(--chev-color)}
-  .btn .chev .arrow{position:absolute;width:18px;height:18px;opacity:0;filter:drop-shadow(0 6px 12px var(--chev-glow));animation:chevDrip 1.8s ease-in-out infinite}
+  .btn .chev{--chev-color:#ea580c;--chev-glow:rgba(234,88,12,.45);width:1.3rem;height:1.3rem;position:relative;display:inline-grid;place-items:center;margin-right:.35rem;color:var(--chev-color)}
+  .btn .chev .arrow{position:absolute;width:16px;height:16px;opacity:0;filter:drop-shadow(0 5px 10px var(--chev-glow));animation:chevDrip 1.8s ease-in-out infinite}
   .btn .chev .arrow:nth-child(2){animation-delay:.22s}
   .btn .chev .arrow:nth-child(3){animation-delay:.44s}
-  @keyframes chevDrip{0%{transform:translateY(-10px) scale(.95);opacity:0}20%{transform:translateY(-2px) scale(1);opacity:1}60%{transform:translateY(8px) scale(1.04);opacity:.95}100%{transform:translateY(16px) scale(1);opacity:0}}
+  @keyframes chevDrip{0%{transform:translateY(-8px) scale(.95);opacity:0}20%{transform:translateY(-2px) scale(1);opacity:1}60%{transform:translateY(6px) scale(1.04);opacity:.95}100%{transform:translateY(12px) scale(1);opacity:0}}
   .btn:hover .chev{--chev-color:#ff6b1a;--chev-glow:rgba(255,107,26,.5)}
   .btn[aria-expanded="true"] .chev{--chev-color:#0ea5e9;--chev-glow:rgba(14,165,233,.45)}
 
-  tfoot td{background:#f8fafc;font-weight:800;border-top:2px solid #94a3b8;padding:10px 10px}
-  .footer{padding:10px 14px 16px;font-size:12px;color:var(--muted);border-top:1px solid var(--line);text-align:center}
-
-  .table-wrap{overflow:auto;-webkit-overflow-scrolling:touch;max-width:100%}
-
-  /* Responsivo: reducimos anchos, pero SIN wraps (scroll horizontal) */
-  @media (max-width:1100px){
-    :root{--w-name:260px;--w-num:128px;--w-pct:112px}
-    .table{font-size:13px}
-    thead th{padding:8px 4px}
-    tbody td,tbody th{padding:6px 6px}
+  /* Footer compacto */
+  tfoot td{background:#f8fafc;font-weight:800;border-top:2px solid #94a3b8;padding:8px 10px}
+  .footer{
+    flex:0 0 auto;
+    padding:8px 10px 10px;
+    font-size:11.5px;color:var(--muted);
+    border-top:1px solid var(--line);text-align:center
   }
-  @media (max-width:900px){
-    :root{--w-name:220px;--w-num:118px;--w-pct:104px}
-    /* mantenemos nowrap; el contenedor scrollea en x */
+
+  /* ===== Responsivo (encoge letras y columnas) ===== */
+  @media (max-width:1200px){
+    :root{--w-name:250px;--w-num:120px;--w-pct:102px;--fs-body:12.8px;--fs-head:13.2px}
+    .legend{font-size:11.5px}
+  }
+  @media (max-width:980px){
+    :root{--w-name:220px;--w-num:112px;--w-pct:96px;--fs-body:12.2px;--fs-head:12.6px}
+    .title{font-size:clamp(14px,2.2vw,18px)}
+  }
+  @media (max-width:760px){
+    :root{--w-name:200px;--w-num:104px;--w-pct:92px;--fs-body:11.8px;--fs-head:12px}
+    .legend{gap:10px}
   }
 </style>
 </head>
@@ -89,8 +184,7 @@
     </div>
 
     <div class="table-wrap">
-      <table class="table" id="tbl">
-        <!-- Colgroup: define anchos fijos por columna -->
+      <table class="table" id="tbl" aria-label="Tabla de ejecución presupuestal">
         <colgroup>
           <col style="width:var(--w-name)">
           <col style="width:var(--w-num)">
@@ -232,7 +326,7 @@ function renderTable(grouped){
       const tr=document.createElement('tr');
       tr.className='item'; tr.setAttribute('data-parent',gid); tr.style.display='none';
       tr.innerHTML=`
-        <td style="padding-left:24px;"><span class="subtle">${r.ejecutora}</span></td>
+        <td style="padding-left:20px;"><span class="subtle">${r.ejecutora}</span></td>
         <td class="num">${fmt.format(r.pim)}</td>
         <td class="num">${fmt.format(r.dev)}</td>
         <td class="pct"><span class="dot ${chipClass(av2)}"></span>${pctStr(av2)}</td>
