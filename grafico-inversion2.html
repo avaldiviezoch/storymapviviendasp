@@ -11,7 +11,7 @@
   .stage{height:100vh;width:100vw;display:grid;grid-template-rows:auto auto 1fr;
     gap:10px;padding:clamp(8px,2vw,20px); box-sizing:border-box}
   h1{margin:0;text-align:center;font-weight:900;letter-spacing:.3px;
-     font-size:clamp(20px,3vw,42px)}
+     font-size:clamp(18px,2.6vw,36px)}
   .legendBar{display:flex;justify-content:center;align-items:center;gap:14px;flex-wrap:wrap;min-height:28px}
   .leg-btn{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid #e5e7eb;border-radius:999px;cursor:pointer;background:#fff;font-weight:700;font-size:13px}
   .leg-btn[aria-pressed="false"]{opacity:.35;background:#f8fafc}
@@ -25,32 +25,27 @@
     position:absolute; pointer-events:none; color:#0b2532;
     background:#ffffff; border:1px solid #e5e7eb;
     box-shadow:0 10px 24px rgba(2,6,23,.12), 0 2px 6px rgba(2,6,23,.08);
-    border-radius:10px; padding:8px 10px; font-size:11px; line-height:1.25;
+    border-radius:12px; padding:10px 12px; font-size:12px; line-height:1.25;
     opacity:0; transition:opacity .12s ease;
-    max-width:min(360px,68vw); z-index:1000;
+    max-width:min(380px,72vw); z-index:1000;
   }
   .tip .chip{
     display:inline-flex; align-items:center; gap:6px;
-    font-weight:800; padding:3px 8px; border-radius:999px;
-    background:#f8fafc; border:1px solid #e5e7eb; font-size:10.5px;
+    font-weight:800; padding:4px 9px; border-radius:999px;
+    background:#f8fafc; border:1px solid #e5e7eb; font-size:11px;
     letter-spacing:.02em;
   }
   .tip .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
-  .tip .grid{ margin-top:6px; display:grid; grid-template-columns:auto 1fr; gap:4px 10px; }
-  .tip .k{color:#64748b}
-  .tip .v{font-weight:700; text-align:right}
-  .tip .hr{margin:6px 0; height:1px; background:#eef2f7; grid-column:1/-1}
+  .tip .grid{ margin-top:8px; display:grid; grid-template-columns:auto 1fr; gap:6px 12px; }
+  .tip .k{color:#4b5563}
+  .tip .v{font-weight:700; text-align:right; white-space:nowrap}
+  .tip .hr{margin:8px 0; height:1px; background:#eef2f7; grid-column:1/-1}
   .tip .long{grid-column:1/-1; text-align:left; font-weight:600}
+  .axisTag{margin-left:6px; color:#6b7280; font-weight:700; font-style:italic;} /* **_X_** etc */
 
-  /* Panel fijo en esquina (stack) */
-  .panel-stack{
-    position:absolute; right:20px; top:20px; display:flex; flex-direction:column; gap:8px; z-index:12;
-  }
-
-  /* Zoom */
-  .zoom-controls{
-    display:flex; flex-direction:column; gap:8px;
-  }
+  /* Panel fijo (zoom + filtro) */
+  .panel-stack{ position:absolute; right:20px; top:20px; display:flex; flex-direction:column; gap:8px; z-index:12; }
+  .zoom-controls{ display:flex; flex-direction:column; gap:8px; }
   .zoom-btn{
     width:36px; height:36px; border-radius:8px; border:1px solid #e5e7eb;
     background:#fff; cursor:pointer; display:grid; place-items:center;
@@ -60,7 +55,7 @@
   .zoom-btn:hover{ background:#f8fafc; border-color:#d1d5db; }
   .zoom-btn:active{ background:#e5e7eb; }
 
-  /* ===== Filtro por Programa (debajo del zoom) ===== */
+  /* Filtro por Programa */
   .filter-ui{ position:relative; }
   .filter-btn{
     width:36px; height:36px; border-radius:8px; border:1px solid #e5e7eb;
@@ -91,7 +86,7 @@
     <div class="legendBar" id="legendBar" role="toolbar" aria-label="Filtrar por Nivel de Avance"></div>
 
     <div class="chartWrap" id="wrap" aria-live="polite">
-      <!-- Stack: zoom + filtro (filtro debajo del zoom) -->
+      <!-- Stack: zoom + filtro -->
       <div class="panel-stack">
         <div class="zoom-controls">
           <button class="zoom-btn" id="zoomIn" title="Acercar">+</button>
@@ -99,10 +94,8 @@
           <button class="zoom-btn" id="zoomReset" title="Restablecer zoom">↺</button>
         </div>
 
-        <!-- Botón de filtro por Programa (debajo del reset) -->
         <div class="filter-ui">
           <button id="progBtn" class="filter-btn" title="Filtrar por programa" aria-haspopup="true" aria-expanded="false" aria-controls="progPanel">
-            <!-- icono embudo -->
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M3 5h18l-7 8v5l-4 2v-7L3 5z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/>
             </svg>
@@ -115,7 +108,6 @@
                 <button type="button" id="fpNone">Limpiar</button>
               </div>
             </div>
-            <!-- (Sin buscador, como pediste) -->
             <div id="fpList" class="fp-list" role="listbox"></div>
             <div class="fp-foot"><span id="fpCount">0</span> seleccionados</div>
           </div>
@@ -225,78 +217,38 @@ function makeChart(points){
   if(!points.length){ empty.style.display="grid"; return; }
   empty.style.display="none";
 
-  /* ====== Filtro por Programa: estado + UI ====== */
+  /* ====== Filtro por Programa ====== */
   const allPrograms = Array.from(new Set(points.map(p=>p.prog))).sort((a,b)=>a.localeCompare(b,'es'));
   let selectedPrograms = new Set(allPrograms); // por defecto: todos
 
-  // UI elementos
+  // UI filtro
   const progBtn   = document.getElementById('progBtn');
   const progPanel = document.getElementById('progPanel');
   const fpList    = document.getElementById('fpList');
   const fpAll     = document.getElementById('fpAll');
   const fpNone    = document.getElementById('fpNone');
   const fpCount   = document.getElementById('fpCount');
-
-  function updateCount(){ fpCount.textContent = selectedPrograms.size; }
-
+  const updateCount = ()=> fpCount.textContent = selectedPrograms.size;
   function renderProgList(){
     fpList.innerHTML = "";
     for(const prog of allPrograms){
       const id = 'p_'+btoa(encodeURIComponent(prog)).replace(/=+/g,'');
       const li = document.createElement('label');
-      li.className = 'fp-item';
-      li.setAttribute('role','option');
-      li.innerHTML = `
-        <input type="checkbox" id="${id}" ${selectedPrograms.has(prog)?'checked':''} data-prog="${prog}">
-        <span>${prog}</span>
-      `;
+      li.className = 'fp-item'; li.setAttribute('role','option');
+      li.innerHTML = `<input type="checkbox" id="${id}" ${selectedPrograms.has(prog)?'checked':''} data-prog="${prog}"><span>${prog}</span>`;
       fpList.appendChild(li);
     }
   }
-
-  function openPanel(){
-    progPanel.setAttribute('aria-hidden','false');
-    progBtn.setAttribute('aria-expanded','true');
-    renderProgList();
-    updateCount();
-  }
-  function closePanel(){
-    progPanel.setAttribute('aria-hidden','true');
-    progBtn.setAttribute('aria-expanded','false');
-  }
-
-  progBtn.addEventListener('click', ()=>{
-    const open = progPanel.getAttribute('aria-hidden') === 'false';
-    if(open) closePanel(); else openPanel();
-  });
-
-  // Cerrar al hacer click fuera o con ESC
-  document.addEventListener('click', (e)=>{
-    if(!progPanel.contains(e.target) && !progBtn.contains(e.target)) closePanel();
-  });
+  function openPanel(){ progPanel.setAttribute('aria-hidden','false'); progBtn.setAttribute('aria-expanded','true'); renderProgList(); updateCount(); }
+  function closePanel(){ progPanel.setAttribute('aria-hidden','true');  progBtn.setAttribute('aria-expanded','false'); }
+  progBtn.addEventListener('click', ()=>{ const open = progPanel.getAttribute('aria-hidden') === 'false'; open?closePanel():openPanel(); });
+  document.addEventListener('click', (e)=>{ if(!progPanel.contains(e.target) && !progBtn.contains(e.target)) closePanel(); });
   window.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closePanel(); });
+  fpList.addEventListener('change', (e)=>{ const cb=e.target; if(cb && cb.matches('input[type="checkbox"][data-prog]')){ const prog=cb.getAttribute('data-prog'); cb.checked?selectedPrograms.add(prog):selectedPrograms.delete(prog); updateCount(); draw(); }});
+  fpAll.addEventListener('click', ()=>{ selectedPrograms = new Set(allPrograms); updateCount(); renderProgList(); draw(); });
+  fpNone.addEventListener('click', ()=>{ selectedPrograms.clear(); updateCount(); renderProgList(); draw(); });
 
-  // Delegación de checkboxes
-  fpList.addEventListener('change', (e)=>{
-    const cb = e.target;
-    if(cb && cb.matches('input[type="checkbox"][data-prog]')){
-      const prog = cb.getAttribute('data-prog');
-      if(cb.checked) selectedPrograms.add(prog); else selectedPrograms.delete(prog);
-      updateCount(); draw();
-    }
-  });
-
-  // Acciones rápidas
-  fpAll.addEventListener('click', ()=>{
-    selectedPrograms = new Set(allPrograms); updateCount();
-    renderProgList(); draw();
-  });
-  fpNone.addEventListener('click', ()=>{
-    selectedPrograms.clear(); updateCount();
-    renderProgList(); draw();
-  });
-
-  // Leyenda (niveles)
+  // Leyenda niveles
   const visible = new Map(CATS.map(c=>[c.short,true]));
   legend.innerHTML="";
   CATS.forEach(c=>{
@@ -310,10 +262,7 @@ function makeChart(points){
   // Tamaño por beneficiarios
   const maxB = Math.max(1, ...points.map(p=>p.bens||0));
   const minR = 4, maxR = 22;
-  const rScale = (b)=> {
-    const t = Math.sqrt((b||0)/maxB);
-    return minR + t * (maxR - minR);
-  };
+  const rScale = (b)=> { const t = Math.sqrt((b||0)/maxB); return minR + t * (maxR - minR); };
 
   // Estado
   let dims={}, scale={}, plot={}, HIT=[];
@@ -339,10 +288,21 @@ function makeChart(points){
     ctx.setTransform(dpr,0,0,dpr,0,0);
     dims={W,H};
 
-    const pad={t:40, r:24, b:64, l:86};
+    // Fuentes adaptativas
+    const axisFont = Math.max(11, Math.min(13, Math.floor(W/80)));      // 11–13
+    const tickFont = Math.max(10, Math.min(12, Math.floor(W/95)));      // 10–12
+    ctx.font = `${tickFont}px system-ui`;
+
+    // Márgenes adaptables (más aire para etiquetas)
+    const padLeft  = Math.max(86, Math.floor(W*0.09));   // más margen a la izquierda
+    const padBottom= Math.max(70, Math.floor(H*0.12));   // más margen abajo
+    const padTop   = 44;
+    const padRight = 28;
+
+    const pad={t:padTop, r:padRight, b:padBottom, l:padLeft};
     plot = { x:pad.l, y:pad.t, w: W - pad.l - pad.r, h: H - pad.t - pad.b };
     scale={
-      pad, plot,
+      pad, plot, axisFont, tickFont,
       x: v => pad.l + plot.w * ((v - view.minX) / ((view.maxX - view.minX) || 1)),
       y: v => pad.t + plot.h * (1 - (v - view.minY) / ((view.maxY - view.minY) || 1)),
       invX: px => view.minX + (view.maxX - view.minX) * ((px - pad.l) / (plot.w || 1)),
@@ -361,7 +321,6 @@ function makeChart(points){
     view.maxY = centerY + newHeight / 2;
     clampView(); draw();
   }
-
   function pan(deltaX, deltaY){
     const spanX = view.maxX - view.minX;
     const spanY = view.maxY - view.minY;
@@ -371,12 +330,7 @@ function makeChart(points){
     view.maxY += deltaY * spanY;
     clampView(); draw();
   }
-
-  function resetZoom(){
-    view.minX=0; view.maxX=view.dataMaxX;
-    view.minY=0; view.maxY=view.dataMaxY;
-    draw();
-  }
+  function resetZoom(){ view.minX=0; view.maxX=view.dataMaxX; view.minY=0; view.maxY=view.dataMaxY; draw(); }
 
   function clampView(){
     const minSpanX = (view.dataMaxX - 0) / 1000;
@@ -396,36 +350,40 @@ function makeChart(points){
   }
 
   function drawAxes(){
-    const {pad}=scale; const {W,H}=dims;
+    const {pad, tickFont, axisFont}=scale; const {W,H}=dims;
     ctx.clearRect(0,0,W,H);
 
     // Grilla + ticks Y
-    ctx.textAlign="right"; ctx.textBaseline="middle"; ctx.font="12px system-ui"; ctx.fillStyle="#0b2532";
+    ctx.textAlign="right"; ctx.textBaseline="middle"; ctx.font=`${tickFont}px system-ui`; ctx.fillStyle="#0b2532";
     const yTicks=5;
     for(let i=0;i<=yTicks;i++){
       const v = view.minY + (view.maxY - view.minY) * i / yTicks;
       const yy = scale.y(v);
       ctx.strokeStyle = i===0 ? "#e5e7eb" : "#f3f4f6";
       ctx.beginPath(); ctx.moveTo(pad.l, yy); ctx.lineTo(pad.l + scale.plot.w, yy); ctx.stroke();
-      ctx.fillText(fmtCompact(v), pad.l - 8, yy);
+      ctx.fillText(fmtCompact(v), pad.l - 10, yy);   // más separación (10px)
     }
 
     // Grilla + ticks X
-    ctx.textAlign="center"; ctx.textBaseline="top"; ctx.font="12px system-ui";
+    ctx.textAlign="center"; ctx.textBaseline="top"; ctx.font=`${tickFont}px system-ui`;
     const xTicks=5; const y0=H - pad.b;
     for(let i=0;i<=xTicks;i++){
       const v = view.minX + (view.maxX - view.minX) * i / xTicks;
       const xx = scale.x(v);
       ctx.strokeStyle="#e5e7eb";
       ctx.beginPath(); ctx.moveTo(xx, pad.t); ctx.lineTo(xx, y0); ctx.stroke();
-      ctx.fillText(fmtCompact(v), xx, y0 + 10);
+      ctx.fillText(fmtCompact(v), xx, y0 + 14);      // más separación (14px)
     }
 
-    // Etiquetas
-    ctx.save(); ctx.fillStyle="#0b2532"; ctx.font="600 13px system-ui";
-    ctx.translate(28, H/2); ctx.rotate(-Math.PI/2); ctx.fillText("Monto de Inversión", 0, 0); ctx.restore();
-    ctx.textAlign="center"; ctx.textBaseline="bottom";
-    ctx.fillText("Devengado Acumulado", pad.l + scale.plot.w/2, H - 6);
+    // Etiquetas de ejes con más “aire”
+    ctx.save(); ctx.fillStyle="#0b2532"; ctx.font=`600 ${axisFont}px system-ui`;
+    ctx.translate(30, pad.t + scale.plot.h/2);
+    ctx.rotate(-Math.PI/2);
+    ctx.fillText("Monto de Inversión (Y)", 0, 0);
+    ctx.restore();
+
+    ctx.textAlign="center"; ctx.textBaseline="bottom"; ctx.font=`600 ${axisFont}px system-ui`;
+    ctx.fillText("Devengado Acumulado (X)", pad.l + scale.plot.w/2, H - 8);
   }
 
   function inPlot(px, py){
@@ -442,7 +400,7 @@ function makeChart(points){
       ctx.fillStyle = c.color;
       points.forEach(p=>{
         if(p.nivel !== c.short) return;
-        if(!selectedPrograms.has(p.prog)) return;     // ← filtro por programa
+        if(!selectedPrograms.has(p.prog)) return;
         const x=scale.x(p.x), y=scale.y(p.y), r=rScale(p.bens);
         if(!isFinite(x)||!isFinite(y)) return;
         ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
@@ -461,28 +419,26 @@ function makeChart(points){
     compute(); drawAxes(); if(hasAny) drawPoints();
   }
 
-  // Tooltip posicionado
+  // Tooltip
   function positionTooltip(tipElement, mouseX, mouseY){
     const wrapRect = wrap.getBoundingClientRect();
     const tipRect = tipElement.getBoundingClientRect();
-    const margin = 10;
-    let left = mouseX + 12;
-    let top  = mouseY - tipRect.height - 10;
-    if (left + tipRect.width > wrapRect.width - margin) left = mouseX - tipRect.width - 12;
+    const margin = 12;
+    let left = mouseX + 14;
+    let top  = mouseY - tipRect.height - 12;
+    if (left + tipRect.width > wrapRect.width - margin) left = mouseX - tipRect.width - 14;
     if (left < margin) left = margin;
-    if (top < margin) top = mouseY + 20;
+    if (top < margin) top = mouseY + 22;
     if (top + tipRect.height > wrapRect.height - margin) top = wrapRect.height - tipRect.height - margin;
     tipElement.style.left = left + "px";
     tipElement.style.top  = top  + "px";
   }
 
-  /* Interacciones */
   function setupInteractions(){
     document.getElementById('zoomIn').addEventListener('click', ()=> zoom(0.7));
     document.getElementById('zoomOut').addEventListener('click', ()=> zoom(1.3));
     document.getElementById('zoomReset').addEventListener('click', resetZoom);
 
-    // Wheel zoom solo dentro del plano
     canvas.addEventListener('wheel', (e)=>{
       e.preventDefault();
       const rect = canvas.getBoundingClientRect();
@@ -495,7 +451,6 @@ function makeChart(points){
       zoom(factor, dataX, dataY);
     }, { passive:false });
 
-    // Drag pan
     let isDragging=false, lastX=0, lastY=0;
     canvas.addEventListener('mousedown', (e)=>{
       const rect = canvas.getBoundingClientRect();
@@ -509,20 +464,12 @@ function makeChart(points){
       if(!isDragging) return;
       const dx = (e.clientX - lastX) / (scale.plot.w || 1);
       const dy = (e.clientY - lastY) / (scale.plot.h || 1);
-      pan(dx, dy);
-      lastX=e.clientX; lastY=e.clientY;
+      pan(dx, dy); lastX=e.clientX; lastY=e.clientY;
     });
     window.addEventListener('mouseup', ()=>{ isDragging=false; canvas.style.cursor='default'; });
 
-    // Doble clic reset
-    canvas.addEventListener('dblclick', (e)=>{
-      const rect = canvas.getBoundingClientRect();
-      const mx = e.clientX - rect.left;
-      const my = e.clientY - rect.top;
-      if(inPlot(mx,my)) resetZoom();
-    });
+    canvas.addEventListener('dblclick', (e)=>{ const rect = canvas.getBoundingClientRect(); const mx = e.clientX - rect.left; const my = e.clientY - rect.top; if(inPlot(mx,my)) resetZoom(); });
 
-    // Tooltip
     function hitTest(mx,my){
       if(!inPlot(mx,my)) return null;
       for(let i=HIT.length-1;i>=0;i--){
@@ -537,10 +484,10 @@ function makeChart(points){
       tip.innerHTML = `
         <span class="chip"><span class="dot" style="background:${hit.color}"></span>${hit.key}</span>
         <div class="grid">
-          <div class="k">Devengado Acumulado</div><div class="v">${fmtCompact(d.x)}</div>
-          <div class="k">Monto de inversión</div><div class="v">${fmtCompact(d.y)}</div>
-          <div class="k">Beneficiarios</div><div class="v">${(d.bens||0).toLocaleString('es-PE')}</div>
-          <div class="k">% Avance</div><div class="v">${fmtPct(d.pct)}</div>
+          <div class="k">Devengado Acumulado <span class="axisTag">(<b><i>X</i></b>)</span></div><div class="v">${fmtCompact(d.x)}</div>
+          <div class="k">Monto de inversión <span class="axisTag">(<b><i>Y</i></b>)</span></div><div class="v">${fmtCompact(d.y)}</div>
+          <div class="k">Beneficiarios <span class="axisTag">(<b><i>tamaño</i></b>)</span></div><div class="v">${(d.bens||0).toLocaleString('es-PE')}</div>
+          <div class="k">% Avance <span class="axisTag">(<b><i>color</i></b>)</span></div><div class="v">${fmtPct(d.pct)}</div>
           ${d.prog ? `<div class="k">Programa</div><div class="v">${d.prog}</div>` : ''}
           ${d.icod ? `<div class="k">CUI</div><div class="v">${d.icod}</div>` : ''}
           ${d.nombre ? `<div class="hr"></div><div class="long">${d.nombre}</div>` : ''}
