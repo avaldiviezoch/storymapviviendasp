@@ -6,181 +6,106 @@
 <title>Tabla MVCS — PIM/Devengado por Pliego y Unidad Ejecutora</title>
 <style>
   :root{
-    --bg:#ffffff;
-    --ink:#0f172a;
-    --muted:#6b7280;
-    --line:#e5e7eb;
-    --chip-ok:#16a34a;   /* verde */
-    --chip-mid:#f59e0b;  /* ámbar */
-    --chip-bad:#ef4444;  /* rojo  */
-    --accent:#0ea5e9;    /* azul discreto */
+    --bg:#ffffff; --ink:#0f172a; --muted:#6b7280; --line:#e5e7eb;
+    --chip-ok:#16a34a; --chip-mid:#f59e0b; --chip-bad:#ef4444; --accent:#0ea5e9;
+
+    /* Anchos consistentes por columna */
+    --w-name:300px;   /* PLIEGO/EJECUTORAS */
+    --w-num:  140px;  /* columnas numéricas */
+    --w-pct:  120px;  /* columnas de % */
   }
+
   html,body{height:100%;margin:0;background:transparent;font-family:system-ui,Segoe UI,Roboto,Arial;color:var(--ink)}
-  .wrap{
-    min-height:100vh; box-sizing:border-box; padding:10px clamp(6px,2vw,18px);
-    display:flex; align-items:flex-start; justify-content:center;
-  }
-  .card{
-    width:min(1400px,100%); background:var(--bg);
-    border-radius:14px; box-shadow:0 10px 30px rgba(2,6,23,.06);
-    overflow:hidden; position:relative;
-  }
+  .wrap{min-height:100vh;box-sizing:border-box;padding:10px clamp(6px,2vw,18px);display:flex;align-items:flex-start;justify-content:center}
+  .card{width:min(1400px,100%);background:var(--bg);border-radius:14px;box-shadow:0 10px 30px rgba(2,6,23,.06);overflow:hidden;position:relative}
 
-  /* Título + leyenda (centrado) */
-  .header{
-    text-align:center; padding:16px 18px 10px; border-bottom:1px solid var(--line);
-  }
-  .title{
-    margin:0; font-weight:800; font-size:clamp(16px,2.4vw,22px); letter-spacing:.2px;
-  }
-  .legend{
-    margin-top:8px; display:flex; align-items:center; justify-content:center; gap:16px;
-    font-size:13px; color:#111827;
-  }
-  .legend .dot{
-    width:.62rem; height:.62rem; border-radius:999px; display:inline-block; vertical-align:-.08rem;
-    margin-right:.4rem;
-  }
+  /* Header */
+  .header{text-align:center;padding:16px 18px 10px;border-bottom:1px solid var(--line)}
+  .title{margin:0;font-weight:800;font-size:clamp(16px,2.4vw,22px);letter-spacing:.2px}
+  .legend{margin-top:8px;display:flex;align-items:center;justify-content:center;gap:16px;font-size:13px;color:#111827}
+  .legend .dot{width:.62rem;height:.62rem;border-radius:999px;display:inline-block;margin-right:.4rem}
 
-  /* Botón Excel (icono pequeño, sutil) */
-  .btnCSV{
-    position:absolute; top:10px; right:10px;
-    display:inline-grid; place-items:center;
-    width:28px; height:28px; border-radius:8px;
-    border:1px solid #e2e8f0; background:#fff; color:#64748b;
-    cursor:pointer; font-size:16px; line-height:1;
-    opacity:.65;
-  }
-  .btnCSV:hover{ opacity:1; color:#0f172a; border-color:#cbd5e1; }
-  .btnCSV:focus{ outline:2px solid #bae6fd; outline-offset:2px; }
+  /* Botón Excel */
+  .btnCSV{position:absolute;top:10px;right:10px;display:inline-grid;place-items:center;width:28px;height:28px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;color:#64748b;cursor:pointer;font-size:16px;line-height:1;opacity:.65}
+  .btnCSV:hover{opacity:1;color:#0f172a;border-color:#cbd5e1}
+  .btnCSV:focus{outline:2px solid #bae6fd;outline-offset:2px}
 
-  .table{
-    width:100%; border-collapse:separate; border-spacing:0; table-layout:fixed;
-    font-size:14px;
-  }
-  thead th{
-    position:sticky; top:0; z-index:5;
-    background:linear-gradient(180deg,#111827 0%, #374151 100%);
-    color:#fff; text-align:center; font-weight:800; padding:10px 6px;
-    border-bottom:2px solid #0b1220;
-  }
-  /* Encabezado de EJECUTORAS centrado */
-  thead th:first-child{ text-align:center; }
+  /* Tabla */
+  .table{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:14px}
+  thead th{position:sticky;top:0;z-index:5;background:linear-gradient(180deg,#111827 0%,#374151 100%);color:#fff;text-align:center;font-weight:800;padding:10px 6px;border-bottom:2px solid #0b1220}
+  .table th+th,.table td+td{border-left:1px solid var(--line)}
+  thead th, tbody td, tbody th{line-height:1.25}     /* alturas uniformes */
+  tbody td,tbody th{padding:8px 8px;border-bottom:1px solid var(--line);background:#fff;box-sizing:border-box;vertical-align:middle}
+  tbody tr.group>th{background:#f8fafc;position:sticky;left:0;z-index:3;font-weight:800;color:#0b1220;border-bottom:1px solid var(--line);text-align:left}
+  tbody tr.item>td:first-child{position:sticky;left:0;background:#fff;z-index:2}
 
-  /* Separadores verticales entre columnas para que no se “peguen” los números */
-  .table th + th, .table td + td { border-left:1px solid var(--line); }
+  .num{ text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  /* % SIN flex, una sola línea para evitar alturas diferentes */
+  .pct{ text-align:center; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .dot{display:inline-block;width:.62rem;height:.62rem;border-radius:999px;vertical-align:-.08rem;margin-right:.35rem}
+  .ok{background:var(--chip-ok)} .mid{background:var(--chip-mid)} .bad{background:var(--chip-bad)}
 
-  tbody td, tbody th{
-    padding:8px 8px; border-bottom:1px solid var(--line); background:#fff;
-  }
-  tbody tr.group > th{
-    background:#f8fafc; position:sticky; left:0; z-index:3;
-    font-weight:800; color:#0b1220; border-bottom:1px solid var(--line);
-    text-align:left;
-  }
-  tbody tr.item > td:first-child{
-    position:sticky; left:0; background:#fff; z-index:2;
-  }
+  .btn{border:0;background:transparent;font-weight:800;cursor:pointer;padding:6px 8px;border-radius:8px}
 
-  .num{ text-align:right; white-space:nowrap; }
-  .pct{ text-align:center; white-space:nowrap; }
-  .dot{
-    display:inline-block; width:.62rem; height:.62rem; border-radius:999px; margin-right:.45rem; vertical-align:-.08rem;
+  /* Flecha (sin círculo) */
+  .btn .chev{--chev-color:#ea580c;--chev-glow:rgba(234,88,12,.45);width:1.6rem;height:1.6rem;position:relative;display:inline-grid;place-items:center;margin-right:.4rem;color:var(--chev-color)}
+  .btn .chev .arrow{position:absolute;width:18px;height:18px;opacity:0;filter:drop-shadow(0 6px 12px var(--chev-glow));animation:chevDrip 1.8s ease-in-out infinite}
+  .btn .chev .arrow:nth-child(2){animation-delay:.22s}
+  .btn .chev .arrow:nth-child(3){animation-delay:.44s}
+  @keyframes chevDrip{0%{transform:translateY(-10px) scale(.95);opacity:0}20%{transform:translateY(-2px) scale(1);opacity:1}60%{transform:translateY(8px) scale(1.04);opacity:.95}100%{transform:translateY(16px) scale(1);opacity:0}}
+  .btn:hover .chev{--chev-color:#ff6b1a;--chev-glow:rgba(255,107,26,.5)}
+  .btn[aria-expanded="true"] .chev{--chev-color:#0ea5e9;--chev-glow:rgba(14,165,233,.45)}
+
+  tfoot td{background:#f8fafc;font-weight:800;border-top:2px solid #94a3b8;padding:10px 10px}
+  .footer{padding:10px 14px 16px;font-size:12px;color:var(--muted);border-top:1px solid var(--line);text-align:center}
+
+  .table-wrap{overflow:auto;-webkit-overflow-scrolling:touch;max-width:100%}
+
+  /* Responsivo: reducimos anchos, pero SIN wraps (scroll horizontal) */
+  @media (max-width:1100px){
+    :root{--w-name:260px;--w-num:128px;--w-pct:112px}
+    .table{font-size:13px}
+    thead th{padding:8px 4px}
+    tbody td,tbody th{padding:6px 6px}
   }
-  .ok{  background:var(--chip-ok);  }
-  .mid{ background:var(--chip-mid); }
-  .bad{ background:var(--chip-bad); }
-
-  .btn{
-    border:0; background:transparent; font-weight:800; cursor:pointer; padding:6px 8px; border-radius:8px;
-  }
-
-  /* ======================== FLECHA MÁS VISTOSA (sin círculo alrededor) ======================== */
-  .btn .chev{
-    --chev-color:#ea580c;                /* naranja vibrante por defecto */
-    --chev-glow:rgba(234,88,12,.45);     /* halo */
-    width:1.6rem; height:1.6rem;
-    position:relative; display:inline-grid; place-items:center;
-    margin-right:.4rem;
-    color:var(--chev-color);
-  }
-  /* Tres flechas que “gotean” hacia abajo para indicar que hay más */
-  .btn .chev .arrow{
-    position:absolute; width:18px; height:18px; opacity:0;
-    filter:drop-shadow(0 6px 12px var(--chev-glow));
-    animation:chevDrip 1.8s ease-in-out infinite;
-  }
-  .btn .chev .arrow:nth-child(2){ animation-delay:.22s }
-  .btn .chev .arrow:nth-child(3){ animation-delay:.44s }
-
-  @keyframes chevDrip{
-    0%   { transform:translateY(-10px) scale(.95); opacity:0 }
-    20%  { transform:translateY(-2px)  scale(1.00); opacity:1 }
-    60%  { transform:translateY(8px)   scale(1.04); opacity:.95 }
-    100% { transform:translateY(16px)  scale(1.00); opacity:0 }
-  }
-
-  /* Hover y estado expandido (sin anillo/círculo) */
-  .btn:hover .chev{ --chev-color:#ff6b1a; --chev-glow:rgba(255,107,26,.5) }
-  .btn[aria-expanded="true"] .chev{
-    --chev-color:#0ea5e9; --chev-glow:rgba(14,165,233,.45);
-  }
-
-  /* Sin rotaciones laterales */
-  .btn .chev { transform:none }
-  .btn[aria-expanded="true"] .chev { transform:none }
-
-  /* Preferencia de reducir movimiento */
-  @media (prefers-reduced-motion:reduce){
-    .btn .chev .arrow{ animation:none; opacity:1; transform:none }
-  }
-  /* =========================================================================================== */
-
-  .subtle{ color:#0b1220; }
-  .subtle small{ color:#6b7280; font-weight:600; letter-spacing:.2px; }
-
-  tfoot td{
-    background:#f8fafc; font-weight:800; border-top:2px solid #94a3b8;
-    padding:10px 10px;
-  }
-
-  /* Pie de página (fuente centrada) */
-  .footer{
-    padding:10px 14px 16px;
-    font-size:12px;
-    color:var(--muted);
-    border-top:1px solid var(--line);
-    text-align:center;
-  }
-
   @media (max-width:900px){
-    .table{ font-size:13px; }
-    thead th{ padding:8px 4px; }
-    tbody td, tbody th{ padding:6px 6px; }
+    :root{--w-name:220px;--w-num:118px;--w-pct:104px}
+    /* mantenemos nowrap; el contenedor scrollea en x */
   }
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="card">
-    <!-- Icono Excel -->
     <button id="btnCsv" class="btnCSV" title="Exportar a Excel" aria-label="Exportar a Excel">⤓</button>
 
-    <!-- Cabecera centrada -->
     <div class="header">
       <h2 class="title">Ejecución presupuestal — MVCS (2025) por Pliego y Unidad Ejecutora</h2>
-      <div class="legend" aria-label="Leyenda">
+      <div class="legend">
         <span><span class="dot bad"></span><strong>Rojo</strong> &lt; 33%</span>
         <span><span class="dot mid"></span><strong>Ámbar</strong> 33%–67%</span>
         <span><span class="dot ok"></span><strong>Verde</strong> ≥ 67%</span>
       </div>
     </div>
 
-    <div style="overflow:auto;">
+    <div class="table-wrap">
       <table class="table" id="tbl">
+        <!-- Colgroup: define anchos fijos por columna -->
+        <colgroup>
+          <col style="width:var(--w-name)">
+          <col style="width:var(--w-num)">
+          <col style="width:var(--w-num)">
+          <col style="width:var(--w-pct)">
+          <col style="width:var(--w-num)">
+          <col style="width:var(--w-num)">
+          <col style="width:var(--w-pct)">
+          <col style="width:var(--w-num)">
+          <col style="width:var(--w-num)">
+          <col style="width:var(--w-pct)">
+        </colgroup>
         <thead>
           <tr>
-            <th style="min-width:300px; width:300px;">PLIEGO/EJECUTORAS</th>
+            <th>PLIEGO/EJECUTORAS</th>
             <th>PIM ACTIVIDADES<br/>Y PROYECTOS</th>
             <th>DEVENGADO</th>
             <th>AVANCE %</th>
@@ -192,179 +117,121 @@
             <th>AVANCE<br/>ACTIVIDAD</th>
           </tr>
         </thead>
-        <tbody id="tbody">
-          <!-- contenido dinámico -->
-        </tbody>
-        <tfoot id="tfoot">
-          <!-- total -->
-        </tfoot>
+        <tbody id="tbody"></tbody>
+        <tfoot id="tfoot"></tfoot>
       </table>
     </div>
 
-    <!-- Fuente al pie centrada -->
     <div class="footer">Fuente: Ministerio de Economía y Finanzas — MEF · Portal de Datos Abiertos</div>
   </div>
 </div>
 
 <script>
-/* ====== Servicio y filtros (tu base) ====== */
-const SERVICE = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/OGEI/Mapa_Inversiones_MEF/FeatureServer/13/query";
-const BASE_WHERE = "sector_nombre = 'VIVIENDA CONSTRUCCION Y SANEAMIENTO' AND ano_eje = 2025";
+/* Servicio y filtros */
+const SERVICE="https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/OGEI/Mapa_Inversiones_MEF/FeatureServer/13/query";
+const BASE_WHERE="sector_nombre = 'VIVIENDA CONSTRUCCION Y SANEAMIENTO' AND ano_eje = 2025";
 
-/* ====== Utilidades ====== */
-const fmt = new Intl.NumberFormat('es-PE');
-const pctStr = (ratio)=> (isFinite(ratio) ? (ratio*100).toFixed(2)+' %' : '0.00 %');
+/* Utilidades */
+const fmt=new Intl.NumberFormat('es-PE');
+const pctStr=(r)=>isFinite(r)?(r*100).toFixed(2)+' %':'0.00 %';
+function chipClass(r){const p=Number(r)*100;if(!isFinite(p))return'bad';if(p<33)return'bad';if(p<67)return'mid';return'ok';}
 
-/* RANGOS de semáforo: rojo <33; ámbar [33,67); verde >=67 */
-function chipClass(ratio){
-  const p = Number(ratio) * 100;
-  if (!isFinite(p)) return 'bad';
-  if (p < 33) return 'bad';
-  if (p < 67) return 'mid';
-  return 'ok';
-}
-
-function buildParams(whereExtra){
-  const params = new URLSearchParams({
-    where: `${BASE_WHERE}${whereExtra? ' AND '+whereExtra : ''}`,
-    groupByFieldsForStatistics: "pliego_nombre,ejecutora_nombre",
-    outStatistics: JSON.stringify([
-      { "statisticType":"sum", "onStatisticField":"monto_pim",       "outStatisticFieldName":"sum_pim" },
-      { "statisticType":"sum", "onStatisticField":"monto_devengado", "outStatisticFieldName":"sum_dev" }
+function buildParams(extra){
+  return new URLSearchParams({
+    where:`${BASE_WHERE}${extra? ' AND '+extra:''}`,
+    groupByFieldsForStatistics:"pliego_nombre,ejecutora_nombre",
+    outStatistics:JSON.stringify([
+      {statisticType:"sum",onStatisticField:"monto_pim",outStatisticFieldName:"sum_pim"},
+      {statisticType:"sum",onStatisticField:"monto_devengado",outStatisticFieldName:"sum_dev"}
     ]),
-    returnGeometry: "false",
-    f: "json"
-  });
-  return params.toString();
+    returnGeometry:"false", f:"json"
+  }).toString();
 }
 
-async function queryStats(whereExtra){
-  const url = `${SERVICE}?${buildParams(whereExtra)}`;
-  const res = await fetch(url, { cache:'no-store' });
+async function queryStats(extra){
+  const res=await fetch(`${SERVICE}?${buildParams(extra)}`,{cache:'no-store'});
   if(!res.ok) throw new Error('HTTP '+res.status);
-  const json = await res.json();
-  if(json.error) throw new Error(json.error.message||'Error del servicio');
-  const out = [];
-  for(const f of (json.features||[])){
-    const a = f.attributes||{};
-    out.push({
-      pliego: String(a.pliego_nombre||'').trim() || '(Sin pliego)',
-      ejecutora: String(a.ejecutora_nombre||'').trim() || '(Sin ejecutora)',
-      pim: Number(a.sum_pim||0),
-      dev: Number(a.sum_dev||0)
-    });
-  }
-  return out;
+  const json=await res.json();
+  if(json.error) throw new Error(json.error.message||'Error servicio');
+  return (json.features||[]).map(f=>{
+    const a=f.attributes||{};
+    return {
+      pliego:String(a.pliego_nombre||'').trim()||'(Sin pliego)',
+      ejecutora:String(a.ejecutora_nombre||'').trim()||'(Sin ejecutora)',
+      pim:Number(a.sum_pim||0),
+      dev:Number(a.sum_dev||0)
+    };
+  });
 }
 
-function mergeStats(total, proy, act){
-  const iTotal = new Map(), iProy = new Map(), iAct = new Map();
-  const key = (r)=> `${r.pliego}|||${r.ejecutora}`;
-  total.forEach(r=> iTotal.set(key(r), r));
-  proy.forEach(r=> iProy.set(key(r), r));
-  act.forEach(r=> iAct.set(key(r), r));
-
-  const keys = new Set([...iTotal.keys(), ...iProy.keys(), ...iAct.keys()]);
-  const rows = [];
-  for(const k of keys){
-    const t = iTotal.get(k) || {};
-    const p = iProy.get(k) || {};
-    const a = iAct.get(k) || {};
-    rows.push({
-      pliego: t.pliego || p.pliego || a.pliego || '',
-      ejecutora: t.ejecutora || p.ejecutora || a.ejecutora || '',
-      pim: t.pim||0, dev: t.dev||0,
-      pim_proy: p.pim||0, dev_proy: p.dev||0,
-      pim_act: a.pim||0,  dev_act: a.dev||0
-    });
-  }
-  const byPliego = new Map();
-  for(const r of rows){
-    if(!byPliego.has(r.pliego)) byPliego.set(r.pliego, []);
-    byPliego.get(r.pliego).push(r);
-  }
-  for(const arr of byPliego.values()){
-    arr.sort((x,y)=> x.ejecutora.localeCompare(y.ejecutora, 'es'));
-  }
-  return new Map([...byPliego.entries()].sort((a,b)=> a[0].localeCompare(b[0],'es')));
+function mergeStats(total,proy,act){
+  const key=r=>`${r.pliego}|||${r.ejecutora}`;
+  const it=new Map(), ip=new Map(), ia=new Map();
+  total.forEach(r=>it.set(key(r),r)); proy.forEach(r=>ip.set(key(r),r)); act.forEach(r=>ia.set(key(r),r));
+  const rows=[...new Set([...it.keys(),...ip.keys(),...ia.keys()])].map(k=>{
+    const t=it.get(k)||{}, p=ip.get(k)||{}, a=ia.get(k)||{};
+    return { pliego:t.pliego||p.pliego||a.pliego||'', ejecutora:t.ejecutora||p.ejecutora||a.ejecutora||'',
+      pim:t.pim||0, dev:t.dev||0, pim_proy:p.pim||0, dev_proy:p.dev||0, pim_act:a.pim||0, dev_act:a.dev||0 };
+  });
+  const byP=new Map();
+  for(const r of rows){ if(!byP.has(r.pliego)) byP.set(r.pliego,[]); byP.get(r.pliego).push(r); }
+  for(const arr of byP.values()){ arr.sort((x,y)=>x.ejecutora.localeCompare(y.ejecutora,'es')); }
+  return new Map([...byP.entries()].sort((a,b)=>a[0].localeCompare(b[0],'es')));
 }
 
-function addRow(tbody, cells, opts={}){
-  const tr = document.createElement('tr');
-  tr.className = opts.className||'';
+function addRow(tbody,cells,opts={}){
+  const tr=document.createElement('tr'); tr.className=opts.className||'';
   for(const c of cells){
-    const el = document.createElement(c.header?'th':'td');
-    if(c.cls) el.className = c.cls;
-    el.innerHTML = c.html;
+    const el=document.createElement(c.header?'th':'td');
+    if(c.cls) el.className=c.cls;
+    el.innerHTML=c.html;
     tr.appendChild(el);
   }
   tbody.appendChild(tr);
 }
 
 function renderTable(grouped){
-  const tbody = document.getElementById('tbody');
-  tbody.innerHTML = '';
-  let tot = { pim:0, dev:0, pim_proy:0, dev_proy:0, pim_act:0, dev_act:0 };
+  const tbody=document.getElementById('tbody'); tbody.innerHTML='';
+  let tot={pim:0,dev:0,pim_proy:0,dev_proy:0,pim_act:0,dev_act:0};
 
-  for(const [pliego, items] of grouped.entries()){
-    const s = items.reduce((a,r)=>({
+  for(const [pliego,items] of grouped.entries()){
+    const s=items.reduce((a,r)=>({
       pim:a.pim+r.pim, dev:a.dev+r.dev,
       pim_proy:a.pim_proy+r.pim_proy, dev_proy:a.dev_proy+r.dev_proy,
       pim_act:a.pim_act+r.pim_act, dev_act:a.dev_act+r.dev_act
-    }), {pim:0,dev:0,pim_proy:0,dev_proy:0,pim_act:0,dev_act:0});
+    }),{pim:0,dev:0,pim_proy:0,dev_proy:0,pim_act:0,dev_act:0});
 
     tot.pim+=s.pim; tot.dev+=s.dev; tot.pim_proy+=s.pim_proy; tot.dev_proy+=s.dev_proy; tot.pim_act+=s.pim_act; tot.dev_act+=s.dev_act;
 
-    const av   = s.pim>0 ? s.dev/s.pim : 0;
-    const avp  = s.pim_proy>0 ? s.dev_proy/s.pim_proy : 0;
-    const ava  = s.pim_act>0 ? s.dev_act/s.pim_act : 0;
+    const av=s.pim>0?s.dev/s.pim:0, avp=s.pim_proy>0?s.dev_proy/s.pim_proy:0, ava=s.pim_act>0?s.dev_act/s.pim_act:0;
+    const gid='g_'+Math.random().toString(36).slice(2,9);
 
-    const gid = 'g_'+Math.random().toString(36).slice(2,9);
-
-    /* Botón con flechas (sin círculo) */
-    addRow(tbody, [
-      {header:true, html:
+    addRow(tbody,[
+      {header:true,cls:'group',html:
         `<button class="btn subtle" aria-expanded="false" aria-controls="${gid}">
            <span class="chev" aria-hidden="true">
-             <!-- Flecha 1 -->
-             <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img">
-               <path d="M12 4v12"></path><path d="M8 12l4 4 4-4"></path>
-             </svg>
-             <!-- Flecha 2 -->
-             <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img">
-               <path d="M12 4v12"></path><path d="M8 12l4 4 4-4"></path>
-             </svg>
-             <!-- Flecha 3 -->
-             <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img">
-               <path d="M12 4v12"></path><path d="M8 12l4 4 4-4"></path>
-             </svg>
+             <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12"></path><path d="M8 12l4 4 4-4"></path></svg>
+             <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12"></path><path d="M8 12l4 4 4-4"></path></svg>
+             <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12"></path><path d="M8 12l4 4 4-4"></path></svg>
            </span>
            ${pliego} <br/><small>EJECUTORAS</small>
-         </button>`, cls:'group' },
-      {html: fmt.format(s.pim), cls:'num'},
-      {html: fmt.format(s.dev), cls:'num'},
-      {html: `<span class="dot ${chipClass(av)}"></span>${pctStr(av)}`, cls:'pct'},
-      {html: fmt.format(s.pim_proy), cls:'num'},
-      {html: fmt.format(s.dev_proy), cls:'num'},
-      {html: `<span class="dot ${chipClass(avp)}"></span>${pctStr(avp)}`, cls:'pct'},
-      {html: fmt.format(s.pim_act), cls:'num'},
-      {html: fmt.format(s.dev_act), cls:'num'},
-      {html: `<span class="dot ${chipClass(ava)}"></span>${pctStr(ava)}`, cls:'pct'}
-    ], { className:'group' });
+         </button>`},
+      {html:fmt.format(s.pim),cls:'num'},
+      {html:fmt.format(s.dev),cls:'num'},
+      {html:`<span class="dot ${chipClass(av)}"></span>${pctStr(av)}`,cls:'pct'},
+      {html:fmt.format(s.pim_proy),cls:'num'},
+      {html:fmt.format(s.dev_proy),cls:'num'},
+      {html:`<span class="dot ${chipClass(avp)}"></span>${pctStr(avp)}`,cls:'pct'},
+      {html:fmt.format(s.pim_act),cls:'num'},
+      {html:fmt.format(s.dev_act),cls:'num'},
+      {html:`<span class="dot ${chipClass(ava)}"></span>${pctStr(ava)}`,cls:'pct'}
+    ],{className:'group'});
 
     for(const r of items){
-      const av2  = r.pim>0 ? r.dev/r.pim : 0;
-      const avp2 = r.pim_proy>0 ? r.dev_proy/r.pim_proy : 0;
-      const ava2 = r.pim_act>0 ? r.dev_act/r.pim_act : 0;
-
-      const tr = document.createElement('tr');
-      tr.className = 'item';
-      tr.setAttribute('data-parent', gid);
-      tr.style.display = 'none';
-      tr.innerHTML = `
+      const av2=r.pim>0?r.dev/r.pim:0, avp2=r.pim_proy>0?r.dev_proy/r.pim_proy:0, ava2=r.pim_act>0?r.dev_act/r.pim_act:0;
+      const tr=document.createElement('tr');
+      tr.className='item'; tr.setAttribute('data-parent',gid); tr.style.display='none';
+      tr.innerHTML=`
         <td style="padding-left:24px;"><span class="subtle">${r.ejecutora}</span></td>
         <td class="num">${fmt.format(r.pim)}</td>
         <td class="num">${fmt.format(r.dev)}</td>
@@ -374,17 +241,14 @@ function renderTable(grouped){
         <td class="pct"><span class="dot ${chipClass(avp2)}"></span>${pctStr(avp2)}</td>
         <td class="num">${fmt.format(r.pim_act)}</td>
         <td class="num">${fmt.format(r.dev_act)}</td>
-        <td class="pct"><span class="dot ${chipClass(ava2)}"></span>${pctStr(ava2)}</td>
-      `;
+        <td class="pct"><span class="dot ${chipClass(ava2)}"></span>${pctStr(ava2)}</td>`;
       tbody.appendChild(tr);
     }
   }
 
-  const tfoot = document.getElementById('tfoot');
-  const tav  = tot.pim>0 ? tot.dev/tot.pim : 0;
-  const tavp = tot.pim_proy>0 ? tot.dev_proy/tot.pim_proy : 0;
-  const tava = tot.pim_act>0 ? tot.dev_act/tot.pim_act : 0;
-  tfoot.innerHTML = `
+  const tfoot=document.getElementById('tfoot');
+  const tav=tot.pim>0?tot.dev/tot.pim:0, tavp=tot.pim_proy>0?tot.dev_proy/tot.pim_proy:0, tava=tot.pim_act>0?tot.dev_act/tot.pim_act:0;
+  tfoot.innerHTML=`
     <tr>
       <td style="text-align:left;font-weight:900;">Total</td>
       <td class="num">${fmt.format(tot.pim)}</td>
@@ -399,72 +263,48 @@ function renderTable(grouped){
     </tr>`;
 
   tbody.querySelectorAll('button[aria-controls]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const id = btn.getAttribute('aria-controls');
-      const open = btn.getAttribute('aria-expanded') === 'true';
-      btn.setAttribute('aria-expanded', String(!open));
+    btn.addEventListener('click',()=>{
+      const id=btn.getAttribute('aria-controls');
+      const open=btn.getAttribute('aria-expanded')==='true';
+      btn.setAttribute('aria-expanded',String(!open));
       tbody.querySelectorAll(`tr.item[data-parent="${id}"]`).forEach(tr=>{
-        tr.style.display = open ? 'none' : '';
+        tr.style.display=open?'none':'';
       });
     });
   });
 }
 
-/* ===== Exportación a Excel (.xls) a partir de la tabla visible ===== */
+/* Exportación a Excel */
 function exportTableToExcel(tableId='tbl', filename='ejecutoras_matriz.xls'){
-  const table = document.getElementById(tableId);
-  if(!table) return;
-
-  const clone = table.cloneNode(true);
-
-  // Marcar columnas numéricas con formato para Excel
+  const table=document.getElementById(tableId); if(!table) return;
+  const clone=table.cloneNode(true);
   clone.querySelectorAll('td.num, th.num').forEach(td=>{
-    td.setAttribute('style', (td.getAttribute('style')||'') + '; mso-number-format:"\\#\\,\\#\\#0";');
+    td.setAttribute('style',(td.getAttribute('style')||'')+'; mso-number-format:"\\#\\,\\#\\#0";');
   });
-
-  const html =
-`<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<style>
-  table{border-collapse:collapse}
-  th,td{border:1px solid #d1d5db; padding:6px 8px; white-space:nowrap;}
-  th{background:#111827;color:#fff;font-weight:800;}
-  tfoot td{background:#f8fafc;font-weight:800;}
-</style>
-</head>
-<body>
-${clone.outerHTML}
-</body>
-</html>`;
-
-  const blob = new Blob([html], {type: 'application/vnd.ms-excel;charset=utf-8;'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8">
+  <style>table{border-collapse:collapse}th,td{border:1px solid #d1d5db;padding:6px 8px;white-space:nowrap}
+  th{background:#111827;color:#fff;font-weight:800}tfoot td{background:#f8fafc;font-weight:800}</style>
+  </head><body>${clone.outerHTML}</body></html>`;
+  const blob=new Blob([html],{type:'application/vnd.ms-excel;charset=utf-8;'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename;
+  document.body.appendChild(a); a.click(); a.remove();
 }
-
-document.getElementById('btnCsv').addEventListener('click', ()=> exportTableToExcel('tbl'));
+document.getElementById('btnCsv').addEventListener('click',()=>exportTableToExcel('tbl'));
 
 /* Init */
-(async function init(){
+(async()=>{
   try{
-    const [all, proy, act] = await Promise.all([
+    const [all,proy,act]=await Promise.all([
       queryStats("1=1"),
       queryStats("tipo_act_proy_nombre = 'PROYECTO'"),
       queryStats("tipo_act_proy_nombre = 'ACTIVIDAD'")
     ]);
-    const grouped = mergeStats(all, proy, act);
-    renderTable(grouped);
+    renderTable(mergeStats(all,proy,act));
   }catch(err){
     console.error(err);
-    document.getElementById('tbody').innerHTML =
+    document.getElementById('tbody').innerHTML=
       `<tr><td colspan="10" style="text-align:center;color:#b91c1c;padding:30px;">
-         Error al cargar datos: ${err?.message || 'Fallo del servicio'}
+         Error al cargar datos: ${err?.message||'Fallo del servicio'}
        </td></tr>`;
   }
 })();
