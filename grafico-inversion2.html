@@ -149,6 +149,12 @@ function fmtCompact(n){
 function fmtPct(p){ return (Math.round(p*10)/10).toLocaleString('es-PE')+"%"; }
 const normProg = p => (p ?? "(Sin programa)").toString().trim() || "(Sin programa)";
 
+/* NUEVO: dinero entero con prefijo S/. */
+const fmtMoneySoles = n => "S/. " + (Number(n)||0).toLocaleString("es-PE", {
+  maximumFractionDigits: 0,
+  minimumFractionDigits: 0
+});
+
 /* ArcGIS helpers */
 async function fetchAllPOST(url, baseParams){
   const pageSize=2000; let offset=0, out=[];
@@ -294,8 +300,8 @@ function makeChart(points){
     ctx.font = `${tickFont}px system-ui`;
 
     // Márgenes adaptables (más aire para etiquetas)
-    const padLeft  = Math.max(86, Math.floor(W*0.09));   // más margen a la izquierda
-    const padBottom= Math.max(70, Math.floor(H*0.12));   // más margen abajo
+    const padLeft  = Math.max(86, Math.floor(W*0.09));   // margen izquierda
+    const padBottom= Math.max(70, Math.floor(H*0.12));   // margen abajo
     const padTop   = 44;
     const padRight = 28;
 
@@ -361,7 +367,7 @@ function makeChart(points){
       const yy = scale.y(v);
       ctx.strokeStyle = i===0 ? "#e5e7eb" : "#f3f4f6";
       ctx.beginPath(); ctx.moveTo(pad.l, yy); ctx.lineTo(pad.l + scale.plot.w, yy); ctx.stroke();
-      ctx.fillText(fmtCompact(v), pad.l - 10, yy);   // más separación (10px)
+      ctx.fillText(fmtCompact(v), pad.l - 10, yy);
     }
 
     // Grilla + ticks X
@@ -372,18 +378,18 @@ function makeChart(points){
       const xx = scale.x(v);
       ctx.strokeStyle="#e5e7eb";
       ctx.beginPath(); ctx.moveTo(xx, pad.t); ctx.lineTo(xx, y0); ctx.stroke();
-      ctx.fillText(fmtCompact(v), xx, y0 + 14);      // más separación (14px)
+      ctx.fillText(fmtCompact(v), xx, y0 + 14);
     }
 
-    // Etiquetas de ejes con más “aire”
+    /* Etiquetas de ejes SIN (X)/(Y) */
     ctx.save(); ctx.fillStyle="#0b2532"; ctx.font=`600 ${axisFont}px system-ui`;
     ctx.translate(30, pad.t + scale.plot.h/2);
     ctx.rotate(-Math.PI/2);
-    ctx.fillText("Monto de Inversión (Y)", 0, 0);
+    ctx.fillText("Monto de Inversión", 0, 0);
     ctx.restore();
 
     ctx.textAlign="center"; ctx.textBaseline="bottom"; ctx.font=`600 ${axisFont}px system-ui`;
-    ctx.fillText("Devengado Acumulado (X)", pad.l + scale.plot.w/2, H - 8);
+    ctx.fillText("Devengado Acumulado", pad.l + scale.plot.w/2, H - 8);
   }
 
   function inPlot(px, py){
@@ -484,8 +490,8 @@ function makeChart(points){
       tip.innerHTML = `
         <span class="chip"><span class="dot" style="background:${hit.color}"></span>${hit.key}</span>
         <div class="grid">
-          <div class="k">Devengado Acumulado <span class="axisTag">(<b><i>X</i></b>)</span></div><div class="v">${fmtCompact(d.x)}</div>
-          <div class="k">Monto de inversión <span class="axisTag">(<b><i>Y</i></b>)</span></div><div class="v">${fmtCompact(d.y)}</div>
+          <div class="k">Devengado Acumulado <span class="axisTag">(<b><i>X</i></b>)</span></div><div class="v">${fmtMoneySoles(d.x)}</div>
+          <div class="k">Monto de inversión <span class="axisTag">(<b><i>Y</i></b>)</span></div><div class="v">${fmtMoneySoles(d.y)}</div>
           <div class="k">Beneficiarios <span class="axisTag">(<b><i>tamaño</i></b>)</span></div><div class="v">${(d.bens||0).toLocaleString('es-PE')}</div>
           <div class="k">% Avance <span class="axisTag">(<b><i>color</i></b>)</span></div><div class="v">${fmtPct(d.pct)}</div>
           ${d.prog ? `<div class="k">Programa</div><div class="v">${d.prog}</div>` : ''}
