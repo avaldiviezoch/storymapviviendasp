@@ -34,8 +34,25 @@
 
         /* ===== Panel lateral ===== */
         .sidebar{background:var(--panel); border-left:1px solid var(--line); box-shadow:-6px 0 24px rgba(2,6,23,.06); padding:16px 16px 18px; box-sizing:border-box;}
-        .topTitle{text-align:center; font-weight:900; letter-spacing:.2px; font-size:clamp(18px, 2.2vh, 22px); margin:2px 0 6px;}
-        .bigCount{text-align:center; font-weight:900; color:#0b3b38; font-size:clamp(42px, 8vh, 64px); line-height:1; margin:4px 0 10px;}
+
+        /* NUEVO: línea corrida con número grande */
+        .heroLine{
+            text-align:center;
+            font-weight:800;
+            letter-spacing:.2px;
+            font-size:clamp(16px, 1.9vh, 18px);
+            margin:2px 0 10px;
+            color:#0b3b38;
+        }
+        .heroLine .heroNum{
+            display:inline-block;
+            font-weight:900;
+            font-size:clamp(42px, 8vh, 64px); /* bien grande y responsivo */
+            line-height:1;
+            margin:0 .18em;
+            vertical-align:-6px; /* baja un poco para alinear con el texto */
+        }
+
         .bar{background:var(--bar); color:#e7fff9; font-weight:800; text-align:center; padding:10px 12px; border-radius:10px; margin:6px 0 12px; font-size:clamp(12px, 1.6vh, 14px);}
         .kpiGrid{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
         .kpiCard{display:flex; align-items:center; gap:12px; background:#fff; border:1px solid var(--line); border-radius:14px; padding:12px; box-shadow:0 10px 24px rgba(2,6,23,.06);}
@@ -145,8 +162,11 @@
 
     <!-- Panel derecho -->
     <aside class="sidebar">
-        <div class="topTitle">A través de Inversiones</div>
-        <div class="bigCount" id="kpiCount">—</div>
+        <!-- NUEVO: texto corrido con número grande -->
+        <div class="heroLine" aria-live="polite">
+            A través de <span id="kpiCount" class="heroNum">—</span> inversiones
+        </div>
+
         <div class="bar">Se espera generar</div>
 
         <!-- KPIs -->
@@ -171,7 +191,7 @@
 
         <div class="sep"></div>
 
-        <!-- NUEVO TÍTULO PARA LOS 8 INDICADORES -->
+        <!-- Título para los 8 indicadores -->
         <div class="bar">Estados</div>
 
         <!-- 8 indicadores -->
@@ -276,6 +296,7 @@ async function updateKPIsTop(where){
             offset += page;
         }
     }
+    // Aquí solo actualizamos el número; el texto corre alrededor en HTML
     document.getElementById('kpiCount').textContent = fmt.format(totalProy);
     document.getElementById('kpiAgua').textContent = fmt.format(agua);
     document.getElementById('kpiAlc').textContent = fmt.format(alc);
@@ -462,7 +483,7 @@ require([
     const suggestions = document.getElementById('suggestions');
     let allProjects = [];
 
-    // Abrir/cerrar panel de búsqueda (fix: usar clase .open, no inline style)
+    // Abrir/cerrar panel de búsqueda
     searchBtn.addEventListener('click', () => {
         searchContent.classList.toggle('open');
         if (searchContent.classList.contains('open')) {
