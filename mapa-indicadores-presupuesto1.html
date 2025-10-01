@@ -1,239 +1,603 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Visor · Vivienda Rural + CCPP + Límites (UI verde flotante)</title>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>Mapa · Inversiones MEF (puntos) + Indicadores</title>
 
-<link rel="stylesheet" href="https://js.arcgis.com/4.30/esri/themes/light/main.css">
-<script src="https://js.arcgis.com/4.30/"></script>
+    <!-- ArcGIS JS 4.29 -->
+    <link rel="stylesheet" href="https://js.arcgis.com/4.29/esri/themes/light/main.css">
+    <script src="https://js.arcgis.com/4.29/"></script>
 
-<style>
-  :root{
-    --ink:#0b2532; --muted:#64748b; --card:#fff;
-    --g-dark:#0f3f3a; --g-2:#7da39e; --line:#e6ecea; --panel:#f7fbfa;
-    --bar:#0b3b38;
-  }
-  html,body{margin:0; height:100%; overflow:hidden; background:#eef5f3; color:var(--ink);
-    font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial}
-  .shell{display:grid; grid-template-columns: 1fr min(44vw, 720px); height:100vh; width:100vw;}
-  #viewWrap{ position:sticky; top:0; height:100vh; overflow:hidden; }
-  #viewDiv{position:relative; width:100%; height:100%}
+    <style>
+        :root{
+            --ink:#0b2532; --muted:#64748b; --card:#fff; --g-dark:#0f3f3a; --g-2:#7da39e;
+            --line:#e6ecea; --panel:#f7fbfa; --bar:#0b3b38;
+        }
+        html,body{margin:0; height:100%; overflow:hidden; background:#eef5f3; color:var(--ink); font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial}
+        .shell{display:grid; grid-template-columns: 1fr min(40vw, 680px); height:100vh; width:100vw;}
+        #viewWrap{ position:sticky; top:0; height:100vh; overflow:hidden; }
+        #viewDiv{position:relative; width:100%; height:100%}
 
-  /* Panel derecho (vacío) */
-  .sidebar{background:var(--panel); border-left:1px solid var(--line); box-shadow:-6px 0 24px rgba(2,6,23,.06); padding:16px 16px 18px; box-sizing:border-box;}
-  .topTitle{text-align:center; font-weight:900; letter-spacing:.2px; font-size:clamp(18px, 2.2vh, 22px); margin:2px 0 6px;}
-  .bar{background:var(--bar); color:#e7fff9; font-weight:800; text-align:center; padding:10px 12px; border-radius:10px; margin:6px 0 12px; font-size:clamp(12px, 1.6vh, 14px);}
+        /* ===== Filtros ===== */
+        .filters{position:absolute; left:14px; top:14px; z-index:6; width:min(360px, 92vw)}
+        .acc{background:#0b3b38;color:#e6fffb;border-radius:14px;box-shadow:0 12px 28px rgba(0,0,0,.18);}
+        .acc summary{list-style:none;cursor:pointer;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;font-weight:800}
+        .acc summary::-webkit-details-marker{display:none}
+        .acc .content{padding:12px 14px;display:grid;gap:10px}
+        .acc label{font-size:12px;color:#cbe8e5;font-weight:700}
+        .acc select{width:100%;border-radius:10px;padding:10px 12px;border:1px solid #155149;background:#0f2e29;color:#e6fffb; height:42px; box-sizing:border-box}
+        .hint{font-size:12px;color:#b9d5d1}
+        .rowBtns{display:flex;gap:10px;justify-content:flex-end}
+        .btn{background:#0b3b38;color:#ecfffb;border:1px solid #0e4a43;padding:8px 12px;border-radius:10px;font-weight:800;cursor:pointer; box-shadow:0 6px 16px rgba(2,6,23,.18)}
+        .btn.secondary{background:#114d46;border-color:#0d3a35}
 
-  /* Flotantes retráctiles (estética verde) */
-  .floatPanels{position:absolute; left:14px; top:14px; z-index:6; width:min(360px, 92vw); display:grid; gap:10px;}
-  .acc{background:#0b3b38; color:#e6fffb; border-radius:14px; box-shadow:0 12px 28px rgba(0,0,0,.18); overflow:hidden}
-  .acc summary{list-style:none; cursor:pointer; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; font-weight:900; letter-spacing:.2px}
-  .acc summary::-webkit-details-marker{display:none}
-  .acc .content{padding:10px 12px; background:#0f2e29; border-top:1px solid #0e4a43}
-  .hint{font-size:12px; color:#b9d5d1; padding:6px 12px 10px}
+        /* ===== Panel lateral ===== */
+        .sidebar{background:var(--panel); border-left:1px solid var(--line); box-shadow:-6px 0 24px rgba(2,6,23,.06); padding:16px 16px 18px; box-sizing:border-box;}
+        .topTitle{text-align:center; font-weight:900; letter-spacing:.2px; font-size:clamp(18px, 2.2vh, 22px); margin:2px 0 6px;}
+        .bigCount{text-align:center; font-weight:900; color:#0b3b38; font-size:clamp(42px, 8vh, 64px); line-height:1; margin:4px 0 10px;}
+        .bar{background:var(--bar); color:#e7fff9; font-weight:800; text-align:center; padding:10px 12px; border-radius:10px; margin:6px 0 12px; font-size:clamp(12px, 1.6vh, 14px);}
+        .kpiGrid{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+        .kpiCard{display:flex; align-items:center; gap:12px; background:#fff; border:1px solid var(--line); border-radius:14px; padding:12px; box-shadow:0 10px 24px rgba(2,6,23,.06);}
+        .badge{flex:0 0 clamp(36px, 5vh, 46px); width:clamp(36px, 5vh, 46px); height:clamp(36px, 5vh, 46px); border-radius:50%; display:grid; place-items:center; background:var(--g-2); color:#fff; font-size:clamp(18px, 2.4vh, 22px); font-weight:900}
+        .metric{display:flex; flex-direction:column; align-items:flex-start}
+        .metric .val{font-size:clamp(28px, 4.6vh, 44px); font-weight:900; color:var(--g-dark); line-height:1}
+        .metric .lbl{font-size:clamp(12px, 1.8vh, 14px); font-weight:700; color:var(--muted); margin-top:6px}
+        .sep{height:1px;background:var(--line); margin:12px 0}
+        .grid8{display:grid; grid-template-columns: repeat(4, 1fr); gap:12px; margin-top:6px;}
+        .tile{background:#fff; border:1px solid var(--line); border-radius:14px; box-shadow:0 10px 24px rgba(2,6,23,.06); padding:12px; display:grid; justify-items:center; align-content:center; gap:6px; min-height:clamp(92px, 13vh, 120px);}
+        .tile .v{font-size:clamp(26px, 4.3vh, 40px); font-weight:900; color:var(--g-dark); line-height:1}
+        .tile .t{font-size:clamp(11px, 1.8vh, 13px); color:var(--muted); font-weight:800; text-align:center}
 
-  /* Widgets dentro del panel verde */
-  .acc .content .esri-legend, 
-  .acc .content .esri-layer-list{
-    --esri-widget-padding: 6px;
-    --esri-widget-border-color: #0e4a43;
-    --esri-widget-shadow: 0 6px 18px rgba(2,6,23,.12);
-    font-size: 12.5px;
-    border:1px solid #0e4a43;
-    border-radius:10px;
-    background:#0f2e29;
-    color:#dff7f3;
-  }
-  .esri-layer-list__item-label,
-  .esri-legend__service-label{ color:#e6fffb !important; }
+        @media (max-width: 1100px){ .shell{grid-template-columns: 1fr min(50vw, 720px);} }
+        @media (max-width: 900px){ .shell{grid-template-columns:1fr;} #viewWrap{position:relative; height:50vh;} .kpiGrid{grid-template-columns:1fr} .grid8{grid-template-columns: repeat(2, 1fr);} }
+        @media (max-height: 760px){ .sep{margin:8px 0} .grid8{gap:10px} .kpiGrid{gap:10px} }
 
-  /* Popup */
-  .pop-card{background:#ffffff; border:1px solid var(--line); border-radius:14px; box-shadow:0 12px 30px rgba(2,6,23,.12); overflow:hidden; min-width:min(320px, 78vw); max-width:min(520px, 86vw); color:#0b2532; font:12.5px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial;}
-  .pop-hdr{background:#0b3b38; color:#e6fffb; padding:10px 12px; font-weight:900; letter-spacing:.2px;}
-  .pop-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; padding:12px;}
-  .pop-grid .lbl{font-weight:800; color:#47606b; font-size:11.5px}
-  .pop-grid .val{font-weight:800; color:#0b2532}
-  .esri-popup__header{display:none !important;}
-  .esri-popup__main-container{padding-top:0 !important;}
+        /* ===== POPUP ===== */
+        .pop-card{background:#ffffff; border:1px solid var(--line); border-radius:14px; box-shadow:0 12px 30px rgba(2,6,23,.12); overflow:hidden; min-width:min(360px, 78vw); max-width:min(520px, 86vw); color:#0b2532; font:12.5px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial;}
+        .pop-hdr{background:#0b3b38; color:#e6fffb; padding:10px 12px; font-weight:900; letter-spacing:.2px;}
+        .pop-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; padding:12px;}
+        .pop-grid .lbl{font-weight:800; color:#47606b; font-size:11.5px}
+        .pop-grid .val{font-weight:800; color:#0b2532}
+        .pop-chipwrap{display:flex; gap:8px; padding:0 12px 10px}
+        .chip{background:#e8f5f3; color:#0b3b38; border:1px solid #cfe7e3; padding:5px 8px; border-radius:999px; font-weight:900; font-size:11px;}
+        .pop-actions{display:flex; gap:8px; justify-content:flex-end; padding:10px 12px 12px; border-top:1px solid var(--line);}
+        .pop-btn{appearance:none; border:1px solid #0e4a43; background:#0b3b38; color:#e6fffb; padding:8px 10px; border-radius:10px; font-weight:800; text-decoration:none; display:inline-flex; align-items:center; gap:8px;}
+        .pop-btn:hover{filter:brightness(1.05)}
+        .link-ic{font-size:14px}
+        .esri-popup__header{display:none !important;}
+        .esri-popup__main-container{padding-top:0 !important;}
 
-  @media (max-width: 1100px){ .shell{grid-template-columns: 1fr min(50vw, 720px);} }
-  @media (max-width: 900px){
-    .shell{grid-template-columns:1fr;}
-    #viewWrap{position:relative; height:54vh;}
-  }
-</style>
+        /* ===== Multi-select Programas ===== */
+        .custom-select { position: relative; width: 100%; }
+        .select-display { width: 100%; border-radius: 10px; padding: 10px 12px; border: 1px solid #155149; background: #0f2e29; color: #e6fffb; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 14px; box-sizing: border-box; height: 42px; }
+        .select-display::after { content: '▾'; font-weight: 900; }
+        .dropdown-content { display: none; position: absolute; top: 100%; left: 0; width: 100%; max-height: 200px; overflow-y: auto; border: 1px solid #155149; border-radius: 10px; background: #0f2e29; z-index: 10; padding: 10px; box-sizing: border-box; }
+        .dropdown-content.show { display: block; }
+        .dropdown-content label { display: flex; align-items: center; gap: 8px; color: #e6fffb; padding: 6px 8px; font-size: 12px; font-weight: 500; }
+        .dropdown-content input[type="checkbox"] { accent-color: #e6fffb; width: 16px; height: 16px; margin: 0; }
+
+        /* ===== Búsqueda de proyectos ===== */
+        .search-wrap { position: absolute; top: 14px; right: 14px; z-index: 6; }
+        .search-btn { background: #0b3b38; color: #e6fffb; border: 1px solid #0e4a43; padding: 8px 12px; border-radius: 10px; font-weight: 800; cursor: pointer; box-shadow: 0 6px 16px rgba(2,6,23,.18); }
+        .search-content { display: none; position: absolute; top: 100%; right: 0; background: #fff; border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 10px 24px rgba(2,6,23,.06); padding: 10px; width: 320px; }
+        .search-content.open{ display:block; }
+        .search-input-wrap{ display:flex; align-items:center; gap:8px; }
+        .search-input { flex:1; padding: 10px; border: 1px solid #d1d5db; border-radius: 10px; box-sizing: border-box; font-weight:700 }
+        .clear-btn{ border:none; background:#f3f4f6; border:1px solid #e5e7eb; width:36px; height:36px; border-radius:10px; cursor:pointer; font-size:18px; line-height:0; display:grid; place-items:center; }
+        .clear-btn:hover{ filter:brightness(0.98); }
+        .suggestions { list-style: none; padding: 6px 0 0; margin: 6px 0 0; max-height: 240px; overflow-y: auto; }
+        .suggestions li { padding: 8px 10px; cursor: pointer; border-bottom: 1px solid #f2f2f2; font-weight:700; color:#0b2532 }
+        .suggestions li:hover { background: #f0f7f6; }
+
+    </style>
 </head>
 <body>
 <div class="shell">
+    <!-- Mapa (izquierda) -->
+    <div id="viewWrap">
+        <div id="viewDiv" aria-label="Mapa de proyectos MEF"></div>
 
-  <!-- Mapa -->
-  <div id="viewWrap">
-    <div id="viewDiv" aria-label="Mapa Vivienda Rural + CCPP + Límites"></div>
+        <!-- Filtro retráctil -->
+        <div class="filters">
+            <details id="acc" class="acc">
+                <summary>Filtrar por ubicación <span style="font-weight:900">▾</span></summary>
+                <div class="content">
+                    <div>
+                        <label for="selDep">Departamento</label>
+                        <select id="selDep"><option value="">(Todos)</option></select>
+                    </div>
+                    <div>
+                        <label for="selProv">Provincia</label>
+                        <select id="selProv"><option value="">(Todos)</option></select>
+                    </div>
+                    <div>
+                        <label for="selDist">Distrito</label>
+                        <select id="selDist"><option value="">(Todos)</option></select>
+                    </div>
+                    <div>
+                        <label for="progSelect">Programa</label>
+                        <div class="custom-select" id="progSelect">
+                            <div class="select-display" id="progDisplay">(Todos)</div>
+                            <div class="dropdown-content" id="progDropdown"></div>
+                        </div>
+                    </div>
+                    <div class="rowBtns">
+                        <button id="btnClear" class="btn secondary" type="button">Limpiar filtros</button>
+                    </div>
+                    <div class="hint">Los filtros se aplican a los puntos y a los indicadores.</div>
+                </div>
+            </details>
+        </div>
 
-    <!-- Flotantes retráctiles (cerrados por defecto) -->
-    <div class="floatPanels">
-      <details class="acc">
-        <summary>Capas <span>▾</span></summary>
-        <div class="content"><div id="layerListNode"></div></div>
-        <div class="hint">Activa/desactiva capas. Algunas aparecen según el nivel de zoom.</div>
-      </details>
-
-      <details class="acc">
-        <summary>Leyenda <span>▾</span></summary>
-        <div class="content"><div id="legendNode"></div></div>
-      </details>
+        <!-- Búsqueda de proyectos -->
+        <div class="search-wrap">
+            <button class="search-btn" id="searchBtn" title="Buscar proyecto">🔍</button>
+            <div class="search-content" id="searchContent">
+                <div class="search-input-wrap">
+                    <input type="text" class="search-input" id="searchInput" placeholder="Buscar por nombre de proyecto…">
+                    <button class="clear-btn" id="clearSearch" title="Borrar">✕</button>
+                </div>
+                <ul class="suggestions" id="suggestions"></ul>
+            </div>
+        </div>
     </div>
-  </div>
 
-  <!-- Panel derecho vacío -->
-  <aside class="sidebar">
-    <div class="topTitle">Mapa · Vivienda Rural, CCPP y Límites</div>
-    <div class="bar">Cartografía OGEI · MVCS</div>
-    <!-- vacío -->
-  </aside>
+    <!-- Panel derecho -->
+    <aside class="sidebar">
+        <div class="topTitle">A través de Inversiones</div>
+        <div class="bigCount" id="kpiCount">—</div>
+        <div class="bar">Se espera generar</div>
+
+        <!-- KPIs -->
+        <div class="kpiGrid">
+            <div class="kpiCard" aria-live="polite">
+                <div class="badge">💧</div>
+                <div class="metric"><div class="val" id="kpiAgua">—</div><div class="lbl">Conexiones Nuevas de Agua</div></div>
+            </div>
+            <div class="kpiCard" aria-live="polite">
+                <div class="badge">🚰</div>
+                <div class="metric"><div class="val" id="kpiAlc">—</div><div class="lbl">Conexiones Nuevas de Alcantarillado</div></div>
+            </div>
+            <div class="kpiCard" aria-live="polite">
+                <div class="badge">🛣️</div>
+                <div class="metric"><div class="val" id="kpiPav">—</div><div class="lbl">M2 de Pavimento</div></div>
+            </div>
+            <div class="kpiCard" aria-live="polite">
+                <div class="badge">👷</div>
+                <div class="metric"><div class="val" id="kpiVer">—</div><div class="lbl">M2 de Vereda</div></div>
+            </div>
+        </div>
+
+        <div class="sep"></div>
+
+        <!-- 8 indicadores -->
+        <section class="grid8">
+            <div class="tile"><div class="v" id="kObrasConcluidas">—</div><div class="t">Obras Concluidas</div></div>
+            <div class="tile"><div class="v" id="kObrasEjec">—</div><div class="t">Obras en Ejecución</div></div>
+            <div class="tile"><div class="v" id="kObrasPorIniciar">—</div><div class="t">Obras por Iniciar</div></div>
+            <div class="tile"><div class="v" id="kObrasProcSel">—</div><div class="t">Obras en proceso de Selección</div></div>
+            <div class="tile"><div class="v" id="kExpConcluidos">—</div><div class="t">Exp. Concluidos</div></div>
+            <div class="tile"><div class="v" id="kExpElab">—</div><div class="t">Exp. en Elaboración</div></div>
+            <div class="tile"><div class="v" id="kExpProcSel">—</div><div class="t">Exp. en Proceso de Selección</div></div>
+            <div class="tile"><div class="v" id="kExpPorConvocar">—</div><div class="t">Exp. por Convocar</div></div>
+        </section>
+    </aside>
 </div>
 
 <script>
-require([
-  "esri/Map",
-  "esri/views/MapView",
-  "esri/layers/FeatureLayer",
-  "esri/widgets/Legend",
-  "esri/widgets/LayerList",
-  "esri/widgets/ScaleBar",
-  "esri/renderers/UniqueValueRenderer",
-  "esri/symbols/SimpleFillSymbol",
-  "esri/symbols/SimpleLineSymbol",
-  "esri/symbols/SimpleMarkerSymbol"
-], (Map, MapView, FeatureLayer, Legend, LayerList, ScaleBar, UniqueValueRenderer,
-    SimpleFillSymbol, SimpleLineSymbol, SimpleMarkerSymbol) => {
+/* ========= Utilidades ========= */
+const FS_URL = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/OGEI/Mapa_Inversiones_Coord_MEF/FeatureServer/0";
+const fmt = new Intl.NumberFormat('es-PE');
+const moneyFmt = new Intl.NumberFormat('es-PE',{maximumFractionDigits:0});
+function esc(v){ return String(v).replaceAll("'", "''"); }
+function cacheBust(){ return String(Date.now()); }
+function safe(s){ return (s==null||s==="") ? "—" : String(s); }
 
-  // ENDPOINTS
-  const CCPP = "https://pportalgis.vivienda.gob.pe/pfdserver1/rest/services/OGEI/CCPP_Dispersos/FeatureServer";
-  const VR   = "https://dportalgis.vivienda.gob.pe/dfdserver/rest/services/OGEI/vivienda_rural/FeatureServer/0";
-  const LIM0 = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/COES/Limites_Pol%C3%ADticos/MapServer/0";
-  const LIM1 = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/COES/Limites_Pol%C3%ADticos/MapServer/1";
-  const LIM2 = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/COES/Limites_Pol%C3%ADticos/MapServer/2";
+function esriPOST(url, paramsObj){
+    const body = new URLSearchParams({ f:"json", returnGeometry:"false", ...paramsObj, __ts: cacheBust() });
+    return fetch(url, { method:"POST", headers:{ "Content-Type":"application/x-www-form-urlencoded;charset=UTF-8" }, body: body.toString(), cache:"no-store" })
+        .then(r => { if(!r.ok) throw new Error("HTTP "+r.status); return r.json(); })
+        .then(j => { if(j.error){ console.error("ArcGIS:", j.error); throw new Error(j.error.message||"ArcGIS"); } return j; })
+        .catch(()=>({})); // silencio si hay error
+}
 
-  // Mapa base
-  const map = new Map({ basemap: "gray-vector" });
-  const view = new MapView({
-    container: "viewDiv",
-    map,
-    // Vista inicial: costa del Lago Titicaca (Puno)
-    center: [-69.35, -15.9],
-    scale: 180000, // ~1:180k (VR visible por minScale=300k)
-    constraints: { minZoom: 4, snapToZoom: false },
-    highlightOptions: { color: [13,58,53,1], haloOpacity: 0.15, fillOpacity: 0.05 }
-  });
-  view.ui.add(new ScaleBar({ view, unit: "metric" }), "bottom-left");
-
-  // Popup compacto
-  view.popup.title = "";
-  try { view.popup.visibleElements = { title: false }; } catch(_){}
-
-  // Capas CCPP
-  const ccppLayers = [
-    new FeatureLayer({ url: `${CCPP}/6`, title: "Áreas agrupadas (densidad y viviendas)", outFields:["*"], visible:false }),
-    new FeatureLayer({ url: `${CCPP}/5`, title: "Ámbito territorial de centros poblados", outFields:["*"], visible:false }),
-    new FeatureLayer({ url: `${CCPP}/4`, title: "Centro poblado por grado de dispersión",  outFields:["*"], visible:true  }),
-    new FeatureLayer({ url: `${CCPP}/3`, title: "Redes - DATASS",                          outFields:["*"], visible:false }),
-    new FeatureLayer({ url: `${CCPP}/2`, title: "Reservorio - DATASS",                      outFields:["*"], visible:false }),
-    new FeatureLayer({ url: `${CCPP}/1`, title: "Captación - DATASS",                       outFields:["*"], visible:false }),
-    new FeatureLayer({ url: `${CCPP}/0`, title: "PTAP - DATASS",                            outFields:["*"], visible:false })
-  ];
-
-  // Vivienda Rural (3 categorías exactas, visible a ciudad)
-  const FIELD = "dhabcual";
-  const defExp = `${FIELD} IN ('Con Deficit Cualitativo','''Sin Dcficit Cualitativo','Otro')`;
-
-  const COL_DEFICIT = [198, 42, 75, 0.90];   // rojo
-  const COL_SIN     = [ 60,130,246,0.90];    // azul
-  const COL_OTRO    = [168,170,175,0.70];    // plomo
-
-  const mkSymbol = (rgba) => new SimpleMarkerSymbol({ style:"circle", size:7, color:rgba, outline:{ color:[255,255,255,1], width:0.6 }});
-  const lnSymbol = (rgba) => new SimpleLineSymbol({ color:rgba, width:2 });
-  const flSymbol = (rgba) => new SimpleFillSymbol({ color:rgba, outline:{ color:[255,255,255,1], width:0.5 }});
-  const symbolForGeom = (geom, rgba) => geom === "polygon" ? flSymbol(rgba) : (geom === "polyline" ? lnSymbol(rgba) : mkSymbol(rgba));
-
-  function vrRenderer(geom){
-    return new UniqueValueRenderer({
-      field: FIELD,
-      defaultSymbol: null,
-      uniqueValueInfos: [
-        { value:"Con Deficit Cualitativo",  label:"Con Déficit Cualitativo", symbol:symbolForGeom(geom, COL_DEFICIT) },
-        { value:"'Sin Dcficit Cualitativo", label:"Sin Déficit Cualitativo", symbol:symbolForGeom(geom, COL_SIN) },
-        { value:"Otro",                      label:"Otro",                    symbol:symbolForGeom(geom, COL_OTRO) }
-      ]
-    });
-  }
-
-  const viviendaRural = new FeatureLayer({
-    url: VR,
-    title: "Vivienda rural - Viviendas Rurales",
-    outFields: ["*"],
-    definitionExpression: defExp,
-    minScale: 300000, // visible desde ciudad
-    maxScale: 0,
-    visible: true,
-    popupTemplate: {
-      title: "",
-      outFields:["*"],
-      content: (e)=>{
-        const a = e.graphic.attributes||{};
-        const safe = (v)=> (v==null||v==="") ? "—" : String(v);
-        return `
-          <div class="pop-card">
-            <div class="pop-hdr">${safe(a.NOMBRE)||"Vivienda rural"}</div>
-            <div class="pop-grid">
-              <div class="lbl">Déficit Habitacional Cualitativo</div><div class="val">${safe(a[FIELD])}</div>
-              <div class="lbl">Departamento</div><div class="val">${safe(a.departamen||a.departamento)}</div>
-              <div class="lbl">Provincia</div><div class="val">${safe(a.provincia)}</div>
-              <div class="lbl">Distrito</div><div class="val">${safe(a.distrito)}</div>
-            </div>
-          </div>
-        `;
-      }
+async function loadDistinct(field, where){
+    const page = 2000; let offset = 0; const vals = new Set();
+    while (true){
+        const j = await esriPOST(FS_URL+"/query", {
+            where: where || "1=1",
+            outFields: field,
+            orderByFields: field,
+            returnDistinctValues: "true",
+            resultRecordCount: page,
+            resultOffset: offset
+        });
+        const rows = (j.features||[]).map(f => (f.attributes||{})[field]).filter(v => v!=null && v!=="");
+        rows.forEach(v => vals.add(v));
+        if (!j.exceededTransferLimit || rows.length < page) break;
+        offset += page;
     }
-  });
-  viviendaRural.when(()=>{ viviendaRural.renderer = vrRenderer(viviendaRural.geometryType); });
+    return [...vals];
+}
 
-  // Límites políticos
-  function outlineRenderer(color, width){
-    return { type:"simple", symbol: new SimpleFillSymbol({ color:[0,0,0,0], outline:new SimpleLineSymbol({ color, width }) }) };
-  }
-  function lineRenderer(color, width){
-    return { type:"simple", symbol: new SimpleLineSymbol({ color, width }) };
-  }
-  async function boundaryLayer(url, title, color, width, minScale){
-    const lyr = new FeatureLayer({ url, title, visible:true, minScale, maxScale:0 });
+function buildWhereUbic(){
+    const progCheckboxes = document.querySelectorAll('#progDropdown input[type="checkbox"]:checked');
+    const progs = Array.from(progCheckboxes).map(cb => cb.value.trim()).filter(v => v !== "");
+    const dep = document.getElementById('selDep').value.trim();
+    const prov = document.getElementById('selProv').value.trim();
+    const dist = document.getElementById('selDist').value.trim();
+    const parts = ["1=1"];
+    if (progs.length > 0) parts.push(`programa IN (${progs.map(p => `'${esc(p)}'`).join(",")})`);
+    if (dep) parts.push(`departamento='${esc(dep)}'`);
+    if (prov) parts.push(`provincia='${esc(prov)}'`);
+    if (dist) parts.push(`distrito='${esc(dist)}'`);
+    return parts.join(" AND ");
+}
+
+/* ========= Indicadores ========= */
+async function updateKPIsTop(where){
+    const totalProy = (await loadDistinct("producto_proyecto", where)).length;
+    let agua=0, alc=0, pav=0, ver=0;
     try{
-      await lyr.load();
-      lyr.renderer = (lyr.geometryType === "polygon") ? outlineRenderer(color, width) : lineRenderer(color, width);
-    }catch{
-      lyr.renderer = lineRenderer(color, width);
+        const j = await esriPOST(FS_URL+"/query", {
+            where,
+            outStatistics: JSON.stringify([
+                { statisticType:"sum", onStatisticField:"cnx_nuevas_agua", outStatisticFieldName:"sAgua" },
+                { statisticType:"sum", onStatisticField:"cnx_nuevas_alcantarillado_dse", outStatisticFieldName:"sAlc" },
+                { statisticType:"sum", onStatisticField:"final_pavimento_m2_monitoreo", outStatisticFieldName:"sPav" },
+                { statisticType:"sum", onStatisticField:"final_vereda_m2_monitoreo", outStatisticFieldName:"sVer" }
+            ])
+        });
+        const a = (j.features?.[0]?.attributes) || {};
+        agua = Number(a.sAgua||0); alc = Number(a.sAlc||0); pav = Number(a.sPav||0); ver = Number(a.sVer||0);
+        if(agua===0 && alc===0 && pav===0 && ver===0) throw new Error("all-zero");
+    }catch(e){
+        // Fallback sum manual
+        let offset=0, page=2000;
+        while(true){
+            const j2 = await esriPOST(FS_URL+"/query", {
+                where,
+                outFields:"cnx_nuevas_agua,cnx_nuevas_alcantarillado_dse,final_pavimento_m2_monitoreo,final_vereda_m2_monitoreo",
+                resultRecordCount:page, resultOffset:offset
+            });
+            const feats = j2.features||[];
+            for(const f of feats){
+                const at=f.attributes||{};
+                agua += Number(at.cnx_nuevas_agua)||0;
+                alc += Number(at.cnx_nuevas_alcantarillado_dse)||0;
+                pav += Number(at.final_pavimento_m2_monitoreo)||0;
+                ver += Number(at.final_vereda_m2_monitoreo)||0;
+            }
+            if(!j2.exceededTransferLimit || feats.length<page) break;
+            offset += page;
+        }
     }
-    return lyr;
-  }
+    document.getElementById('kpiCount').textContent = fmt.format(totalProy);
+    document.getElementById('kpiAgua').textContent = fmt.format(agua);
+    document.getElementById('kpiAlc').textContent = fmt.format(alc);
+    document.getElementById('kpiPav').textContent = fmt.format(pav);
+    document.getElementById('kpiVer').textContent = fmt.format(ver);
+}
 
-  Promise.all([
-    boundaryLayer(LIM0, "Límite Departamental", [0,0,0,0.85], 2.0, 0),
-    boundaryLayer(LIM1, "Límite Provincial",    [0,0,0,0.70], 1.5, 2000000),
-    boundaryLayer(LIM2, "Límite Distrital",     [0,0,0,0.55], 1.0, 600000)
-  ]).then((limites) => {
-    const layers = [ ...limites, viviendaRural, ...ccppLayers ];
-    map.addMany(layers);
+function IN(list){ return list.map(v=>`'${esc(v)}'`).join(","); }
+async function countDistinctProducto(where){ return (await loadDistinct("producto_proyecto", where)).length; }
 
-    // Widgets en paneles flotantes (cerrados por defecto)
-    new Legend({ view, container: "legendNode" });
-    new LayerList({
-      view,
-      container: "layerListNode",
-      selectionEnabled: true,
-      listItemCreatedFunction: (e)=>{ e.item.panel = { content: "legend", open: false }; }
+async function updateBottom(whereBase){
+    const OBRA = ["OBRA (SALDO)","OBRA"];
+    const EXP = ["EXPEDIENTE TECNICO (SALDO)","OBRA (Expediente Saldo)","EXPEDIENTE TECNICO"];
+    const W = (...conds)=> [whereBase, ...conds.filter(Boolean)].join(" AND ");
+    const queries = {
+        obrasConcluidas: W(`etapa IN (${IN(OBRA)})`, `estado IN ('Transferencia','Post Ejecución','Concluido')`),
+        expConcluidos:  W(`etapa IN (${IN(EXP)})`,  `estado IN ('Concluido')`),
+        obrasEjec:      W(`etapa IN (${IN(OBRA)})`, `estado IN ('En Ejecución')`),
+        expElab:        W(`etapa IN (${IN(EXP)})`,  `estado IN ('En elaboración')`),
+        obrasPorIniciar:W(`etapa IN (${IN(OBRA)})`, `estado IN ('Actos Previos')`, `subestado = 'Por Iniciar'`),
+        expProcSel:     W(`etapa IN (${IN(EXP)})`,  `estado IN ('Actos Previos')`, `subestado = 'Proceso de Selección'`),
+        obrasProcSel:   W(`etapa IN (${IN(OBRA)})`, `estado IN ('Actos Previos')`, `subestado = 'Proceso de Selección'`),
+        expPorConvocar: W(`etapa IN (${IN(EXP)})`,  `estado IN ('Actos Previos')`, `subestado = 'Por Convocar'`)
+    };
+    const [n1,n2,n3,n4,n5,n6,n7,n8] = await Promise.all([
+        countDistinctProducto(queries.obrasConcluidas),
+        countDistinctProducto(queries.expConcluidos),
+        countDistinctProducto(queries.obrasEjec),
+        countDistinctProducto(queries.expElab),
+        countDistinctProducto(queries.obrasPorIniciar),
+        countDistinctProducto(queries.expProcSel),
+        countDistinctProducto(queries.obrasProcSel),
+        countDistinctProducto(queries.expPorConvocar),
+    ]);
+    document.getElementById('kObrasConcluidas').textContent = fmt.format(n1);
+    document.getElementById('kExpConcluidos').textContent = fmt.format(n2);
+    document.getElementById('kObrasEjec').textContent = fmt.format(n3);
+    document.getElementById('kExpElab').textContent = fmt.format(n4);
+    document.getElementById('kObrasPorIniciar').textContent = fmt.format(n5);
+    document.getElementById('kExpProcSel').textContent = fmt.format(n6);
+    document.getElementById('kObrasProcSel').textContent = fmt.format(n7);
+    document.getElementById('kExpPorConvocar').textContent = fmt.format(n8);
+}
+
+/* ========= Mapa ========= */
+require([
+    "esri/Map","esri/views/MapView","esri/layers/FeatureLayer","esri/widgets/ScaleBar",
+    "esri/widgets/BasemapToggle","esri/geometry/Extent","esri/layers/GraphicsLayer","esri/Graphic"
+], (Map,MapView,FeatureLayer,ScaleBar,BasemapToggle,Extent,GraphicsLayer,Graphic)=>{
+
+    const map = new Map({ basemap:"satellite" });
+    const view = new MapView({ container:"viewDiv", map, center:[-75.2,-9.3], zoom:5, padding:{ left: 16, right: 6, top: 6, bottom: 6 } });
+
+    const peruExtent = new Extent({ xmin: -81.6, ymin: -18.5, xmax: -68.5, ymax: -0.03, spatialReference: { wkid: 4326 } });
+    async function fitPeru(tight=0.96){ try{ await view.goTo({ target: peruExtent.expand(tight) }, { duration: 0 }); }catch(e){} }
+
+    // Widgets
+    const toggle = new BasemapToggle({ view, nextBasemap: "osm" });
+    view.ui.add(toggle, "bottom-right");
+    view.ui.move("zoom", "bottom-right");
+    view.ui.add(new ScaleBar({view,unit:"metric"}),"bottom-left");
+
+    // Capa FX para el brillo
+    const fxLayer = new GraphicsLayer({ listMode:"hide" });
+    map.add(fxLayer);
+
+    // Límites
+    const limites = new FeatureLayer({
+        url: "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/COES/Limites_Pol%C3%ADticos/MapServer/0",
+        title: "Límites políticos", popupEnabled: false, opacity: 1, listMode: "hide"
     });
-  });
+    limites.when(() => {
+        const gt = limites.geometryType;
+        if (gt === "polygon") {
+            limites.renderer = { type: "simple", symbol: { type: "simple-fill", color: [0,0,0,0], outline: { color: [255,255,255,230], width: 1.2 } } };
+        } else if (gt === "polyline") {
+            limites.renderer = { type: "simple", symbol: { type: "simple-line", color: [255,255,255,230], width: 1.2 } };
+        }
+    });
+    map.add(limites);
+
+    // Popup y puntos
+    function money(n){ return "S/. " + moneyFmt.format(Number(n||0)); }
+    function intfmt(n){ return moneyFmt.format(Number(n||0)); }
+
+    const layer = new FeatureLayer({
+        url: FS_URL,
+        outFields:["*"],
+        title:"Proyectos MEF",
+        renderer:{ type:"simple", symbol:{ type:"simple-marker", color:[255,234,0,0.95], size:7, outline:{ color:[0,0,0,220], width:0.6 } } },
+        popupEnabled:true,
+        popupTemplate:{
+            title:"",
+            outFields:["*"],
+            content: function(e){
+                const a = e.graphic.attributes || {};
+                const url1 = a.url_ssp && String(a.url_ssp).trim() ? String(a.url_ssp).trim() : null;
+                const url2 = a.url_pdf && String(a.url_pdf).trim() ? String(a.url_pdf).trim() : null;
+                const btn1 = url1 ? `<a class="pop-btn" href="${url1}" target="_blank" rel="noopener"><span class="link-ic">🔗</span> Detalle del Proyecto</a>` : "";
+                const btn2 = url2 ? `<a class="pop-btn" href="${url2}" target="_blank" rel="noopener"><span class="link-ic">📄</span> Ayuda Memoria (PDF)</a>` : "";
+                return `<div class="pop-card">
+                    <div class="pop-hdr">${a.producto_proyecto_nombre ? a.producto_proyecto_nombre : "Proyecto"}</div>
+                    <div class="pop-grid">
+                        <div class="lbl">Programa</div><div class="val">${safe(a.programa)}</div>
+                        <div class="lbl">Departamento</div><div class="val">${safe(a.departamento)}</div>
+                        <div class="lbl">Provincia</div><div class="val">${safe(a.provincia)}</div>
+                        <div class="lbl">Distrito</div><div class="val">${safe(a.distrito)}</div>
+                        <div class="lbl">Monto PIM</div><div class="val">${money(a.monto_pim)}</div>
+                        <div class="lbl">Monto devengado</div><div class="val">${money(a.monto_devengado)}</div>
+                        <div class="lbl">Cnx. nuevas de agua</div><div class="val">${intfmt(a.cnx_nuevas_agua)}</div>
+                        <div class="lbl">Cnx. nuevas de alcantarillado</div><div class="val">${intfmt(a.cnx_nuevas_alcantarillado_dse)}</div>
+                    </div>
+                    <div class="pop-chipwrap">
+                        <div class="chip">Etapa: ${safe(a.etapa)}</div>
+                        <div class="chip">Estado: ${safe(a.estado)}</div>
+                    </div>
+                    <div class="pop-actions">${btn1}${btn2}</div>
+                </div>`;
+            }
+        }
+    });
+    map.add(layer);
+
+    // LayerView para highlight correcto
+    let layerView = null;
+    view.when(async ()=>{
+        fitPeru(0.96);
+        try{ view.popup.visibleElements = { title:false }; }catch(_){}
+        layerView = await view.whenLayerView(layer);
+    });
+    view.on("resize", ()=>fitPeru(0.96));
+
+    /* ===== Filtros ===== */
+    const progDisplay = document.getElementById('progDisplay');
+    const progDropdown = document.getElementById('progDropdown');
+    const selDep = document.getElementById('selDep');
+    const selProv = document.getElementById('selProv');
+    const selDist = document.getElementById('selDist');
+    const btnClear= document.getElementById('btnClear');
+
+    async function refreshProg(){
+        progDropdown.innerHTML = '';
+        const progs = await loadDistinct("programa");
+        progs.forEach(v => progDropdown.insertAdjacentHTML("beforeend", `<label><input type="checkbox" value="${v}"> ${v}</label>`));
+        progDropdown.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.addEventListener("change", updateProgDisplay));
+    }
+    function updateProgDisplay(){
+        const checked = progDropdown.querySelectorAll('input[type="checkbox"]:checked');
+        if (checked.length === 0)      progDisplay.textContent = '(Todos)';
+        else if (checked.length === 1) progDisplay.textContent = checked[0].value;
+        else                           progDisplay.textContent = `${checked.length} seleccionados`;
+        applyAll();
+    }
+    progDisplay.addEventListener('click', () => { progDropdown.classList.toggle('show'); });
+    document.addEventListener('click', (ev) => {
+        if (!document.getElementById('progSelect').contains(ev.target)) progDropdown.classList.remove('show');
+    });
+
+    async function refreshDep(){ selDep.innerHTML = `<option value="">(Todos)</option>`; (await loadDistinct("departamento")).forEach(v => selDep.insertAdjacentHTML("beforeend", `<option>${v}</option>`)); }
+    async function refreshProv(){ selProv.innerHTML = `<option value="">(Todos)</option>`; (await loadDistinct("provincia")).forEach(v => selProv.insertAdjacentHTML("beforeend", `<option>${v}</option>`)); }
+    async function refreshDist(){ selDist.innerHTML = `<option value="">(Todos)</option>`; (await loadDistinct("distrito")).forEach(v => selDist.insertAdjacentHTML("beforeend", `<option>${v}</option>`)); }
+
+    async function applyAll(){
+        const where = buildWhereUbic();
+        layer.definitionExpression = where;
+        await Promise.all([ updateKPIsTop(where), updateBottom(where) ]);
+    }
+    selDep.addEventListener("change", applyAll);
+    selProv.addEventListener("change", applyAll);
+    selDist.addEventListener("change", applyAll);
+    btnClear.addEventListener("click", async ()=>{
+        progDropdown.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+        updateProgDisplay();
+        selDep.value = ""; selProv.value = ""; selDist.value = "";
+        await applyAll();
+        fitPeru(0.96);
+    });
+
+    /* ===== Búsqueda mejorada ===== */
+    const searchBtn = document.getElementById('searchBtn');
+    const searchContent = document.getElementById('searchContent');
+    const searchInput = document.getElementById('searchInput');
+    const clearSearch = document.getElementById('clearSearch');
+    const suggestions = document.getElementById('suggestions');
+    let allProjects = [];
+
+    // Abrir/cerrar panel de búsqueda (fix: usar clase .open, no inline style)
+    searchBtn.addEventListener('click', () => {
+        searchContent.classList.toggle('open');
+        if (searchContent.classList.contains('open')) {
+            searchInput.focus();
+        }
+    });
+    // Cerrar al click fuera
+    document.addEventListener('click', (e) => {
+        if (!document.querySelector('.search-wrap').contains(e.target)) {
+            searchContent.classList.remove('open');
+        }
+    });
+
+    // Borrar texto
+    clearSearch.addEventListener('click', ()=>{
+        searchInput.value = '';
+        suggestions.innerHTML = '';
+        searchInput.focus();
+    });
+
+    // Sugerencias en vivo
+    searchInput.addEventListener('input', (e) => {
+        const val = e.target.value.toLowerCase().trim();
+        suggestions.innerHTML = '';
+        if (val.length < 2) return;
+        const matches = allProjects
+            .filter(name => name.toLowerCase().includes(val))
+            .slice(0, 20);
+        matches.forEach(name => {
+            const li = document.createElement('li');
+            li.textContent = name;
+            li.addEventListener('click', () => {
+                searchInput.value = name;
+                suggestions.innerHTML = '';
+                searchContent.classList.remove('open');
+                performSearchExact(name);
+            });
+            suggestions.appendChild(li);
+        });
+    });
+
+    // Enter => buscar primer match (LIKE)
+    searchInput.addEventListener('keydown', (e)=>{
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const val = searchInput.value.trim();
+            if (val.length < 2) return;
+            performSearchLike(val);
+            searchContent.classList.remove('open');
+            suggestions.innerHTML = '';
+        }
+    });
+
+    // Animación de brillo (ripple)
+    function rippleAt(point){
+        for (let i=0;i<3;i++){
+            setTimeout(()=>{
+                const g = new Graphic({
+                    geometry: point,
+                    symbol: {
+                        type: "simple-marker",
+                        style: "circle",
+                        size: 10,
+                        color: [255,255,0,0],
+                        outline: { color: [255,255,0,1], width: 2 }
+                    }
+                });
+                fxLayer.add(g);
+                let step=0;
+                const iv = setInterval(()=>{
+                    step++;
+                    const opacity = Math.max(0, 1 - step/14);
+                    g.symbol = {
+                        type:"simple-marker",
+                        style:"circle",
+                        size: 10 + step*6,
+                        color: [255,255,0,0],
+                        outline: { color: [255,255,0, opacity], width: Math.max(1, 2 - step*0.08) }
+                    };
+                    if (step>14){ clearInterval(iv); fxLayer.remove(g); }
+                }, 40);
+            }, i*180);
+        }
+    }
+
+    // Highlight helper
+    let currentHighlight = null;
+    function doHighlight(graphic){
+        try{
+            if (currentHighlight) { currentHighlight.remove(); currentHighlight = null; }
+            if (layerView) currentHighlight = layerView.highlight(graphic);
+            setTimeout(()=>{ if(currentHighlight){ currentHighlight.remove(); currentHighlight=null; } }, 5000);
+        }catch(_){}
+    }
+
+    async function performSearchExact(name){
+        try{
+            const query = layer.createQuery();
+            // Respetar filtros activos
+            query.where = `(${layer.definitionExpression || "1=1"}) AND producto_proyecto_nombre = '${esc(name)}'`;
+            query.returnGeometry = true; query.outFields = ['*'];
+            const results = await layer.queryFeatures(query);
+            if ((results.features||[]).length > 0){
+                const f = results.features[0];
+                await view.goTo({ target: f.geometry, zoom: 15 }, { duration: 800 });
+                doHighlight(f);
+                rippleAt(f.geometry);
+                view.popup.open({ features:[f], location:f.geometry });
+            }
+        }catch(_){}
+    }
+
+    async function performSearchLike(text){
+        try{
+            const query = layer.createQuery();
+            query.where = `(${layer.definitionExpression || "1=1"}) AND producto_proyecto_nombre LIKE '%${esc(text)}%'`;
+            query.returnGeometry = true; query.outFields = ['*']; query.num = 1; // primer match
+            const results = await layer.queryFeatures(query);
+            if ((results.features||[]).length > 0){
+                const f = results.features[0];
+                await view.goTo({ target: f.geometry, zoom: 15 }, { duration: 800 });
+                doHighlight(f);
+                rippleAt(f.geometry);
+                view.popup.open({ features:[f], location:f.geometry });
+            }
+        }catch(_){}
+    }
+
+    /* ===== Init ===== */
+    (async function init(){
+        try{
+            // Catálogo de proyectos para sugerencias
+            allProjects = (await loadDistinct("producto_proyecto_nombre")).filter(v=>v && String(v).trim()!=="");
+            await Promise.all([refreshProg(), refreshDep(), refreshProv(), refreshDist()]);
+            await applyAll();
+            fitPeru(0.96);
+        }catch(_){}
+    })();
 
 });
 </script>
