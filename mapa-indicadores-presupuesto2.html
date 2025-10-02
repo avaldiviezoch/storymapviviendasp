@@ -35,7 +35,7 @@
         /* ===== Panel lateral ===== */
         .sidebar{background:var(--panel); border-left:1px solid var(--line); box-shadow:-6px 0 24px rgba(2,6,23,.06); padding:16px 16px 18px; box-sizing:border-box;}
 
-        /* NUEVO: línea corrida con número grande */
+        /* Línea corrido + número grande */
         .heroLine{
             text-align:center;
             font-weight:800;
@@ -47,10 +47,41 @@
         .heroLine .heroNum{
             display:inline-block;
             font-weight:900;
-            font-size:clamp(42px, 8vh, 64px); /* bien grande y responsivo */
+            font-size:clamp(42px, 8vh, 64px);
             line-height:1;
             margin:0 .18em;
-            vertical-align:-6px; /* baja un poco para alinear con el texto */
+            vertical-align:-6px;
+        }
+
+        /* ===== NUEVO: Duo de indicadores (PIM / Devengado) ===== */
+        .kpiDuo{
+            display:grid;
+            grid-template-columns: 1fr 1fr;
+            gap:12px;
+            margin:8px 0 12px; /* separación respecto a hero y barra */
+        }
+        .mini{
+            background:#fff;
+            border:1px solid var(--line);
+            border-radius:14px;
+            padding:10px 12px;
+            box-shadow:0 10px 24px rgba(2,6,23,.06);
+            display:grid;
+            gap:6px;
+            justify-items:start;
+        }
+        .miniLbl{
+            font-size:12px;
+            font-weight:900;
+            color:#64748b;
+            letter-spacing:.2px;
+            text-transform:uppercase;
+        }
+        .miniVal{
+            font-size:clamp(22px, 3.8vh, 32px);
+            font-weight:900;
+            color:#0f3f3a;
+            line-height:1;
         }
 
         .bar{background:var(--bar); color:#e7fff9; font-weight:800; text-align:center; padding:10px 12px; border-radius:10px; margin:6px 0 12px; font-size:clamp(12px, 1.6vh, 14px);}
@@ -67,7 +98,13 @@
         .tile .t{font-size:clamp(11px, 1.8vh, 13px); color:var(--muted); font-weight:800; text-align:center}
 
         @media (max-width: 1100px){ .shell{grid-template-columns: 1fr min(50vw, 720px);} }
-        @media (max-width: 900px){ .shell{grid-template-columns:1fr;} #viewWrap{position:relative; height:50vh;} .kpiGrid{grid-template-columns:1fr} .grid8{grid-template-columns: repeat(2, 1fr);} }
+        @media (max-width: 900px){
+            .shell{grid-template-columns:1fr;}
+            #viewWrap{position:relative; height:50vh;}
+            .kpiGrid{grid-template-columns:1fr}
+            .grid8{grid-template-columns: repeat(2, 1fr);}
+            .kpiDuo{grid-template-columns:1fr 1fr;}
+        }
         @media (max-height: 760px){ .sep{margin:8px 0} .grid8{gap:10px} .kpiGrid{gap:10px} }
 
         /* ===== POPUP ===== */
@@ -162,9 +199,21 @@
 
     <!-- Panel derecho -->
     <aside class="sidebar">
-        <!-- NUEVO: texto corrido con número grande -->
+        <!-- Texto corrido con número grande -->
         <div class="heroLine" aria-live="polite">
             A través de <span id="kpiCount" class="heroNum">—</span> inversiones
+        </div>
+
+        <!-- ===== NUEVO: PIM / Devengado ===== -->
+        <div class="kpiDuo" aria-live="polite">
+            <div class="mini">
+                <div class="miniLbl">PIM</div>
+                <div class="miniVal" id="kpiPIM">—</div>
+            </div>
+            <div class="mini">
+                <div class="miniLbl">Devengado</div>
+                <div class="miniVal" id="kpiDev">—</div>
+            </div>
         </div>
 
         <div class="bar">Se espera generar</div>
@@ -261,6 +310,10 @@ function buildWhereUbic(){
 /* ========= Indicadores ========= */
 async function updateKPIsTop(where){
     const totalProy = (await loadDistinct("producto_proyecto", where)).length;
+
+    // NUEVO: variables para PIM/Devengado
+    let pim=0, dev=0;
+
     let agua=0, alc=0, pav=0, ver=0;
     try{
         const j = await esriPOST(FS_URL+"/query", {
@@ -269,39 +322,49 @@ async function updateKPIsTop(where){
                 { statisticType:"sum", onStatisticField:"cnx_nuevas_agua", outStatisticFieldName:"sAgua" },
                 { statisticType:"sum", onStatisticField:"cnx_nuevas_alcantarillado_dse", outStatisticFieldName:"sAlc" },
                 { statisticType:"sum", onStatisticField:"final_pavimento_m2_monitoreo", outStatisticFieldName:"sPav" },
-                { statisticType:"sum", onStatisticField:"final_vereda_m2_monitoreo", outStatisticFieldName:"sVer" }
+                { statisticType:"sum", onStatisticField:"final_vereda_m2_monitoreo", outStatisticFieldName:"sVer" },
+                /* ===== NUEVO: PIM / Devengado ===== */
+                { statisticType:"sum", onStatisticField:"monto_pim", outStatisticFieldName:"sPIM" },
+                { statisticType:"sum", onStatisticField:"monto_devengado", outStatisticFieldName:"sDEV" }
             ])
         });
         const a = (j.features?.[0]?.attributes) || {};
         agua = Number(a.sAgua||0); alc = Number(a.sAlc||0); pav = Number(a.sPav||0); ver = Number(a.sVer||0);
-        if(agua===0 && alc===0 && pav===0 && ver===0) throw new Error("all-zero");
+        pim = Number(a.sPIM||0);   dev = Number(a.sDEV||0);
+        if(agua===0 && alc===0 && pav===0 && ver===0 && pim===0 && dev===0) throw new Error("all-zero");
     }catch(e){
-        // Fallback sum manual
+        // Fallback sum manual (incluye PIM y Devengado)
         let offset=0, page=2000;
         while(true){
             const j2 = await esriPOST(FS_URL+"/query", {
                 where,
-                outFields:"cnx_nuevas_agua,cnx_nuevas_alcantarillado_dse,final_pavimento_m2_monitoreo,final_vereda_m2_monitoreo",
+                outFields:"cnx_nuevas_agua,cnx_nuevas_alcantarillado_dse,final_pavimento_m2_monitoreo,final_vereda_m2_monitoreo,monto_pim,monto_devengado",
                 resultRecordCount:page, resultOffset:offset
             });
             const feats = j2.features||[];
             for(const f of feats){
                 const at=f.attributes||{};
                 agua += Number(at.cnx_nuevas_agua)||0;
-                alc += Number(at.cnx_nuevas_alcantarillado_dse)||0;
-                pav += Number(at.final_pavimento_m2_monitoreo)||0;
-                ver += Number(at.final_vereda_m2_monitoreo)||0;
+                alc  += Number(at.cnx_nuevas_alcantarillado_dse)||0;
+                pav  += Number(at.final_pavimento_m2_monitoreo)||0;
+                ver  += Number(at.final_vereda_m2_monitoreo)||0;
+                pim  += Number(at.monto_pim)||0;
+                dev  += Number(at.monto_devengado)||0;
             }
             if(!j2.exceededTransferLimit || feats.length<page) break;
             offset += page;
         }
     }
-    // Aquí solo actualizamos el número; el texto corre alrededor en HTML
+    // Actualizaciones
     document.getElementById('kpiCount').textContent = fmt.format(totalProy);
     document.getElementById('kpiAgua').textContent = fmt.format(agua);
     document.getElementById('kpiAlc').textContent = fmt.format(alc);
     document.getElementById('kpiPav').textContent = fmt.format(pav);
     document.getElementById('kpiVer').textContent = fmt.format(ver);
+
+    // NUEVO: pintar PIM / Devengado
+    document.getElementById('kpiPIM').textContent = "S/. " + moneyFmt.format(pim);
+    document.getElementById('kpiDev').textContent = "S/. " + moneyFmt.format(dev);
 }
 
 function IN(list){ return list.map(v=>`'${esc(v)}'`).join(","); }
