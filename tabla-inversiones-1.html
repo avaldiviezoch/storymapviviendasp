@@ -9,7 +9,7 @@
     --ink:#0b2532; --muted:#6b7b86; --line:#e6ecea; --bg:#f4faf8;
     --chip:#0b3b38; --chip-ink:#d7fff6;
     --link:#0a5a51; --link-h:#094c45; --row-alt:#f9fcfb;
-    --tip-bg: rgba(15,46,41,.92);  /* mismo tono, sutil */
+    --tip-bg: rgba(15,46,41,.92);
     --tip-ink:#eafff9;
   }
   html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);
@@ -28,12 +28,32 @@
   .panel{display:none;background:var(--chip);color:#e6fffb;border:1px solid #0e4a43;
     border-radius:14px;padding:12px;margin:6px 0 12px}
   .panel.open{display:block}
-  .row{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:end}
+  /* 4 campos (Dep/Prov/Dist/Programa) + botón limpiar */
+  .row{display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:10px;align-items:end}
   label{display:block;font-size:11px;font-weight:800;color:#d0fff4;margin:2px 0 6px}
   select{width:100%;border-radius:10px;padding:8px 10px;border:1px solid #155149;
-    background:#0f2e29;color:#e6fffb;outline:none;font-weight:600}
+    background:#0f2e29;color:#e6fffb;outline:none;font-weight:600;height:36px}
   .popbtn{background:#0f2e29;border:1px solid #155149;color:#d8fff8}
   .tip{font-size:11px;color:#bfeee4;margin-top:8px}
+
+  /* === Multiselect Programa (uniforme con los select) === */
+  .custom-select{position:relative;width:100%}
+  .select-display{
+    width:100%;border-radius:10px;padding:8px 10px;border:1px solid #155149;
+    background:#0f2e29;color:#e6fffb;cursor:pointer;display:flex;justify-content:space-between;align-items:center;
+    font-size:12.5px;box-sizing:border-box;height:36px;font-weight:600
+  }
+  .select-display::after{content:'▾';font-weight:900}
+  .dropdown-content{
+    display:none;position:absolute;top:100%;left:0;width:100%;max-height:240px;overflow-y:auto;
+    border:1px solid #155149;border-radius:10px;background:#0f2e29;z-index:10;padding:8px;box-sizing:border-box;
+    box-shadow:0 10px 24px rgba(2,6,23,.12)
+  }
+  .dropdown-content.show{display:block}
+  .dropdown-content label{
+    display:flex;align-items:center;gap:8px;color:#e6fffb;padding:6px 6px;font-size:12px;font-weight:600;user-select:none
+  }
+  .dropdown-content input[type="checkbox"]{accent-color:#e6fffb;width:16px;height:16px;margin:0}
 
   .tableWrap{background:#fff;border:1px solid var(--line);border-radius:10px;
     box-shadow:0 10px 26px rgba(2,6,23,.08);overflow:hidden}
@@ -62,54 +82,20 @@
   col.det{width:100px}
   col.pdf{width:100px}
 
-  /* === Ellipsis + tooltip accesible para "Inversión" === */
-  .inv-cell{
-    position:relative;          /* contenedor del tooltip */
-    overflow:visible;           /* NO cortamos el tooltip */
-  }
-  .ellip-text{
-    display:block;
-    white-space:nowrap;
-    overflow:hidden;
-    text-overflow:ellipsis;     /* hace los puntos suspensivos */
-  }
-  /* Tooltip sutil (hover/focus) */
+  /* Ellipsis + tooltip para “Inversión” */
+  .inv-cell{position:relative;overflow:visible}
+  .ellip-text{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .inv-cell[data-tip]::after{
-    content:attr(data-tip);
-    position:absolute;
-    left:0; bottom:100%;
-    transform:translateY(-6px);
-    background:var(--tip-bg);
-    color:var(--tip-ink);
-    padding:6px 8px;
-    border-radius:6px;
-    max-width:560px;
-    width:max-content; min-width:180px;
-    white-space:normal;
-    line-height:1.25;
-    font-size:11px;
-    pointer-events:none;
-    z-index:50;
-    border:1px solid rgba(8,31,28,.35);
-    box-shadow:0 6px 14px rgba(0,0,0,.18);
-    opacity:0; visibility:hidden; transition:opacity .12s ease, visibility .12s ease;
+    content:attr(data-tip);position:absolute;left:0;bottom:100%;transform:translateY(-6px);
+    background:var(--tip-bg);color:var(--tip-ink);padding:6px 8px;border-radius:6px;max-width:560px;width:max-content;min-width:180px;
+    white-space:normal;line-height:1.25;font-size:11px;pointer-events:none;z-index:50;border:1px solid rgba(8,31,28,.35);box-shadow:0 6px 14px rgba(0,0,0,.18);
+    opacity:0;visibility:hidden;transition:opacity .12s ease,visibility .12s ease
   }
   .inv-cell[data-tip]::before{
-    content:"";
-    position:absolute;
-    left:10px; bottom:100%;
-    transform:translateY(-2px);
-    border:6px solid transparent;
-    border-top-color:var(--tip-bg);
-    z-index:51;
-    opacity:0; visibility:hidden; transition:opacity .12s ease, visibility .12s ease;
+    content:"";position:absolute;left:10px;bottom:100%;transform:translateY(-2px);border:6px solid transparent;border-top-color:var(--tip-bg);
+    z-index:51;opacity:0;visibility:hidden;transition:opacity .12s ease,visibility .12s ease
   }
-  .inv-cell:hover::after,
-  .inv-cell:hover::before,
-  .inv-cell:focus-within::after,
-  .inv-cell:focus-within::before{
-    opacity:1; visibility:visible;
-  }
+  .inv-cell:hover::after,.inv-cell:hover::before,.inv-cell:focus-within::after,.inv-cell:focus-within::before{opacity:1;visibility:visible}
 
   .chipLink{color:var(--link);font-weight:800;text-decoration:none}
   .chipLink:hover{color:var(--link-h);text-decoration:underline}
@@ -143,7 +129,7 @@
     </button>
   </div>
 
-  <!-- PANEL DE FILTROS (restaurado) -->
+  <!-- PANEL DE FILTROS (recogido por defecto) -->
   <div id="panel" class="panel" aria-hidden="true">
     <div class="row">
       <div>
@@ -158,6 +144,16 @@
         <label for="selDist">Distrito</label>
         <select id="selDist" disabled><option value="">(Todos)</option></select>
       </div>
+
+      <!-- PROGRAMA (al final, estilo uniforme) -->
+      <div>
+        <label for="progSelect">Programa</label>
+        <div class="custom-select" id="progSelect">
+          <div class="select-display" id="progDisplay">(Todos)</div>
+          <div class="dropdown-content" id="progDropdown"></div>
+        </div>
+      </div>
+
       <button id="btnClear" class="btn small popbtn" type="button">Limpiar</button>
     </div>
     <div class="tip">Los filtros se aplican automáticamente y también afectan a la exportación.</div>
@@ -196,7 +192,7 @@ const FS_URL = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/OGEI/
 let ROWS = [];
 const fields = [
   "producto_proyecto","producto_proyecto_nombre",
-  "departamento","provincia","distrito",
+  "departamento","provincia","distrito","programa",
   "monto_pim","monto_devengado","url_ssp","url_pdf"
 ].join(",");
 
@@ -212,15 +208,73 @@ function esriPOST(url, obj){
 }
 function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
 
-/* WHERE */
-function buildWhere(){
-  const dep=document.getElementById('selDep').value.trim();
-  const pro=document.getElementById('selProv').value.trim();
-  const dis=document.getElementById('selDist').value.trim();
+/* ====== MULTISELECT PROGRAMA (mismo look&feel) ====== */
+const progDisplay  = document.getElementById('progDisplay');
+const progDropdown = document.getElementById('progDropdown');
+
+function getSelectedPrograms(){
+  return Array.from(progDropdown.querySelectorAll('input[type="checkbox"]:checked')).map(cb=>cb.value);
+}
+function updateProgDisplay(triggerApply=true){
+  const checked = getSelectedPrograms();
+  if(checked.length===0)      progDisplay.textContent='(Todos)';
+  else if(checked.length===1) progDisplay.textContent=checked[0];
+  else                        progDisplay.textContent=`${checked.length} seleccionados`;
+  if(triggerApply) applyFilters();
+}
+progDisplay.addEventListener('click',()=>progDropdown.classList.toggle('show'));
+document.addEventListener('click',(ev)=>{
+  if(!document.getElementById('progSelect').contains(ev.target)){
+    progDropdown.classList.remove('show');
+  }
+});
+async function refreshProg(){
+  // Limitar lista según dep/prov/dist para coherencia
+  const dep = document.getElementById('selDep').value.trim();
+  const pro = document.getElementById('selProv').value.trim();
+  const dis = document.getElementById('selDist').value.trim();
   const parts=["1=1"];
   if(dep) parts.push(`departamento='${escQuotes(dep)}'`);
   if(pro) parts.push(`provincia LIKE '%${escLike(pro)}%' ESCAPE '\\'`);
   if(dis) parts.push(`distrito  LIKE '%${escLike(dis)}%' ESCAPE '\\'`);
+  const whereProg = parts.join(" AND ");
+
+  // preservar selección
+  const prev = new Set(getSelectedPrograms());
+
+  progDropdown.innerHTML = '';
+  try{
+    const arr = await loadDistinct("programa", whereProg);
+    arr.forEach(v=>{
+      const val = String(v);
+      const checked = prev.has(val) ? 'checked' : '';
+      progDropdown.insertAdjacentHTML("beforeend",
+        `<label><input type="checkbox" value="${val.replaceAll('"','&quot;')}" ${checked}> ${escapeHtml(val)}</label>`);
+    });
+  }catch(e){ console.warn("Distinct programa falló:", e); }
+
+  // re-bind
+  progDropdown.querySelectorAll('input[type="checkbox"]').forEach(cb=>{
+    cb.addEventListener('change', ()=>updateProgDisplay(true));
+  });
+  updateProgDisplay(false);
+}
+
+/* ====== WHERE ====== */
+function buildWhere(){
+  const dep=document.getElementById('selDep').value.trim();
+  const pro=document.getElementById('selProv').value.trim();
+  const dis=document.getElementById('selDist').value.trim();
+  const progs=getSelectedPrograms();
+
+  const parts=["1=1"];
+  if(dep) parts.push(`departamento='${escQuotes(dep)}'`);
+  if(pro) parts.push(`provincia LIKE '%${escLike(pro)}%' ESCAPE '\\'`);
+  if(dis) parts.push(`distrito  LIKE '%${escLike(dis)}%' ESCAPE '\\'`);
+  if(progs.length>0){
+    const list = progs.map(p=>`'${escQuotes(p)}'`).join(",");
+    parts.push(`programa IN (${list})`);
+  }
   return parts.join(" AND ");
 }
 
@@ -293,20 +347,6 @@ function render(rows){
       <td>${r.ssp?`<a class="chipLink" href="${r.ssp}" target="_blank" rel="noopener">Ver Detalle</a>`:`<span class="pill">—</span>`}</td>
       <td>${r.pdf?`<a class="chipLink" href="${r.pdf}" target="_blank" rel="noopener">Ver PDF</a>`:`<span class="pill">—</span>`}</td>
     </tr>`).join("");
-
-  /* (Opcional) Mostrar tooltip solo si hay truncado */
-  /*
-  requestAnimationFrame(()=>{
-    document.querySelectorAll('td.inv-cell').forEach(td=>{
-      const span = td.querySelector('.ellip-text');
-      if(span && span.scrollWidth <= span.clientWidth){
-        td.removeAttribute('data-tip');
-      }else if(span){
-        td.setAttribute('data-tip', span.textContent.trim());
-      }
-    });
-  });
-  */
 }
 
 /* Export CSV */
@@ -350,24 +390,26 @@ async function refreshDep(){
   }catch(e){ console.warn("Distinct dep falló:", e); }
   selProv.innerHTML = `<option value="">(Todos)</option>`; selProv.disabled = true;
   selDist.innerHTML = `<option value="">(Todos)</option>`; selDist.disabled = true;
+  await refreshProg(); // actualizar lista de programas según selección
 }
 async function refreshProv(){
   const dep = selDep.value.trim();
   selProv.innerHTML = `<option value="">(Todos)</option>`;
   selDist.innerHTML = `<option value="">(Todos)</option>`; selDist.disabled = true;
-  if(!dep){ selProv.disabled=true; applyFilters(); return; }
+  if(!dep){ selProv.disabled=true; applyFilters(); await refreshProg(); return; }
   try{
     const provs=await loadDistinct("provincia", `departamento='${escQuotes(dep)}'`);
     provs.forEach(v => selProv.insertAdjacentHTML("beforeend", `<option>${escapeHtml(v)}</option>`));
     selProv.disabled = false;
   }catch(e){ console.warn("Distinct prov falló:", e); selProv.disabled=true; }
   applyFilters();
+  await refreshProg();
 }
 async function refreshDist(){
   const dep = selDep.value.trim();
   const pro = selProv.value.trim();
   selDist.innerHTML = `<option value="">(Todos)</option>`;
-  if(!dep || !pro){ selDist.disabled = true; applyFilters(); return; }
+  if(!dep || !pro){ selDist.disabled = true; applyFilters(); await refreshProg(); return; }
   try{
     const dists=await loadDistinct("distrito",
       `departamento='${escQuotes(dep)}' AND provincia LIKE '%${escLike(pro)}%' ESCAPE '\\'`);
@@ -375,26 +417,56 @@ async function refreshDist(){
     selDist.disabled = false;
   }catch(e){ console.warn("Distinct dist falló:", e); selDist.disabled=true; }
   applyFilters();
+  await refreshProg();
 }
+
+/* aplicar filtros a la tabla */
 function applyFilters(){
   const where = buildWhere();
   loadRows(where);
 }
 
-/* eventos: filtro automático */
+/* eventos */
 selDep.addEventListener('change', refreshProv);
 selProv.addEventListener('change', refreshDist);
 selDist.addEventListener('change', applyFilters);
 
 document.getElementById('btnClear').addEventListener('click', async ()=>{
-  selDep.value = ""; await refreshProv(); selProv.value=""; selDist.value="";
+  // limpiar selects
+  selDep.value = ""; selProv.value=""; selDist.value="";
+  selProv.disabled=true; selDist.disabled=true;
+  // limpiar programas
+  progDropdown.querySelectorAll('input[type="checkbox"]').forEach(cb=>cb.checked=false);
+  updateProgDisplay(false);
+  await refreshProg();
   await loadRows("1=1");
 });
+
+/* ====== helpers comunes ====== */
+async function loadDistinct(field, where){
+  const page=2000; let offset=0; const vals=new Set();
+  while(true){
+    const j = await esriPOST(FS_URL+"/query",{
+      where:where||"1=1", outFields:field, returnDistinctValues:"true",
+      orderByFields:field, resultRecordCount:page, resultOffset:offset
+    });
+    const rows=(j.features||[]).map(f=>(f.attributes||{})[field]).filter(v=>v!=null&&v!=="");
+    rows.forEach(v=>vals.add(v));
+    if(!j.exceededTransferLimit || rows.length<page) break;
+    offset+=page;
+  }
+  return [...vals];
+}
 
 /* init */
 (async function init(){
   await loadRows("1=1");
   await refreshDep().catch(()=>{});
+  await refreshProg().catch(()=>{});
+  // seguridad: re-bind
+  progDropdown.querySelectorAll('input[type="checkbox"]').forEach(cb=>{
+    cb.addEventListener('change', ()=>updateProgDisplay(true));
+  });
 })();
 </script>
 </body>
