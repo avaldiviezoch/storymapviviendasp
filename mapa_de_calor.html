@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Perú · Heatmap por concentración (rosa, compacto + ocultar en zoom alto)</title>
+
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- Esri Leaflet -->
+<script src="https://unpkg.com/esri-leaflet@3.0.12/dist/esri-leaflet.js"></script>
+
+<!-- Leaflet.heat -->
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+
+<!-- Turf.js (centroides) -->
+<script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
+
+<style>
+  html,body,#map{height:100%;width:100%;margin:0}
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<script>
+(function(){
+  const SERVICE = "https://pportalgis.vivienda.gob.pe/pfdserver1/rest/services/OGEI/CCPP_Dispersos/FeatureServer/6";
+
+  // Ocultar heatmap desde este zoom (9 ~ provincial, 10 ~ distrital)
+  const HIDE_FROM_ZOOM = 9;
+
+  // Mapa base
+  const map = L.map('map', { preferCanvas:true }).setView([-9,-75], 5);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18, attribution: '&copy; OpenStreetMap'
+  }).addTo(map);
+
+  // Colección de puntos [lat, lng, peso]
+  const heatPoints = [];
+  const pageSize = 2000;
+  let resultOffset = 0;
+
+  // Paginación sobre el FeatureServer
+  function fetchPage(offset){
+    return new Promise((resolve, reject) => {
+      const q = L.esri.query({ url: SERVICE });
+      q.where('1=1')
+       .returnGeometry(true)
+       .fields([])            // concentración: sin atributos
+       .limit(pageSize)
+       .offset(offset)
+       .run((error, fc, raw) => {
+          if (error) return reject(error);
+          resolve({fc, raw});
+       });
+    });
+  }
+
+  let heatLayer = null;
+
+  function ensureHeatVisibility(){
+    const z = map.getZoom();
+    const shouldShow = z < HIDE_FROM_ZOOM; // visible a nivel país/departamental
+    const isOnMap = heatLayer && map.hasLayer(heatLayer);
+    if (shouldShow && !isOnMap && heatLayer) heatLayer.addTo(map);
+    if (!shouldShow && isOnMap) map.removeLayer(heatLayer);
+  }
+
+  (async () => {
+    // Descargar y convertir a centroides
+    while(true){
+      const {fc, raw} = await fetchPage(resultOffset);
+      const feats = (fc && fc.features) ? fc.features : [];
+      if (!feats.length) break;
+
+      feats.forEach(f => {
+        if (!f.geometry) return;
+        const t = f.geometry.type;
+        if (t === 'Polygon' || t === 'MultiPolygon') {
+          const c = turf.centroid(f);
+          if (c && c.geometry) {
+            const [lng, lat] = c.geometry.coordinates;
+            heatPoints.push([lat, lng, 1]); // peso=1 (concentración pura)
+          }
+        }
+      });
+
+      resultOffset += pageSize;
+      if (feats.length < pageSize && raw && raw.exceededTransferLimit !== true) break;
+    }
+
+    if (!heatPoints.length) return;
+
+    // Heatmap ROSA con manchas pequeñas (no tapa el país)
+    const gradient = {
+      0.00: 'rgba(255,0,128,0)',
+      0.25: '#ffd6eb',
+      0.50: '#ff99cc',
+      0.75: '#ff4da6',
+      1.00: '#e60073'
+    };
+
+    heatLayer = L.heatLayer(heatPoints, {
+      radius: 10,     // manchas pequeñas (ajusta 8–14)
+      blur: 12,       // borde definido (8–16)
+      max: 0.35,      // intensidad global
+      minOpacity: 0.15,
+      maxZoom: 12,
+      gradient: gradient
+    }).addTo(map);
+
+    // Controlar visibilidad según zoom
+    map.on('zoomend', ensureHeatVisibility);
+    ensureHeatVisibility(); // aplicar una vez al inicio
+  })();
+})();
+</script>
+</body>
+</html>
