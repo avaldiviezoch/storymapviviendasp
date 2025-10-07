@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Perú · Heatmap por concentración (rosa, compacto + ocultar en zoom alto)</title>
+<title>Grado de dispersión de centros poblados - PNSR</title>
 
 <!-- Leaflet -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
@@ -15,106 +15,222 @@
 <!-- Leaflet.heat -->
 <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 
-<!-- Turf.js (centroides) -->
+<!-- Turf.js -->
 <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
 
 <style>
-  html,body,#map{height:100%;width:100%;margin:0}
+  :root{
+    --ink:#0b2532; --muted:#64748b; --sep:#e6ecea; --panel:#ffffff;
+    --chip:#0b3b38; --chip-ink:#ecfffb;
+  }
+  html,body{height:100%;margin:0}
+  body{
+    display:grid; grid-template-columns:1fr 340px; min-height:100%;
+    background:#eef5f3; color:var(--ink); font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial
+  }
+  #map{height:100%;width:100%}
+
+  header{
+    position:absolute; top:10px; left:50%; transform:translateX(-50%);
+    background:rgba(255,255,255,0.9);
+    padding:8px 18px; border-radius:14px;
+    font-weight:1000; font-size:16px; color:#0b2532;
+    box-shadow:0 4px 8px rgba(0,0,0,0.15); z-index:1000;
+    border:1px solid #d8e1df;
+  }
+
+  aside{
+    background:var(--panel); border-left:1px solid var(--sep);
+    box-shadow:-6px 0 24px rgba(2,6,23,.06); padding:14px 12px;
+    display:grid; grid-template-rows:auto 1fr auto; gap:12px;
+  }
+  h1{margin:0; padding:10px 12px; font-size:16px; font-weight:1000; border-bottom:1px solid var(--sep); background:#fff}
+  .filters{background:#fff; border:1px solid var(--sep); border-radius:14px; padding:12px; display:grid; gap:10px}
+  .grid{display:grid; gap:10px}
+  .fld{display:grid; gap:6px}
+  .fld label{font-size:12px; color:#47606b; font-weight:900; letter-spacing:.2px}
+  select{
+    padding:10px 12px; border:1px solid #cfe7e3; border-radius:12px; background:#e8f5f3;
+    color:#0b3b38; font-weight:800; font-size:13.5px; outline:none; width:100%;
+    -webkit-appearance:none; appearance:none;
+  }
+  .btns{display:flex; gap:8px; justify-content:flex-end}
+  .btn{background:#0b3b38; color:var(--chip-ink); border:1px solid #0e4a43; padding:9px 14px; border-radius:12px; font-weight:900; cursor:pointer}
+  .note{font-size:12.5px; color:#334155; background:#f8fffd; border:1px dashed var(--sep); border-radius:10px; padding:10px}
+  .badge{display:inline-block; padding:4px 8px; border-radius:999px; font-weight:900; font-size:12px; background:#f2fbfa; border:1px solid #cfe7e3; color:#0b3b38}
+  .leaflet-pane.glow-outer { mix-blend-mode: screen; z-index: 650; }
+  .leaflet-pane.glow-mid   { mix-blend-mode: screen; z-index: 651; }
+  .leaflet-pane.glow-inner { mix-blend-mode: screen; z-index: 652; }
+  @media (max-width: 900px){
+    body{grid-template-columns:1fr}
+    aside{order:-1}
+    h1{position:sticky; top:0; z-index:3}
+    #map{height:58vh}
+  }
 </style>
 </head>
 <body>
+
+<header>🛰 Grado de dispersión de centros poblados - PNSR</header>
 <div id="map"></div>
+
+<aside>
+  <h1>Filtros políticos · Perú</h1>
+  <section class="filters" aria-label="Filtros">
+    <div class="grid">
+      <div class="fld">
+        <label for="selDep">Departamento</label>
+        <select id="selDep"><option value="">(Todos)</option></select>
+      </div>
+      <div class="fld">
+        <label for="selProv">Provincia</label>
+        <select id="selProv" disabled><option value="">(Todas)</option></select>
+      </div>
+      <div class="fld">
+        <label for="selDist">Distrito</label>
+        <select id="selDist" disabled><option value="">(Todos)</option></select>
+      </div>
+    </div>
+    <div class="btns">
+      <button id="btnClear" class="btn" type="button">Limpiar</button>
+      <button id="btnZoom" class="btn" type="button">Zoom al ámbito</button>
+    </div>
+  </section>
+  <p class="note">
+    <span class="badge">Heatmap</span> Vista de concentración satelital rosa a partir de centroides (capa 6).  
+    Filtros con zoom y brillo dinámico del límite seleccionado.
+  </p>
+</aside>
 
 <script>
 (function(){
   const SERVICE = "https://pportalgis.vivienda.gob.pe/pfdserver1/rest/services/OGEI/CCPP_Dispersos/FeatureServer/6";
+  const LIM_BASE = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/COES/Limites_Pol%C3%ADticos/MapServer";
+  const LIM0 = `${LIM_BASE}/0`, LIM1 = `${LIM_BASE}/1`, LIM2 = `${LIM_BASE}/2`;
 
-  // Ocultar heatmap desde este zoom (9 ~ provincial, 10 ~ distrital)
-  const HIDE_FROM_ZOOM = 9;
-
-  // Mapa base
   const map = L.map('map', { preferCanvas:true }).setView([-9,-75], 5);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 18, attribution: '&copy; OpenStreetMap'
-  }).addTo(map);
 
-  // Colección de puntos [lat, lng, peso]
-  const heatPoints = [];
-  const pageSize = 2000;
-  let resultOffset = 0;
+  // 🛰 Satélite base ESRI
+  L.esri.basemapLayer('Imagery').addTo(map);
+  L.esri.basemapLayer('ImageryLabels').addTo(map);
 
-  // Paginación sobre el FeatureServer
-  function fetchPage(offset){
-    return new Promise((resolve, reject) => {
-      const q = L.esri.query({ url: SERVICE });
-      q.where('1=1')
-       .returnGeometry(true)
-       .fields([])            // concentración: sin atributos
-       .limit(pageSize)
-       .offset(offset)
-       .run((error, fc, raw) => {
-          if (error) return reject(error);
-          resolve({fc, raw});
-       });
+  // Glow panes
+  const paneOuter = map.createPane('glow-outer'); paneOuter.classList.add('glow-outer');
+  const paneMid   = map.createPane('glow-mid');   paneMid.classList.add('glow-mid');
+  const paneInner = map.createPane('glow-inner'); paneInner.classList.add('glow-inner');
+
+  const $dep = document.getElementById('selDep');
+  const $prov = document.getElementById('selProv');
+  const $dist = document.getElementById('selDist');
+  const $btnClear = document.getElementById('btnClear');
+  const $btnZoom = document.getElementById('btnZoom');
+
+  const allPoints = [];
+  let heatLayer = null, dataReady=false;
+  let glowOuterLayer=null,glowMidLayer=null,glowInnerLayer=null;
+
+  const gradient = {0:'rgba(255,0,128,0)',0.25:'#ffd6eb',0.5:'#ff99cc',0.75:'#ff4da6',1:'#e60073'};
+
+  function buildHeat(points){
+    const latlngs=points.map(p=>[p.lat,p.lng,p.w]);
+    if(heatLayer){heatLayer.setLatLngs(latlngs);return;}
+    heatLayer=L.heatLayer(latlngs,{radius:10,blur:12,max:0.35,minOpacity:0.15,maxZoom:12,gradient}).addTo(map);
+  }
+
+  function filterPoints(){
+    if(!dataReady)return;
+    const dep=$dep.value.trim(),prov=$prov.value.trim(),dist=$dist.value.trim();
+    let pts=allPoints;
+    if(dep&&pts.some(p=>p.id_dpto))pts=pts.filter(p=>p.id_dpto===dep);
+    if(prov&&pts.some(p=>p.id_prov))pts=pts.filter(p=>p.id_prov===prov);
+    if(dist&&pts.some(p=>p.id_dist))pts=pts.filter(p=>p.id_dist===dist);
+    if(!pts.length)pts=allPoints;
+    buildHeat(pts);
+  }
+
+  function clearGlow(){
+    [glowOuterLayer,glowMidLayer,glowInnerLayer].forEach(Lyr=>{if(Lyr)map.removeLayer(Lyr);});
+    glowOuterLayer=glowMidLayer=glowInnerLayer=null;
+  }
+  function colorForLevel(l){return l==='dist'?'#ff69b4':(l==='prov'?'#ffd700':'#00ffff');}
+  function drawGlow(geojson,level){
+    clearGlow();
+    const c=colorForLevel(level);
+    glowOuterLayer=L.geoJSON(geojson,{pane:'glow-outer',style:{color:c,weight:8,opacity:.25}}).addTo(map);
+    glowMidLayer=L.geoJSON(geojson,{pane:'glow-mid',style:{color:c,weight:4.5,opacity:.55}}).addTo(map);
+    glowInnerLayer=L.geoJSON(geojson,{pane:'glow-inner',style:{color:c,weight:2,opacity:1}}).addTo(map);
+    let i=0,seq=[1,.2,1,.2,1];const t=setInterval(()=>{if(glowInnerLayer)glowInnerLayer.setStyle({opacity:seq[i++]});if(i>=seq.length)clearInterval(t);},140);
+  }
+
+  async function zoomAndGlow(){
+    let url=null,where=null,level=null;
+    const dep=$dep.value.trim(),prov=$prov.value.trim(),dist=$dist.value.trim();
+    if(dist){url=LIM2;where=`id_dist='${dist}'`;level='dist';}
+    else if(prov){url=LIM1;where=`id_prov='${prov}'`;level='prov';}
+    else if(dep){url=LIM0;where=`id_dpto='${dep}'`;level='dep';}
+    else{map.setView([-9,-75],5);clearGlow();return;}
+    L.esri.query({url}).where(where).returnGeometry(true).fields([]).limit(1).run((err,fc)=>{
+      if(err||!fc.features.length)return;
+      const gj=L.geoJSON(fc);map.fitBounds(gj.getBounds(),{padding:[34,34]});drawGlow(fc,level);
     });
   }
 
-  let heatLayer = null;
-
-  function ensureHeatVisibility(){
-    const z = map.getZoom();
-    const shouldShow = z < HIDE_FROM_ZOOM; // visible a nivel país/departamental
-    const isOnMap = heatLayer && map.hasLayer(heatLayer);
-    if (shouldShow && !isOnMap && heatLayer) heatLayer.addTo(map);
-    if (!shouldShow && isOnMap) map.removeLayer(heatLayer);
+  function clearFilters(){
+    $dep.value="";$prov.innerHTML=`<option value="">(Todas)</option>`;$prov.disabled=true;
+    $dist.innerHTML=`<option value="">(Todos)</option>`;$dist.disabled=true;
+    clearGlow();filterPoints();map.setView([-9,-75],5);
   }
 
-  (async () => {
-    // Descargar y convertir a centroides
-    while(true){
-      const {fc, raw} = await fetchPage(resultOffset);
-      const feats = (fc && fc.features) ? fc.features : [];
-      if (!feats.length) break;
+  // Carga combos
+  function loadDeps(){
+    L.esri.query({url:LIM0}).where('1=1').returnGeometry(false).fields(['id_dpto','nom_dep']).orderBy('nom_dep').run((err,fc)=>{
+      const opts=(fc.features||[]).map(f=>`<option value="${f.attributes.id_dpto}">${f.attributes.nom_dep}</option>`).join('');
+      $dep.innerHTML=`<option value="">(Todos)</option>`+opts;
+    });
+  }
+  function loadProvs(){
+    const dep=$dep.value.trim();$prov.innerHTML=`<option value="">(Todas)</option>`;$prov.disabled=true;
+    $dist.innerHTML=`<option value="">(Todos)</option>`;$dist.disabled=true;
+    if(!dep){clearGlow();return;}
+    L.esri.query({url:LIM1}).where(`id_dep='${dep}'`).returnGeometry(false).fields(['id_prov','nom_prov']).orderBy('nom_prov').run((err,fc)=>{
+      const opts=(fc.features||[]).map(f=>`<option value="${f.attributes.id_prov}">${f.attributes.nom_prov}</option>`).join('');
+      $prov.innerHTML+=opts;$prov.disabled=false;
+    });
+  }
+  function loadDists(){
+    const prov=$prov.value.trim();$dist.innerHTML=`<option value="">(Todos)</option>`;$dist.disabled=true;
+    if(!prov){clearGlow();return;}
+    L.esri.query({url:LIM2}).where(`id_prov='${prov}'`).returnGeometry(false).fields(['id_dist','nom_dist']).orderBy('nom_dist').run((err,fc)=>{
+      const opts=(fc.features||[]).map(f=>`<option value="${f.attributes.id_dist}">${f.attributes.nom_dist}</option>`).join('');
+      $dist.innerHTML+=opts;$dist.disabled=false;
+    });
+  }
 
-      feats.forEach(f => {
-        if (!f.geometry) return;
-        const t = f.geometry.type;
-        if (t === 'Polygon' || t === 'MultiPolygon') {
-          const c = turf.centroid(f);
-          if (c && c.geometry) {
-            const [lng, lat] = c.geometry.coordinates;
-            heatPoints.push([lat, lng, 1]); // peso=1 (concentración pura)
-          }
+  $dep.addEventListener('change',()=>{loadProvs();filterPoints();zoomAndGlow();});
+  $prov.addEventListener('change',()=>{loadDists();filterPoints();zoomAndGlow();});
+  $dist.addEventListener('change',()=>{filterPoints();zoomAndGlow();});
+  $btnClear.addEventListener('click',()=>clearFilters());
+  $btnZoom.addEventListener('click',()=>zoomAndGlow());
+
+  const pageSize=2000;let resultOffset=0;
+  function fetchPage(o){return new Promise((res,rej)=>{L.esri.query({url:SERVICE}).where('1=1').returnGeometry(true).fields(['*']).limit(pageSize).offset(o).run((e,fc,raw)=>e?rej(e):res({fc,raw}));});}
+
+  (async()=>{
+    while(true){
+      const {fc,raw}=await fetchPage(resultOffset);
+      const feats=fc.features||[];if(!feats.length)break;
+      feats.forEach(f=>{
+        if(!f.geometry)return;
+        if(f.geometry.type==='Polygon'||f.geometry.type==='MultiPolygon'){
+          const c=turf.pointOnSurface(f);if(!c||!c.geometry)return;
+          const [lng,lat]=c.geometry.coordinates;
+          const a=f.attributes||{};
+          allPoints.push({lat,lng,w:1,id_dpto:a.id_dpto||null,id_prov:a.id_prov||null,id_dist:a.id_dist||null});
         }
       });
-
-      resultOffset += pageSize;
-      if (feats.length < pageSize && raw && raw.exceededTransferLimit !== true) break;
+      resultOffset+=pageSize;if(feats.length<pageSize&&(raw&&!raw.exceededTransferLimit))break;
     }
-
-    if (!heatPoints.length) return;
-
-    // Heatmap ROSA con manchas pequeñas (no tapa el país)
-    const gradient = {
-      0.00: 'rgba(255,0,128,0)',
-      0.25: '#ffd6eb',
-      0.50: '#ff99cc',
-      0.75: '#ff4da6',
-      1.00: '#e60073'
-    };
-
-    heatLayer = L.heatLayer(heatPoints, {
-      radius: 10,     // manchas pequeñas (ajusta 8–14)
-      blur: 12,       // borde definido (8–16)
-      max: 0.35,      // intensidad global
-      minOpacity: 0.15,
-      maxZoom: 12,
-      gradient: gradient
-    }).addTo(map);
-
-    // Controlar visibilidad según zoom
-    map.on('zoomend', ensureHeatVisibility);
-    ensureHeatVisibility(); // aplicar una vez al inicio
+    buildHeat(allPoints);dataReady=true;loadDeps();
   })();
 })();
 </script>
