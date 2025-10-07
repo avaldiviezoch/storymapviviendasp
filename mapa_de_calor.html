@@ -114,7 +114,7 @@
   L.esri.basemapLayer('Imagery').addTo(map);
   L.esri.basemapLayer('ImageryLabels').addTo(map);
 
-  // Glow panes
+  // Panes para el brillo
   const paneOuter = map.createPane('glow-outer'); paneOuter.classList.add('glow-outer');
   const paneMid   = map.createPane('glow-mid');   paneMid.classList.add('glow-mid');
   const paneInner = map.createPane('glow-inner'); paneInner.classList.add('glow-inner');
@@ -141,10 +141,10 @@
     if(!dataReady)return;
     const dep=$dep.value.trim(),prov=$prov.value.trim(),dist=$dist.value.trim();
     let pts=allPoints;
-    if(dep&&pts.some(p=>p.id_dpto))pts=pts.filter(p=>p.id_dpto===dep);
-    if(prov&&pts.some(p=>p.id_prov))pts=pts.filter(p=>p.id_prov===prov);
-    if(dist&&pts.some(p=>p.id_dist))pts=pts.filter(p=>p.id_dist===dist);
-    if(!pts.length)pts=allPoints;
+    if(dep  && pts.some(p=>p.id_dpto!=null)) pts=pts.filter(p=>p.id_dpto===dep);
+    if(prov && pts.some(p=>p.id_prov!=null)) pts=pts.filter(p=>p.id_prov===prov);
+    if(dist && pts.some(p=>p.id_dist!=null)) pts=pts.filter(p=>p.id_dist===dist);
+    if(!pts.length){ console.warn("[Heat] Filtro vacío → muestro todo"); pts=allPoints; }
     buildHeat(pts);
   }
 
@@ -162,15 +162,15 @@
     let i=0,seq=[1,.2,1,.2,1];const t=setInterval(()=>{if(glowInnerLayer)glowInnerLayer.setStyle({opacity:seq[i++]});if(i>=seq.length)clearInterval(t);},140);
   }
 
-  async function zoomAndGlow(){
+  function zoomAndGlow(){
     let url=null,where=null,level=null;
     const dep=$dep.value.trim(),prov=$prov.value.trim(),dist=$dist.value.trim();
-    if(dist){url=LIM2;where=`id_dist='${dist}'`;level='dist';}
-    else if(prov){url=LIM1;where=`id_prov='${prov}'`;level='prov';}
-    else if(dep){url=LIM0;where=`id_dpto='${dep}'`;level='dep';}
+    if(dist){url=LIM2;where=`id_dist='${dist.replace(/'/g,"''")}'`;level='dist';}
+    else if(prov){url=LIM1;where=`id_prov='${prov.replace(/'/g,"''")}'`;level='prov';}
+    else if(dep){url=LIM0;where=`id_dpto='${dep.replace(/'/g,"''")}'`;level='dep';}
     else{map.setView([-9,-75],5);clearGlow();return;}
     L.esri.query({url}).where(where).returnGeometry(true).fields([]).limit(1).run((err,fc)=>{
-      if(err||!fc.features.length)return;
+      if(err||!fc||!fc.features||!fc.features.length)return;
       const gj=L.geoJSON(fc);map.fitBounds(gj.getBounds(),{padding:[34,34]});drawGlow(fc,level);
     });
   }
@@ -181,27 +181,41 @@
     clearGlow();filterPoints();map.setView([-9,-75],5);
   }
 
-  // Carga combos
+  // ==== Carga combos (usando properties || attributes) ====
   function loadDeps(){
     L.esri.query({url:LIM0}).where('1=1').returnGeometry(false).fields(['id_dpto','nom_dep']).orderBy('nom_dep').run((err,fc)=>{
-      const opts=(fc.features||[]).map(f=>`<option value="${f.attributes.id_dpto}">${f.attributes.nom_dep}</option>`).join('');
-      $dep.innerHTML=`<option value="">(Todos)</option>`+opts;
+      if(err){console.error("[Deps]",err);return;}
+      const opts=(fc.features||[]).map(f=>{
+        const a=f.properties||f.attributes||{};
+        return `<option value="${a.id_dpto}">${a.nom_dep}</option>`;
+      }).join('');
+      document.getElementById('selDep').innerHTML=`<option value="">(Todos)</option>${opts}`;
     });
   }
   function loadProvs(){
-    const dep=$dep.value.trim();$prov.innerHTML=`<option value="">(Todas)</option>`;$prov.disabled=true;
+    const dep=$dep.value.trim();
+    $prov.innerHTML=`<option value="">(Todas)</option>`;$prov.disabled=true;
     $dist.innerHTML=`<option value="">(Todos)</option>`;$dist.disabled=true;
     if(!dep){clearGlow();return;}
-    L.esri.query({url:LIM1}).where(`id_dep='${dep}'`).returnGeometry(false).fields(['id_prov','nom_prov']).orderBy('nom_prov').run((err,fc)=>{
-      const opts=(fc.features||[]).map(f=>`<option value="${f.attributes.id_prov}">${f.attributes.nom_prov}</option>`).join('');
+    L.esri.query({url:LIM1}).where(`id_dep='${dep.replace(/'/g,"''")}'`).returnGeometry(false).fields(['id_prov','nom_prov']).orderBy('nom_prov').run((err,fc)=>{
+      if(err){console.error("[Provs]",err);return;}
+      const opts=(fc.features||[]).map(f=>{
+        const a=f.properties||f.attributes||{};
+        return `<option value="${a.id_prov}">${a.nom_prov}</option>`;
+      }).join('');
       $prov.innerHTML+=opts;$prov.disabled=false;
     });
   }
   function loadDists(){
-    const prov=$prov.value.trim();$dist.innerHTML=`<option value="">(Todos)</option>`;$dist.disabled=true;
+    const prov=$prov.value.trim();
+    $dist.innerHTML=`<option value="">(Todos)</option>`;$dist.disabled=true;
     if(!prov){clearGlow();return;}
-    L.esri.query({url:LIM2}).where(`id_prov='${prov}'`).returnGeometry(false).fields(['id_dist','nom_dist']).orderBy('nom_dist').run((err,fc)=>{
-      const opts=(fc.features||[]).map(f=>`<option value="${f.attributes.id_dist}">${f.attributes.nom_dist}</option>`).join('');
+    L.esri.query({url:LIM2}).where(`id_prov='${prov.replace(/'/g,"''")}'`).returnGeometry(false).fields(['id_dist','nom_dist']).orderBy('nom_dist').run((err,fc)=>{
+      if(err){console.error("[Dists]",err);return;}
+      const opts=(fc.features||[]).map(f=>{
+        const a=f.properties||f.attributes||{};
+        return `<option value="${a.id_dist}">${a.nom_dist}</option>`;
+      }).join('');
       $dist.innerHTML+=opts;$dist.disabled=false;
     });
   }
@@ -212,25 +226,43 @@
   $btnClear.addEventListener('click',()=>clearFilters());
   $btnZoom.addEventListener('click',()=>zoomAndGlow());
 
+  // ==== Carga HEAT (usando properties || attributes) ====
   const pageSize=2000;let resultOffset=0;
-  function fetchPage(o){return new Promise((res,rej)=>{L.esri.query({url:SERVICE}).where('1=1').returnGeometry(true).fields(['*']).limit(pageSize).offset(o).run((e,fc,raw)=>e?rej(e):res({fc,raw}));});}
+  function fetchPage(o){
+    return new Promise((res,rej)=>{
+      L.esri.query({url:SERVICE})
+        .where('1=1').returnGeometry(true).fields(['*'])
+        .limit(pageSize).offset(o)
+        .run((e,fc,raw)=>e?rej(e):res({fc,raw}));
+    });
+  }
 
   (async()=>{
     while(true){
       const {fc,raw}=await fetchPage(resultOffset);
-      const feats=fc.features||[];if(!feats.length)break;
+      const feats=fc && fc.features ? fc.features : [];
+      if(!feats.length)break;
+
       feats.forEach(f=>{
         if(!f.geometry)return;
         if(f.geometry.type==='Polygon'||f.geometry.type==='MultiPolygon'){
-          const c=turf.pointOnSurface(f);if(!c||!c.geometry)return;
+          const c=turf.pointOnSurface(f); if(!c||!c.geometry)return;
           const [lng,lat]=c.geometry.coordinates;
-          const a=f.attributes||{};
-          allPoints.push({lat,lng,w:1,id_dpto:a.id_dpto||null,id_prov:a.id_prov||null,id_dist:a.id_dist||null});
+          const a=f.properties||f.attributes||{};
+          allPoints.push({
+            lat,lng,w:1,
+            id_dpto:a.id_dpto ?? null,
+            id_prov:a.id_prov ?? null,
+            id_dist:a.id_dist ?? null
+          });
         }
       });
-      resultOffset+=pageSize;if(feats.length<pageSize&&(raw&&!raw.exceededTransferLimit))break;
+
+      resultOffset+=pageSize;
+      if(feats.length<pageSize && raw && raw.exceededTransferLimit!==true) break;
     }
-    buildHeat(allPoints);dataReady=true;loadDeps();
+
+    buildHeat(allPoints); dataReady=true; loadDeps();
   })();
 })();
 </script>
