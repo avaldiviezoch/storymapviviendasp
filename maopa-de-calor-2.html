@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Grado de dispersión de centros poblados - PNSR</title>
+
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- Esri Leaflet -->
+<script src="https://unpkg.com/esri-leaflet@3.0.12/dist/esri-leaflet.js"></script>
+
+<!-- Leaflet.heat -->
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+
+<!-- Turf.js -->
+<script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
+
+<style>
+  :root{ --ink:#0b2532; --sep:#e6ecea; --panel:#ffffff; --brand:#0b3b38; --muted:#47606b; }
+  html,body{height:100%;margin:0}
+  body{display:grid; grid-template-rows:1fr; background:#eef5f3; color:var(--ink); font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial}
+  .shell{display:grid; grid-template-columns:65% 35%; min-height:100vh}
+  #viewWrap{position:relative; min-height:0}
+  #map{height:100%; width:100%}
+
+  .floatTitle{
+    position:absolute; left:50%; top:12px; transform:translateX(-50%);
+    background:rgba(255,255,255,0.92); border:1px solid #d8e1df; border-radius:14px;
+    padding:8px 18px; z-index:1000; box-shadow:0 6px 14px rgba(0,0,0,.18);
+    font-weight:1000; font-size:16px; letter-spacing:.2px; color:#0b2532; user-select:none;
+  }
+
+  aside{
+    background:var(--panel); border-left:1px solid var(--sep);
+    box-shadow:-6px 0 24px rgba(2,6,23,.06); padding:12px; display:grid; grid-template-rows:auto 1fr; gap:12px; min-height:0;
+  }
+
+  .filters{ background:#fff; border:1px solid var(--sep); border-radius:14px; padding:10px; display:grid; gap:8px; }
+  .filtersGrid{ display:grid; gap:8px; align-items:end; grid-template-columns:1fr 1fr 1fr 1fr; }
+  .fld{display:grid; gap:4px; min-width:0}
+  .fld label{font-size:12px; color:var(--muted); font-weight:900; letter-spacing:.2px}
+  select{
+    padding:9px 10px; border:1px solid #cfe7e3; border-radius:10px; background:#e8f5f3;
+    color:#0b3b38; font-weight:800; font-size:13.2px; outline:none; width:100%;
+    -webkit-appearance:none; appearance:none;
+  }
+
+  /* Chips */
+  .chipBar { display:grid; gap:8px; border-top:1px dashed var(--sep); padding-top:8px; }
+  .chipTitle { font-size:12px; color:#47606b; font-weight:900; letter-spacing:.2px; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; }
+  .chip{
+    padding:8px 12px; border-radius:999px; cursor:pointer; user-select:none;
+    border:1px solid #cfe7e3; background:#f2fbfa; color:#0b3b38; font-weight:800; font-size:13px; white-space:nowrap;
+    transition: filter .12s ease, transform .06s ease;
+  }
+  .chip:hover{ filter:brightness(1.03); }
+  .chip:active{ transform: translateY(1px); }
+  .chip.on{ background:#0b3b38; color:#ecfffb; border-color:#0e4a43; }
+
+  .rowBtns{display:flex; gap:8px; justify-content:flex-end}
+  .btn{background:#0b3b38; color:#ecfffb; border:1px solid #0e4a43; padding:9px 14px; border-radius:10px; font-weight:900; cursor:pointer}
+
+  .fab-wrap{position:absolute; right:14px; top:14px; display:flex; flex-direction:column; gap:10px; z-index:1100}
+  .fab{width:44px; height:44px; border-radius:50%; display:grid; place-items:center; background:#0b3b38; color:#e6fffb; border:1px solid #0e4a43; cursor:pointer; box-shadow:0 10px 22px rgba(0,0,0,.22); font-weight:900; user-select:none}
+  .fab:hover{filter:brightness(1.06)}
+  .bubble{position:absolute; right:70px; top:14px; min-width:300px; max-width:min(420px,88vw); background:#fff; color:#ink; border:1px solid var(--sep); border-radius:16px; box-shadow:0 14px 32px rgba(0,0,0,.18); z-index:1200; display:none}
+  .bubble header{padding:10px 12px; background:#fff; border-bottom:1px solid var(--sep); border-radius:16px 16px 0 0; display:flex; align-items:center; justify-content:space-between; cursor:move; gap:8px}
+  .bubble .ttl{font-weight:900; letter-spacing:.2px}
+  .bubble .x{cursor:pointer; border:1px solid var(--sep); background:#fff; color:#0b2532; border-radius:10px; padding:6px 10px; font-weight:800}
+  .bubble .content{padding:10px 10px 12px}
+  .scroll{max-height:65vh; overflow:auto; border-radius:10px; border:1px solid var(--sep); padding:10px}
+
+  .legendItem{display:flex; align-items:center; gap:10px; margin-bottom:8px}
+  .legBox{width:24px; height:10px; border-radius:6px}
+  .legLine{width:26px; height:0; border-top:4px solid; border-radius:4px}
+  .legDot{width:12px; height:12px; border-radius:999px; border:2px solid #ffffff; box-shadow:0 0 0 3px rgba(255,215,0,.5); background:#ffd700}
+
+  .leaflet-pane.glow-outer{ mix-blend-mode: screen; z-index:650 }
+  .leaflet-pane.glow-mid  { mix-blend-mode: screen; z-index:651 }
+  .leaflet-pane.glow-inner{ mix-blend-mode: screen; z-index:652 }
+  .leaflet-pane.cp-top{ z-index: 1000 }
+
+  .noteCard{background:#fff; border:1px solid var(--sep); border-radius:14px; display:grid; grid-template-rows:auto 1fr; min-height:0}
+  .noteCard header{padding:10px 12px; border-bottom:1px solid var(--sep); font-weight:1000}
+  .noteBody{padding:12px; overflow:auto; display:grid; gap:10px; align-content:start}
+  .noteBody p{margin:0; font-size:13.6px; color:#243b41}
+  .noteImg{width:70%; max-width:220px; height:auto; border-radius:12px; border:1px solid #e3ecea; justify-self:center; display:block}
+
+  @media (max-width: 1000px){ .shell{grid-template-columns:1fr} #viewWrap{height:58vh} }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <div id="viewWrap">
+    <div class="floatTitle">🛰 Grado de dispersión de centros poblados - PNSR</div>
+    <div id="map"></div>
+
+    <div class="fab-wrap">
+      <div id="btnLayers" class="fab" title="Capas">🗂️</div>
+      <div id="btnLegend" class="fab" title="Leyenda">🏷️</div>
+    </div>
+
+    <div id="bubbleLayers" class="bubble" style="top:14px;">
+      <header data-drag="#bubbleLayers"><span class="ttl">Capas</span><button class="x" data-close="#bubbleLayers">Cerrar</button></header>
+      <div class="content">
+        <div class="scroll">
+          <div>
+            <label><input type="checkbox" id="chkHeat" checked/> Heatmap (concentración)</label><br/>
+            <label><input type="checkbox" id="chkLabels" checked/> Rótulos del satélite</label><br/>
+            <label><input type="checkbox" id="chkGlow" checked/> Brillo de límite (zoom)</label><br/>
+            <label><input type="checkbox" id="chkCP" checked/> Centro poblado seleccionado</label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="bubbleLegend" class="bubble" style="top:190px;">
+      <header data-drag="#bubbleLegend"><span class="ttl">Leyenda</span><button class="x" data-close="#bubbleLegend">Cerrar</button></header>
+      <div class="content">
+        <div class="scroll">
+          <div class="legendItem"><div class="legLine" style="border-color:#00ffff"></div> Límite Departamental (glow)</div>
+          <div class="legendItem"><div class="legLine" style="border-color:#ffd700"></div> Límite Provincial (glow)</div>
+          <div class="legendItem"><div class="legLine" style="border-color:#ff69b4"></div> Límite Distrital (glow)</div>
+          <div class="legendItem"><div class="legDot"></div> Centro poblado seleccionado</div>
+          <div style="margin-top:10px; font-weight:900">Heatmap (gradiente)</div>
+          <div class="legendItem"><div class="legBox" style="background:rgba(255,0,128,0)"></div> 0</div>
+          <div class="legendItem"><div class="legBox" style="background:#ffd6eb"></div> Bajo</div>
+          <div class="legendItem"><div class="legBox" style="background:#ff99cc"></div> Medio</div>
+          <div class="legendItem"><div class="legBox" style="background:#ff4da6"></div> Alto</div>
+          <div class="legendItem"><div class="legBox" style="background:#e60073"></div> Muy alto</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <aside>
+    <section class="filters" aria-label="Filtros (en línea)">
+      <div class="filtersGrid">
+        <div class="fld">
+          <label for="selDep">Departamento</label>
+          <select id="selDep"><option value="">(Todos)</option></select>
+        </div>
+        <div class="fld">
+          <label for="selProv">Provincia</label>
+          <select id="selProv" disabled><option value="">(Todas)</option></select>
+        </div>
+        <div class="fld">
+          <label for="selDist">Distrito</label>
+          <select id="selDist" disabled><option value="">(Todos)</option></select>
+        </div>
+        <div class="fld">
+          <label for="selCP">Centro poblado</label>
+          <select id="selCP" disabled><option value="">(Todos)</option></select>
+        </div>
+      </div>
+
+      <!-- Chips de Grado de Dispersión -->
+      <section id="catChipsWrap" class="chipBar" aria-label="Grado de Dispersión del CCPP">
+        <div class="chipTitle">Grado de Dispersión del CCPP</div>
+        <div id="chipList" class="chips"></div>
+      </section>
+
+      <div class="rowBtns">
+        <button id="btnZoom" class="btn" type="button">Zoom/Glow</button>
+        <button id="btnClear" class="btn" type="button">Limpiar filtros</button>
+      </div>
+    </section>
+
+    <section class="noteCard" aria-label="Comentario">
+      <header>Comentario</header>
+      <div class="noteBody">
+        <p>La herramienta muestra las <b>áreas de concentración</b> y las <b>viviendas rurales con y sin acceso a agua</b> (Censo 2017). También incluye viviendas sin dato de acceso y se complementa con información de <b>componentes y redes de agua del DATASS</b> (módulo 3 y 5).</p>
+        <img class="noteImg" loading="lazy" alt="Esquema de criterios" src="https://lh3.googleusercontent.com/d/1OPw9CWsW8xmgL6sjGuZcyvAtz2qJi0RF=w1000"/>
+      </div>
+    </section>
+  </aside>
+</div>
+
+<script>
+(function(){
+  /* ===== ENDPOINTS ===== */
+  const CCPP_BASE = "https://pportalgis.vivienda.gob.pe/pfdserver1/rest/services/OGEI/CCPP_Dispersos/FeatureServer";
+  const SERVICE   = `${CCPP_BASE}/6`; // Áreas agrupadas (polígonos) -> heat
+  const CP_LAYER  = `${CCPP_BASE}/4`; // CCPP (puntos) -> categorías
+  const LIM_BASE  = "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/COES/Limites_Pol%C3%ADticos/MapServer";
+  const LIM0 = `${LIM_BASE}/0`, LIM1 = `${LIM_BASE}/1`, LIM2 = `${LIM_BASE}/2`;
+
+  /* ===== MAPA ===== */
+  const map = L.map('map', { preferCanvas:true }).setView([-9,-75], 5);
+  const imagery = L.esri.basemapLayer('Imagery').addTo(map);
+  const imageryLabels = L.esri.basemapLayer('ImageryLabels').addTo(map);
+
+  map.createPane('glow-outer').classList.add('glow-outer');
+  map.createPane('glow-mid').classList.add('glow-mid');
+  map.createPane('glow-inner').classList.add('glow-inner');
+  map.createPane('cp-top').classList.add('cp-top');
+
+  /* ===== UI refs ===== */
+  const $dep = document.getElementById('selDep');
+  const $prov = document.getElementById('selProv');
+  const $dist = document.getElementById('selDist');
+  const $cp = document.getElementById('selCP');
+  const $btnClear = document.getElementById('btnClear');
+  const $btnZoom = document.getElementById('btnZoom');
+
+  const toggle = id => { const el=document.querySelector(id); el.style.display=(el.style.display==='block'?'none':'block'); };
+  document.getElementById('btnLayers').onclick=()=>toggle('#bubbleLayers');
+  document.getElementById('btnLegend').onclick=()=>toggle('#bubbleLegend');
+  document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>{document.querySelector(b.dataset.close).style.display='none';});
+
+  function makeDraggable(header){
+    const box=document.querySelector(header.dataset.drag);
+    let ox=0,oy=0,drag=false;
+    header.addEventListener('mousedown',e=>{drag=true;ox=e.clientX-box.offsetLeft;oy=e.clientY-box.offsetTop;e.preventDefault();});
+    window.addEventListener('mousemove',e=>{if(!drag)return;box.style.left=(e.clientX-ox)+'px';box.style.top=(e.clientY-oy)+'px';box.style.right='auto';});
+    window.addEventListener('mouseup',()=>drag=false);
+    header.addEventListener('touchstart',e=>{const t=e.touches[0];drag=true;ox=t.clientX-box.offsetLeft;oy=t.clientY-box.offsetTop;});
+    window.addEventListener('touchmove',e=>{if(!drag)return;const t=e.touches[0];box.style.left=(t.clientX-ox)+'px';box.style.top=(t.clientY-oy)+'px';box.style.right='auto';},{passive:false});
+    window.addEventListener('touchend',()=>drag=false);
+  }
+  document.querySelectorAll('[data-drag]').forEach(makeDraggable);
+
+  const $chkHeat = document.getElementById('chkHeat');
+  const $chkLabels = document.getElementById('chkLabels');
+  const $chkGlow = document.getElementById('chkGlow');
+  const $chkCP   = document.getElementById('chkCP');
+
+  /* ===== Chips de Dispersión ===== */
+  const selectedCats = new Set();
+  let currentCats = [];
+  const CAT_FIELDS = ['categoria_cp','categ_cp','categoria','cat','tipo'];
+
+  function colorForCategory(cat = ""){
+    const c = (cat || "").toLowerCase();
+    if (c.includes("predominante") && c.includes("compact")) return [255,105,180,0.98];
+    if (c.includes("predominante") && c.includes("dispers")) return [139,69,19,0.98];
+    if (c.includes("concentración mixta") || c.includes("concentracion mixta") || c.includes("mixta")) return [128,0,128,0.98];
+    if (c.includes("disperso")) return [220,53,69,0.98];
+    if (c.includes("compacta")) return [255,215,0,0.98];
+    return [160,160,160,0.95];
+  }
+  function emitDispersionChange(){
+    const arr = [...selectedCats];
+    const colorMap = {}; arr.forEach(c => colorMap[c] = colorForCategory(c));
+    document.getElementById('catChipsWrap').dispatchEvent(
+      new CustomEvent("ccpp-dispersion-change", { bubbles:true, detail:{ selected:arr, colors:colorMap }})
+    );
+  }
+  function renderChips(values = [], preselected = []){
+    const $chipList = document.getElementById('chipList');
+    selectedCats.clear();
+    $chipList.innerHTML = values.map(v=>{
+      const on = preselected.includes(v);
+      if(on) selectedCats.add(v);
+      return `<button type="button" class="chip${on?' on':''}" data-val="${v.replace(/"/g,'&quot;')}">${v}</button>`;
+    }).join('');
+    $chipList.querySelectorAll('.chip').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const val = btn.dataset.val;
+        if(selectedCats.has(val)){ selectedCats.delete(val); btn.classList.remove('on'); }
+        else{ selectedCats.add(val); btn.classList.add('on'); }
+        emitDispersionChange();
+        filterPoints();
+      });
+    });
+    emitDispersionChange();
+  }
+  // Carga categorías DESDE CCPP (capa 4)
+  function loadDispersionCategories(){
+    const set = new Set();
+    const page = (offset=0, pageSize=2000) => new Promise((res,rej)=>{
+      L.esri.query({url:CP_LAYER})
+        .where('1=1').returnGeometry(false).fields(['*'])
+        .limit(pageSize).offset(offset)
+        .run((e,fc,raw)=> e?rej(e):res({fc,raw}));
+    });
+    (async()=>{
+      let offset=0;
+      while(true){
+        const {fc,raw}=await page(offset);
+        const feats = fc && fc.features ? fc.features : [];
+        if(!feats.length) break;
+        feats.forEach(f=>{
+          const a=f.properties||f.attributes||{};
+          // busca el primer campo de categoría que exista
+          for(const k of CAT_FIELDS){ if(a[k]!=null && String(a[k]).trim()!==""){ set.add(String(a[k]).trim()); break; } }
+        });
+        offset+=2000;
+        if(feats.length<2000 && raw && raw.exceededTransferLimit!==true) break;
+      }
+      currentCats = [...set].sort((x,y)=>x.localeCompare(y,'es',{sensitivity:'base'}));
+      renderChips(currentCats, []); // <- ahora sí aparecen
+    })().catch(console.error);
+  }
+
+  /* ===== Heat ===== */
+  const allPoints = []; // {lat,lng,w,id_dpto,id_prov,id_dist,cat?}
+  let heatLayer = null, dataReady=false;
+  function buildHeat(points){
+    const latlngs=points.map(p=>[p.lat,p.lng,p.w]);
+    if(heatLayer){heatLayer.setLatLngs(latlngs);return;}
+    const gradient = {0:'rgba(255,0,128,0)',0.25:'#ffd6eb',0.5:'#ff99cc',0.75:'#ff4da6',1:'#e60073'};
+    heatLayer=L.heatLayer(latlngs,{radius:10,blur:12,max:0.35,minOpacity:0.15,maxZoom:12,gradient}).addTo(map);
+  }
+  function filterPoints(){
+    if(!dataReady)return;
+    const dep=$dep.value.trim(),prov=$prov.value.trim(),dist=$dist.value.trim();
+    const activeCats = [...selectedCats];
+    let pts=allPoints;
+    if(dep  && pts.some(p=>p.id_dpto!=null)) pts=pts.filter(p=>p.id_dpto===dep);
+    if(prov && pts.some(p=>p.id_prov!=null)) pts=pts.filter(p=>p.id_prov===prov);
+    if(dist && pts.some(p=>p.id_dist!=null)) pts=pts.filter(p=>p.id_dist===dist);
+
+    // Filtra por categoría SOLO si existen puntos con cat
+    const haveCat = pts.some(p => p.cat!=null);
+    if(activeCats.length && haveCat) pts=pts.filter(p=> activeCats.includes(p.cat));
+
+    buildHeat(pts);
+  }
+
+  /* ===== Glow y selección de CCPP (igual que antes) ===== */
+  let glowOuterLayer=null,glowMidLayer=null,glowInnerLayer=null;
+  function clearGlow(){ [glowOuterLayer,glowMidLayer,glowInnerLayer].forEach(Lyr=>{if(Lyr)map.removeLayer(Lyr);}); glowOuterLayer=glowMidLayer=glowInnerLayer=null; }
+  function colorForLevel(l){return l==='dist'?'#ff69b4':(l==='prov'?'#ffd700':'#00ffff');}
+  function drawGlow(geojson,level){
+    clearGlow();
+    const c=colorForLevel(level);
+    const sOuter={color:c, weight:8, opacity:.25, fill:false};
+    const sMid  ={color:c, weight:4.5, opacity:.55, fill:false};
+    const sInner={color:c, weight:2, opacity:1,   fill:false};
+    glowOuterLayer=L.geoJSON(geojson,{pane:'glow-outer',style:sOuter}).addTo(map);
+    glowMidLayer  =L.geoJSON(geojson,{pane:'glow-mid',  style:sMid}).addTo(map);
+    glowInnerLayer=L.geoJSON(geojson,{pane:'glow-inner',style:sInner}).addTo(map);
+    let i=0,seq=[1,.2,1,.2,1];const t=setInterval(()=>{if(glowInnerLayer)glowInnerLayer.setStyle({opacity:seq[i++]});if(i>=seq.length)clearInterval(t);},140);
+  }
+  function zoomGlowTo(dep,prov,dist){
+    let url=null,where=null,level=null;
+    if(dist){url=LIM2;where=`id_dist='${dist.replace(/'/g,"''")}'`;level='dist';}
+    else if(prov){url=LIM1;where=`id_prov='${prov.replace(/'/g,"''")}'`;level='prov';}
+    else if(dep){url=LIM0;where=`id_dpto='${dep.replace(/'/g,"''")}'`;level='dep';}
+    else{map.setView([-9,-75],5);clearGlow();return;}
+    L.esri.query({url}).where(where).returnGeometry(true).fields([]).limit(1).run((err,fc)=>{
+      if(err||!fc||!fc.features||!fc.features.length)return;
+      const gj=L.geoJSON(fc);map.fitBounds(gj.getBounds(),{padding:[34,34]});
+      if($chkGlow.checked) drawGlow(fc,level);
+    });
+  }
+
+  const cpSelectedLayer = L.layerGroup([], { pane:'cp-top' }).addTo(map);
+  function showSelectedCP(lat, lng, name){
+    cpSelectedLayer.clearLayers();
+    if(!$chkCP.checked) return;
+    const marker = L.circleMarker([lat,lng], {pane:'cp-top', radius:7, color:'#ffffff', weight:2, fillColor:'#ffd700', fillOpacity:1})
+      .bindTooltip(name || 'Centro poblado', {permanent:false, direction:'top', offset:[0,-10]});
+    const pulse  = L.circle([lat,lng], {pane:'cp-top', radius:80, color:'#ffd700', weight:2, fill:false, opacity:0.9});
+    cpSelectedLayer.addLayer(pulse).addLayer(marker);
+    let i=0, seq=[80,120,80,120,80];
+    const anim=setInterval(()=>{ if(!map.hasLayer(pulse)) return clearInterval(anim); pulse.setRadius(seq[i++%seq.length]); }, 160);
+    map.setView([lat,lng], 14);
+  }
+  document.getElementById('chkCP').addEventListener('change',(e)=>{
+    if(e.target.checked){ cpSelectedLayer.addTo(map); } else { map.removeLayer(cpSelectedLayer); }
+  });
+
+  /* ===== Helpers ===== */
+  const pick = (obj, keys) => {
+    for (const k of keys) {
+      if (obj[k] != null) return obj[k];
+      const found = Object.keys(obj).find(x => x.toLowerCase() === k.toLowerCase());
+      if (found) return obj[found];
+    }
+    return null;
+  };
+  const NAME_FIELDS  = ['nom_ccpp','nom_cp','nombre','name','NOM_CCPP'];
+  const OID_FIELDS   = ['OBJECTID','ObjectId','FID','OID','OID_','OBJECTID_1'];
+  const UBIGEO_FIELDS= ['ubigeo','UBIGEO'];
+
+  const cpMeta = { nameField:'nom_ccpp', oidField:'OBJECTID', ubigeoField:'ubigeo' };
+
+  /* ===== Combos ===== */
+  function loadDeps(){
+    L.esri.query({url:LIM0}).where('1=1').returnGeometry(false).fields(['id_dpto','nom_dep']).orderBy('nom_dep')
+    .run((err,fc)=>{
+      if(err){console.error("[Deps]",err);return;}
+      const opts=(fc.features||[]).map(f=>`<option value="${(f.properties||f.attributes).id_dpto}">${(f.properties||f.attributes).nom_dep}</option>`).join('');
+      $dep.innerHTML=`<option value="">(Todos)</option>`+opts;
+    });
+  }
+  function loadProvs(){
+    const dep=$dep.value.trim();
+    $prov.innerHTML=`<option value="">(Todas)</option>`;$prov.disabled=true;
+    $dist.innerHTML=`<option value="">(Todos)</option>`;$dist.disabled=true;
+    $cp.innerHTML =`<option value="">(Todos)</option>`;$cp.disabled=true;
+    if(!dep){clearGlow();filterPoints();return;}
+    L.esri.query({url:LIM1}).where(`id_dep='${dep.replace(/'/g,"''")}'`).returnGeometry(false).fields(['id_prov','nom_prov']).orderBy('nom_prov')
+    .run((err,fc)=>{
+      if(err){console.error("[Provs]",err);return;}
+      const opts=(fc.features||[]).map(f=>`<option value="${(f.properties||f.attributes).id_prov}">${(f.properties||f.attributes).nom_prov}</option>`).join('');
+      $prov.innerHTML+=opts; $prov.disabled=false;
+    });
+  }
+  function loadDists(){
+    const prov=$prov.value.trim();
+    $dist.innerHTML=`<option value="">(Todos)</option>`;$dist.disabled=true;
+    $cp.innerHTML =`<option value="">(Todos)</option>`;$cp.disabled=true;
+    if(!prov){clearGlow();filterPoints();return;}
+    L.esri.query({url:LIM2}).where(`id_prov='${prov.replace(/'/g,"''")}'`).returnGeometry(false).fields(['id_dist','nom_dist']).orderBy('nom_dist')
+    .run((err,fc)=>{
+      if(err){console.error("[Dists]",err);return;}
+      const opts=(fc.features||[]).map(f=>`<option value="${(f.properties||f.attributes).id_dist}">${(f.properties||f.attributes).nom_dist}</option>`).join('');
+      $dist.innerHTML+=opts; $dist.disabled=false;
+    });
+  }
+  function loadCPs(){
+    const dist=$dist.value.trim();
+    $cp.innerHTML=`<option value="">(Todos)</option>`;$cp.disabled=true;
+    if(!dist) return;
+
+    L.esri.query({url:CP_LAYER})
+      .where(`ubigeo='${dist.replace(/'/g,"''")}'`)
+      .returnGeometry(false).fields(['*'])
+      .run((err,fc)=>{
+        if(err){console.error("[CPs]",err);return;}
+        const feats = fc && fc.features ? fc.features : [];
+        if(!feats.length){ $cp.disabled=true; return; }
+
+        const a0 = (feats[0].properties || feats[0].attributes || {});
+        cpMeta.nameField   = NAME_FIELDS.find(k => pick(a0,[k]) != null) || 'nom_ccpp';
+        cpMeta.oidField    = (fc.objectIdFieldName) || (OID_FIELDS.find(k => pick(a0,[k]) != null) || 'OBJECTID');
+        cpMeta.ubigeoField = UBIGEO_FIELDS.find(k => pick(a0,[k]) != null) || 'ubigeo';
+
+        const rows = feats.map(f=>{
+          const a=f.properties||f.attributes||{};
+          return {
+            name:  String(pick(a, [cpMeta.nameField]) || '').trim(),
+            ubigeo:String(pick(a, [cpMeta.ubigeoField]) || '').trim(),
+            oid:   pick(a, [cpMeta.oidField])
+          };
+        }).filter(r => r.name && r.ubigeo);
+
+        rows.sort((x,y)=>x.name.localeCompare(y.name,'es',{sensitivity:'base'}));
+
+        const seen=new Set(); const opts=[];
+        rows.forEach(r=>{
+          if(seen.has(r.name)) return; seen.add(r.name);
+          const oidStr = (r.oid==null?'':String(r.oid));
+          const v = `${r.ubigeo}|${encodeURIComponent(oidStr)}|${encodeURIComponent(r.name)}`;
+          opts.push(`<option value="${v}">${r.name}</option>`);
+        });
+
+        $cp.innerHTML = `<option value="">(Todos)</option>` + opts.join('');
+        $cp.disabled = (opts.length === 0);
+      });
+  }
+
+  /* ===== Eventos ===== */
+  $dep.addEventListener('change', ()=>{
+    loadProvs(); filterPoints(); zoomGlowTo($dep.value.trim(), $prov.value.trim(), $dist.value.trim()); cpSelectedLayer.clearLayers();
+  });
+  $prov.addEventListener('change', ()=>{
+    loadDists(); filterPoints(); zoomGlowTo($dep.value.trim(), $prov.value.trim(), $dist.value.trim()); cpSelectedLayer.clearLayers();
+  });
+  $dist.addEventListener('change', ()=>{
+    loadCPs();  filterPoints(); zoomGlowTo($dep.value.trim(), $prov.value.trim(), $dist.value.trim()); cpSelectedLayer.clearLayers();
+  });
+
+  $cp.addEventListener('change', async ()=>{
+    const v=$cp.value.trim();
+    cpSelectedLayer.clearLayers();
+    if(!v){ filterPoints(); zoomGlowTo($dep.value.trim(), $prov.value.trim(), $dist.value.trim()); return; }
+
+    const [ubg, oidEnc, nameEnc] = v.split('|');
+    const nameRaw = decodeURIComponent(nameEnc||'').replace(/'/g,"''");
+    const oidRaw  = decodeURIComponent(oidEnc||'');
+    const hasOID  = /^\d+$/.test(oidRaw);
+    const dep=ubg.slice(0,2), prov=ubg.slice(0,4), dist=ubg.slice(0,6);
+
+    const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
+    if($dep.value!==dep){ $dep.value=dep; loadProvs(); await sleep(220); }
+    if($prov.value!==prov){ $prov.value=prov; loadDists(); await sleep(220); }
+    if($dist.value!==dist){ $dist.value=dist; loadCPs(); await sleep(220); }
+
+    filterPoints();
+    zoomGlowTo(dep,prov,dist);
+
+    const whereByOID = hasOID ? `OBJECTID=${Number(oidRaw)}` : null;
+    const whereByName = `ubigeo='${dist.replace(/'/g,"''")}' AND nom_ccpp='${nameRaw}'`;
+
+    const zoomToFeature = (fc) => {
+      if(fc && fc.features && fc.features.length){
+        const g=fc.features[0].geometry;
+        if(g && g.type==='Point'){
+          const [lng,lat]=g.coordinates;
+          showSelectedCP(lat, lng, decodeURIComponent(nameEnc||'')); return true;
+        }
+      }
+      return false;
+    };
+
+    if(whereByOID){
+      L.esri.query({url:CP_LAYER}).where(whereByOID).returnGeometry(true).fields([]).limit(1)
+      .run((e1,fc1)=>{
+        if(!e1 && zoomToFeature(fc1)) return;
+        L.esri.query({url:CP_LAYER}).where(whereByName).returnGeometry(true).fields([]).limit(1)
+        .run((e2,fc2)=>{ if(!e2) zoomToFeature(fc2); });
+      });
+    } else {
+      L.esri.query({url:CP_LAYER}).where(whereByName).returnGeometry(true).fields([]).limit(1)
+      .run((e2,fc2)=>{ if(!e2) zoomToFeature(fc2); });
+    }
+  });
+
+  document.getElementById('btnClear').addEventListener('click', ()=>{
+    $dep.value="";
+    $prov.innerHTML=`<option value="">(Todas)</option>`;$prov.disabled=true;
+    $dist.innerHTML=`<option value="">(Todos)</option>`;$dist.disabled=true;
+    $cp.innerHTML=`<option value="">(Todos)</option>`;$cp.disabled=true;
+    selectedCats.clear(); renderChips(currentCats, []); // limpia chips visibles
+    clearGlow(); cpSelectedLayer.clearLayers();
+    filterPoints(); map.setView([-9,-75],5);
+  });
+  document.getElementById('btnZoom').addEventListener('click', ()=> zoomGlowTo($dep.value.trim(), $prov.value.trim(), $dist.value.trim()));
+
+  $chkHeat.addEventListener('change', (e)=>{ if(!heatLayer) return; if(e.target.checked){heatLayer.addTo(map);} else {map.removeLayer(heatLayer);} });
+  $chkLabels.addEventListener('change', (e)=>{ if(e.target.checked){imageryLabels.addTo(map);} else {map.removeLayer(imageryLabels);} });
+  $chkGlow.addEventListener('change', (e)=>{ if(!e.target.checked) clearGlow(); else zoomGlowTo($dep.value.trim(), $prov.value.trim(), $dist.value.trim()); });
+  $chkCP  .addEventListener('change', (e)=>{ if(!e.target.checked) cpSelectedLayer.clearLayers(); });
+
+  /* ===== Carga HEAT (capa 6) ===== */
+  const pageSize=2000; let resultOffset=0;
+  function fetchPage(o){
+    return new Promise((res,rej)=>{
+      L.esri.query({url:SERVICE})
+        .where('1=1').returnGeometry(true).fields(['*'])
+        .limit(pageSize).offset(o)
+        .run((e,fc,raw)=>e?rej(e):res({fc,raw}));
+    });
+  }
+  (async()=>{
+    // 1) Cargar categorías desde CCPP (para que los chips SIEMPRE aparezcan)
+    loadDispersionCategories();
+
+    // 2) Cargar polígonos -> heat
+    while(true){
+      const {fc,raw}=await fetchPage(resultOffset);
+      const feats=fc && fc.features ? fc.features : [];
+      if(!feats.length)break;
+
+      feats.forEach(f=>{
+        if(!f.geometry) return;
+        const a=f.properties||f.attributes||{};
+        // centroide de superficie
+        if(f.geometry.type==='Polygon' || f.geometry.type==='MultiPolygon'){
+          const c=turf.pointOnSurface(f); if(!c||!c.geometry) return;
+          const [lng,lat]=c.geometry.coordinates;
+          // Si la capa 6 tuviera categoría, se guarda; si no, queda null (heat no filtra por chip)
+          const cat = CAT_FIELDS.map(k=>a[k]).find(v=>v!=null && String(v).trim()!=="") || null;
+          allPoints.push({ lat,lng,w:1, id_dpto:a.id_dpto??null, id_prov:a.id_prov??null, id_dist:a.id_dist??null, cat: cat?String(cat).trim():null });
+        }
+      });
+
+      resultOffset+=pageSize;
+      if(feats.length<pageSize && raw && raw.exceededTransferLimit!==true) break;
+    }
+    buildHeat(allPoints); dataReady=true;
+
+    // 3) Cargar combos
+    loadDeps();
+  })().catch(console.error);
+})();
+</script>
+</body>
+</html>
