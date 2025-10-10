@@ -40,7 +40,7 @@
   @media (max-width:900px){.shell{grid-template-columns:1fr}#viewWrap{height:54vh}.lowerGrid{grid-template-columns:1fr}}
   .listCard{background:#fff;border:1px solid var(--sep);border-radius:16px;box-shadow:0 10px 24px rgba(2,6,23,.06);overflow:hidden;display:grid;grid-template-rows:auto 1fr;min-height:0}
   .listCard header{padding:10px 12px;background:#fff;border-bottom:1px solid var(--sep)}
-  .listCard h3{margin:0;font-size:14px;font-weight:1000;color:var(--brand);letter-spacing:.2px}
+  .listCard h3{margin:0;font-size:14px;font-weight:1000;color:#0b3b38;letter-spacing:.2px}
   .list{overflow:auto;min-height:0}
   .item{padding:10px 12px;border-bottom:1px solid #edf2f7;cursor:pointer;transition:background .15s ease}
   .item:hover{background:#f5faf8}
@@ -166,10 +166,8 @@ require([
   /* ===== MAPA ===== */
   const map = new Map({ basemap: "satellite" });
   const view = new MapView({
-    container: "viewDiv",
-    map,
-    center: [-75, -9],
-    zoom: 5,
+    container: "viewDiv", map,
+    center: [-75, -9], zoom: 5,
     constraints: { minZoom: 4, snapToZoom: false }
   });
   view.ui.add(new ScaleBar({ view, unit:"metric" }), "bottom-left");
@@ -191,8 +189,7 @@ require([
     return [160,160,160,0.95];
   }
 
-  /* === CAPAS BASE === */
-  // Polígonos (se mantienen para referencia/lista, no es el heatmap)
+  /* === CAPAS BASE (polígonos de referencia) === */
   const lyrAreasAgrup = new FeatureLayer({
     url:`${CCPP}/6`,
     title:"Áreas agrupadas (densidad y viviendas)",
@@ -211,7 +208,7 @@ require([
     renderer:new SimpleRenderer({ symbol: poly([0,0,0,0], new SimpleLineSymbol({ color:[0,0,0,0.9], width:1.2, style:"short-dot" })) })
   });
 
-  /* === CCPP como PUNTOS (para escala distrital y selección) === */
+  /* === CCPP PUNTOS === */
   const lyrCPGrado = new FeatureLayer({
     url: CP_LAYER,
     title:"Centro poblado (puntos / por grado)",
@@ -220,20 +217,18 @@ require([
     renderer:new SimpleRenderer({ symbol: mk([200,200,200,0.95], 6.5) })
   });
 
-  /* === HEATMAP de CCPP (MISMA CAPA /4) para vista macro === */
+  /* === HEATMAP CCPP (MISMA CAPA /4) === */
   const lyrCPHeat = new FeatureLayer({
     url: CP_LAYER,
     title: "Heatmap de centros poblados",
     visible: true,
-    // sin minScale: lo controlamos manualmente según zoom y filtros
     renderer: new HeatmapRenderer({
-      // kernel sin campo de peso (cuenta simple), como en tu Leaflet (w:1)
       colorStops: [
-        { ratio: 0.00, color: [255, 0, 128,   0] },   // 0 transparente
-        { ratio: 0.25, color: [255, 214, 235, 1] },   // #ffd6eb
-        { ratio: 0.50, color: [255, 153, 204, 1] },   // #ff99cc
-        { ratio: 0.75, color: [255, 77, 166,  1] },   // #ff4da6
-        { ratio: 1.00, color: [230, 0, 115,   1] }    // #e60073
+        { ratio: 0.00, color: [255,   0, 128, 0] },
+        { ratio: 0.25, color: [255, 214, 235, 1] },
+        { ratio: 0.50, color: [255, 153, 204, 1] },
+        { ratio: 0.75, color: [255,  77, 166, 1] },
+        { ratio: 1.00, color: [230,   0, 115, 1] }
       ],
       maxPixelIntensity: 80,
       minPixelIntensity: 0,
@@ -241,15 +236,37 @@ require([
     })
   });
 
-  /* === DATASS + Viviendas (como antes) === */
-  const lyrRedes   = new FeatureLayer({ url:`${CCPP}/3`, title:"Redes - DATASS", visible:false, minScale:50000, renderer:new SimpleRenderer({ symbol: line([95,210,255,0.95],1.4) }) });
+  /* === DATASS + Viviendas === */
+  const lyrRedes   = new FeatureLayer({ url:`${CCPP}/3`, title:"Redes - DATASS", visible:false, minScale:50000,  renderer:new SimpleRenderer({ symbol: line([95,210,255,0.95],1.4) }) });
   const lyrReserv  = new FeatureLayer({ url:`${CCPP}/2`, title:"Reservorio - DATASS", visible:false, minScale:100000, renderer:new SimpleRenderer({ symbol: mk([46,204,64,0.95], 8) }) });
   const lyrCapt    = new FeatureLayer({ url:`${CCPP}/1`, title:"Captación - DATASS", visible:false, minScale:100000, renderer:new SimpleRenderer({ symbol: mk([52,152,219,0.95], 8) }) });
-  const lyrPTAP    = new FeatureLayer({ url:`${CCPP}/0`, title:"PTAP - DATASS", visible:false, minScale:100000, renderer:new SimpleRenderer({ symbol: mk([231,76,60,0.95], 7.5) }) });
+  const lyrPTAP    = new FeatureLayer({ url:`${CCPP}/0`, title:"PTAP - DATASS",     visible:false, minScale:100000, renderer:new SimpleRenderer({ symbol: mk([231,76,60,0.95], 7.5) }) });
 
   const lyrVivSinDato   = new FeatureLayer({ url:`${VR_URL}/6`, title:"Viviendas rurales (sin dato de acceso)", visible:true,  minScale:100000, renderer:new SimpleRenderer({ symbol: mkSolid([160,160,160,1], 4.8) }) });
   const lyrVivConAcceso = new FeatureLayer({ url:`${VR_URL}/1`, title:"Viviendas rurales (con acceso)",        visible:true,  minScale:100000, renderer:new SimpleRenderer({ symbol: mkSolid([30,110,182,1], 4.8) }) });
   const lyrVivSinAcceso = new FeatureLayer({ url:`${VR_URL}/2`, title:"Viviendas rurales (sin acceso)",        visible:true,  minScale:100000, renderer:new SimpleRenderer({ symbol: mkSolid([220,53,69,1], 4.8) }) });
+
+  /* === LÍMITES CON GLOW (DE VUELTA) === */
+  const glowCIM = (rgb=[255,255,255]) => {
+    const [r,g,b]=rgb;
+    return {
+      type:"cim",
+      data:{
+        type:"CIMSymbolReference",
+        symbol:{
+          type:"CIMLineSymbol",
+          symbolLayers:[
+            { type:"CIMSolidStroke", enable:true, width:6,   color:[r,g,b,40]  },
+            { type:"CIMSolidStroke", enable:true, width:3,   color:[r,g,b,120] },
+            { type:"CIMSolidStroke", enable:true, width:1.6, color:[r,g,b,255] }
+          ]
+        }
+      }
+    };
+  };
+  const limDeptDraw = new FeatureLayer({ url:LIM0, title:"Límite Departamental", visible:false, renderer:new SimpleRenderer({ symbol:glowCIM([0,255,255]) }), blendMode:"screen" });
+  const limProvDraw = new FeatureLayer({ url:LIM1, title:"Límite Provincial",    visible:false, renderer:new SimpleRenderer({ symbol:glowCIM([255,215,0]) }), blendMode:"screen" });
+  const limDistDraw = new FeatureLayer({ url:LIM2, title:"Límite Distrital",     visible:false, renderer:new SimpleRenderer({ symbol:glowCIM([255,105,180]) }), blendMode:"screen" });
 
   // Orden de capas
   map.addMany([
@@ -259,8 +276,10 @@ require([
     lyrRedes, lyrPTAP, lyrCapt, lyrReserv,
     // Viviendas (sin dato primero)
     lyrVivSinDato, lyrVivConAcceso, lyrVivSinAcceso,
-    // HEAT primero, PUNTOS arriba
-    lyrCPHeat, lyrCPGrado
+    // HEAT y PUNTOS
+    lyrCPHeat, lyrCPGrado,
+    // Límites con glow arriba
+    limDeptDraw, limProvDraw, limDistDraw
   ]);
 
   // Bloom en CCPP (puntos)
@@ -271,8 +290,7 @@ require([
   new LayerList({ view, container:"layerListNode", listItemCreatedFunction:(e)=>{ e.item.panel={ content:"legend", open:false }; }});
 
   /* ===== LISTA + FILTROS ===== */
-  const cpLayer = lyrAmbito; // listado por ámbito
-  let layerView, hl;
+  const cpLayer = lyrAmbito; let layerView, hl;
   view.whenLayerView(cpLayer).then(lv=> layerView = lv);
 
   // Fuentes SOLO para combos
@@ -281,34 +299,64 @@ require([
   const limDistSrc = new FeatureLayer({ url:LIM2, outFields:["id_dpto","id_prov","id_dist","nom_dist"], listMode:"hide" });
   const cpSrc      = new FeatureLayer({ url:CP_LAYER, outFields:["nom_ccpp","ubigeo"], listMode:"hide" });
 
-  const guideLayer = new GraphicsLayer({ listMode:"hide" });
-  map.add(guideLayer);
+  const guideLayer = new GraphicsLayer({ listMode:"hide" }); map.add(guideLayer);
 
-  const $list = document.getElementById('cpList');
-  const $selDep = document.getElementById('selDep');
-  const $selProv = document.getElementById('selProv');
-  const $selDist = document.getElementById('selDist');
-  const $selCP = document.getElementById('selCP');
-  const $btnClear = document.getElementById('btnClear');
-  const $chipList = document.getElementById('chipList');
+  const $list=document.getElementById('cpList');
+  const $selDep=document.getElementById('selDep');
+  const $selProv=document.getElementById('selProv');
+  const $selDist=document.getElementById('selDist');
+  const $selCP=document.getElementById('selCP');
+  const $btnClear=document.getElementById('btnClear');
+  const $chipList=document.getElementById('chipList');
 
-  const selectedCats = new Set();
-  let initialViewpoint=null; view.when(()=>{ initialViewpoint = view.viewpoint.clone(); });
+  const selectedCats=new Set();
+  let initialViewpoint=null; view.when(()=>{ initialViewpoint=view.viewpoint.clone(); });
 
   const fmt=(n,d=0)=>(n==null||isNaN(n))?"—":new Intl.NumberFormat('es-PE',{ maximumFractionDigits:d }).format(Number(n));
   const esc=s=>String(s).replace(/'/g,"''");
 
   /* ===== Visibilidad HEAT vs PUNTOS ===== */
-  const DIST_VIS_SCALE = 90000; // ~distrital: ajusta si quieres
+  const DIST_VIS_SCALE = 90000; // ~distrital
   function updateVisibility(){
     const dist = $selDist.value.trim();
     const showPoints = !!dist || view.scale <= DIST_VIS_SCALE;
     lyrCPGrado.visible = showPoints;
     lyrCPHeat.visible  = !showPoints;
-    // “Áreas agrupadas” acompaña al heat (macro)
+    // Áreas agrupadas acompaña al heat (macro)
     lyrAreasAgrup.visible = !showPoints;
   }
   view.watch('scale', updateVisibility);
+
+  /* ===== LÍMITES: visibilidad + zoom panorámico ===== */
+  function updatePoliticalLimitVisibility(){
+    const dep=$selDep.value.trim();
+    const prov=$selProv.value.trim();
+    const dist=$selDist.value.trim();
+    [limDeptDraw, limProvDraw, limDistDraw].forEach(ly=>{ ly.visible=false; ly.definitionExpression=null; });
+
+    if(dist){ limDistDraw.definitionExpression = `id_dist='${esc(dist)}'`; limDistDraw.visible=true; return; }
+    if(prov){ limProvDraw.definitionExpression = `id_prov='${esc(prov)}'`; limProvDraw.visible=true; return; }
+    if(dep ){ limDeptDraw.definitionExpression = `id_dpto='${esc(dep)}'`; limDeptDraw.visible=true; return; }
+  }
+
+  async function zoomToPolitical(){
+    let src=null, where=null;
+    const dist=$selDist.value.trim();
+    const prov=$selProv.value.trim();
+    const dep =$selDep.value.trim();
+
+    if(dist){ src=limDistSrc; where=`id_dist='${esc(dist)}'`; }
+    else if(prov){ src=limProvSrc; where=`id_prov='${esc(prov)}'`; }
+    else if(dep){ src=limDeptSrc; where=`id_dpto='${esc(dep)}'`; }
+    else{ if(initialViewpoint){ try{ await view.goTo(initialViewpoint,{ duration:900 }); }catch(_){} } return; }
+
+    const q=src.createQuery(); q.where=where; q.returnGeometry=true; q.outFields=[]; q.num=1;
+    const r=await src.queryFeatures(q);
+    const g=r.features?.[0]?.geometry; if(!g) return;
+    try{
+      await view.goTo({ target:g, padding:{ left:50,right:50,top:70,bottom:60 } }, { duration:900, easing:"ease-in-out" });
+    }catch(_){}
+  }
 
   /* ===== Combos ===== */
   async function loadDeps(){
@@ -400,10 +448,7 @@ require([
     const whereAmb = buildWhereForAmbito(true);
     const wherePts = buildWhereForPuntos(true);
 
-    // Ámbito para lista
     lyrAmbito.definitionExpression = whereAmb;
-
-    // Puntos y Heat comparten el MISMO where (para que el heat refleje los chips y filtros)
     lyrCPGrado.definitionExpression = wherePts;
     lyrCPHeat.definitionExpression  = wherePts;
 
@@ -464,15 +509,9 @@ require([
   function flashGraphic(geometry){
     const g=new Graphic({
       geometry,
-      symbol:new SimpleMarkerSymbol({
-        style:"circle",
-        size:14,
-        color:[255,255,255,0],
-        outline:{ color:[255,255,0,1], width:2 }
-      })
+      symbol:new SimpleMarkerSymbol({ style:"circle", size:14, color:[255,255,255,0], outline:{ color:[255,255,0,1], width:2 } })
     });
-    guideLayer.removeAll();
-    guideLayer.add(g);
+    guideLayer.removeAll(); guideLayer.add(g);
     let i=0; const int=setInterval(()=>{
       const o=(i%2===0)?1:0.05;
       g.symbol.outline.color.a=o; guideLayer.refresh();
@@ -505,39 +544,40 @@ require([
 
   /* ===== Eventos ===== */
   $selDep.addEventListener('change', async ()=>{
-    await loadProvs(); await refreshCategoryChips(); await cargarLista(); await applyMapFilters(); updateVisibility();
+    await loadProvs(); await refreshCategoryChips(); await cargarLista(); await applyMapFilters();
+    updatePoliticalLimitVisibility(); await zoomToPolitical();
   });
   $selProv.addEventListener('change', async ()=>{
-    await loadDists(); await refreshCategoryChips(); await cargarLista(); await applyMapFilters(); updateVisibility();
+    await loadDists(); await refreshCategoryChips(); await cargarLista(); await applyMapFilters();
+    updatePoliticalLimitVisibility(); await zoomToPolitical();
   });
   $selDist.addEventListener('change', async ()=>{
-    await loadCPs();  await refreshCategoryChips(); await cargarLista(); await applyMapFilters(); updateVisibility();
+    await loadCPs();  await refreshCategoryChips(); await cargarLista(); await applyMapFilters();
+    updatePoliticalLimitVisibility(); await zoomToPolitical();
   });
 
-  // Al elegir un CCPP: forzar puntos, apagar heat, zoom al punto y parpadeo
+  // Al elegir un CCPP: forzar puntos, apagar heat, zoom al punto y parpadeo; glow distrital activo
   $selCP.addEventListener('change', async ()=>{
-    await refreshCategoryChips(); await cargarLista(); await applyMapFilters(); // aplica where a heat y puntos
-    const sel = (()=>{
-      const v=$selCP.value.trim(); if(!v) return null;
-      const [u, ...nameParts] = v.split("::"); const name=nameParts.join("::");
-      return { ubigeo:u, name };
-    })();
-    if(!sel) { updateVisibility(); return; }
-
+    await refreshCategoryChips(); await cargarLista(); await applyMapFilters();
+    const v=$selCP.value.trim();
+    if(!v){ updatePoliticalLimitVisibility(); await zoomToPolitical(); return; }
+    const [ubg, ...nameParts]=v.split("::"); const name=nameParts.join("::");
     const q=lyrCPGrado.createQuery();
-    q.where=`ubigeo='${esc(sel.ubigeo)}' AND nom_ccpp='${esc(sel.name)}'`;
+    q.where=`ubigeo='${esc(ubg)}' AND nom_ccpp='${esc(name)}'`;
     q.returnGeometry=true; q.outFields=[]; q.num=1;
     const r=await lyrCPGrado.queryFeatures(q);
-    const feat=r.features?.[0]; if(!feat) { updateVisibility(); return; }
+    const feat=r.features?.[0]; if(!feat){ updatePoliticalLimitVisibility(); await zoomToPolitical(); return; }
 
-    // Mostrar puntos y ocultar heat explícitamente al seleccionar CCPP
-    lyrCPGrado.visible = true;
-    lyrCPHeat.visible  = false;
-    lyrAreasAgrup.visible = false;
+    // Mostrar puntos y ocultar heat explícitamente
+    lyrCPGrado.visible = true; lyrCPHeat.visible = false; lyrAreasAgrup.visible = false;
+
+    // Activa glow distrital
+    const dist=ubg.slice(0,6); $selDist.value = dist; // fija el combo para mantener coherencia
+    updatePoliticalLimitVisibility();
 
     try{
       await view.goTo({ target: feat.geometry, scale: 18000 }, { duration:900, easing:"ease-in-out" });
-      flashGraphic(feat.geometry); // <-- parpadeo amarillo en el punto
+      flashGraphic(feat.geometry);
     }catch(_){}
   });
 
@@ -548,6 +588,7 @@ require([
     $selCP.innerHTML  =`<option value="">(Todos)</option>`; $selCP.disabled=true;
     selectedCats.clear();
     await refreshCategoryChips(); await cargarLista(); await applyMapFilters();
+    updatePoliticalLimitVisibility();
     if(initialViewpoint){ try{ await view.goTo(initialViewpoint, { duration:900 }); }catch(_){} }
     guideLayer.removeAll(); if(hl){ hl.remove(); hl=null; }
   });
@@ -558,7 +599,7 @@ require([
     await refreshCategoryChips();
     await cargarLista();
     await applyMapFilters();
-    updateVisibility();
+    updatePoliticalLimitVisibility();
   })();
 
 });
