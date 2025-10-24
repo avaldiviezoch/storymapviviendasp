@@ -161,36 +161,104 @@
   }
 
   /* contenedor de la celda del pliego:
-     botón (abre/colapsa ejecutoras) + botoncito de info */
+     izquierda (chev + texto)
+     derecha (botón info animado)
+  */
   .groupHead{
     display:flex;
-    align-items:flex-start;
-    gap:6px;
+    align-items:center;            /* centra vertical todo */
+    justify-content:space-between; /* texto izq, botón info der */
+    gap:8px;
     flex-wrap:nowrap;
   }
 
-  /* Botón "Más info" */
+  .groupLeft{
+    display:inline-flex;
+    align-items:flex-start;
+    gap:6px;
+    max-width:calc(var(--w-name) - 60px); /* deja sitio al botón info */
+  }
+
+  /* === Botón "Más info" con animación estilo GIF === */
   .infoBtn{
     flex:0 0 auto;
+    position:relative;
+    width:32px;
+    height:32px;
+    border-radius:8px;
+    background:radial-gradient(circle at 30% 30%, #38bdf8 0%, #0284c7 60%, #01497a 100%);
+    border:1px solid rgba(255,255,255,.35);
+    cursor:pointer;
     display:inline-flex;
     align-items:center;
     justify-content:center;
-    width:20px;
-    height:20px;
-    border-radius:6px;
-    background:var(--accent);
-    color:#fff;
-    font-size:12px;
-    font-weight:700;
-    line-height:1;
     text-decoration:none;
-    box-shadow:0 4px 10px rgba(14,165,233,.45);
-  }
-  .infoBtn:hover{
-    background:#0284c7;
+    line-height:1;
+    box-shadow:0 0 12px rgba(56,189,248,.7),0 8px 18px rgba(2,132,199,.45);
+    overflow:hidden;
   }
 
-  /* Flechitas animadas */
+  /* halo/pulso como glow animado alrededor del botón */
+  .infoBtn::after{
+    content:"";
+    position:absolute;
+    inset:-4px;
+    border-radius:10px;
+    background:radial-gradient(circle,#38bdf8 0%,rgba(56,189,248,0)70%);
+    opacity:.4;
+    filter:blur(6px);
+    animation:haloPulse 2s ease-in-out infinite;
+    pointer-events:none;
+  }
+  @keyframes haloPulse{
+    0%  {opacity:.35; filter:blur(6px);}
+    50% {opacity:.75; filter:blur(10px);}
+    100%{opacity:.35; filter:blur(6px);}
+  }
+
+  /* Contenedor interno del icono animado */
+  .infoIconWrap{
+    position:relative;
+    width:18px;
+    height:18px;
+  }
+
+  /* Cada "flecha externa" es un svg blanco con glow */
+  .infoArrow{
+    position:absolute;
+    left:0;
+    top:0;
+    width:18px;
+    height:18px;
+    opacity:0;
+    filter:drop-shadow(0 0 4px rgba(255,255,255,.9))
+            drop-shadow(0 0 8px rgba(56,189,248,.8));
+    animation:infoDrip 1.8s ease-in-out infinite;
+  }
+  .infoArrow:nth-child(2){animation-delay:.22s}
+  .infoArrow:nth-child(3){animation-delay:.44s}
+
+  /* animación tipo "sube y aparece / baja y desaparece"
+     similar a las flechitas naranjas de goteo */
+  @keyframes infoDrip{
+    0%   {transform:translateY(6px) scale(.9); opacity:0}
+    20%  {transform:translateY(0) scale(1);   opacity:1}
+    60%  {transform:translateY(-6px) scale(1.05); opacity:.95}
+    100% {transform:translateY(-10px) scale(1.05); opacity:0}
+  }
+
+  /* SVG icon style */
+  .infoArrow svg{
+    width:18px;
+    height:18px;
+    stroke:#fff;
+    stroke-width:2;
+    stroke-linecap:round;
+    stroke-linejoin:round;
+    fill:none;
+  }
+
+  /* Flechitas animadas del botón colapsar */
   .chev{
     --chev-color:#ea580c;
     --chev-glow:rgba(234,88,12,.45);
@@ -433,25 +501,58 @@ function renderTable(grouped){
       if(pliego.toUpperCase().startsWith(key)){
         const href=INFO_LINKS[key];
         infoBtnHTML=
-          `<a class="infoBtn" href="${href}" target="_blank" rel="noopener"
-              title="Más información" aria-label="Más información">↗</a>`;
+          `<a class="infoBtn"
+              href="${href}"
+              target="_blank"
+              rel="noopener"
+              title="Más información"
+              aria-label="Más información">
+             <span class="infoIconWrap">
+                <span class="infoArrow">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M14 3h7v7"/>
+                    <path d="M10 14 21 3"/>
+                    <path d="M21 14v7h-7"/>
+                    <path d="M3 10 14 21"/>
+                  </svg>
+                </span>
+                <span class="infoArrow">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M14 3h7v7"/>
+                    <path d="M10 14 21 3"/>
+                    <path d="M21 14v7h-7"/>
+                    <path d="M3 10 14 21"/>
+                  </svg>
+                </span>
+                <span class="infoArrow">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M14 3h7v7"/>
+                    <path d="M10 14 21 3"/>
+                    <path d="M21 14v7h-7"/>
+                    <path d="M3 10 14 21"/>
+                  </svg>
+                </span>
+             </span>
+           </a>`;
         break;
       }
     }
 
-    /* SIN 'EJECUTORAS' debajo, solo el nombre limpio */
+    /* celda izquierda del pliego */
     const groupCellHTML = `
       <div class="groupHead">
-        <button class="btn subtle" aria-expanded="false" aria-controls="${gid}">
-          <span class="chev" aria-hidden="true">
-            <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12"></path><path d="M8 12l4 4 4-4"></path></svg>
-            <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12"></path><path d="M8 12l4 4 4-4"></path></svg>
-            <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12"></path><path d="M8 12l4 4 4-4"></path></svg>
-          </span>
-          <span style="display:inline-block;white-space:normal;word-break:break-word;max-width:calc(var(--w-name) - 40px);">
-            ${pliego}
-          </span>
-        </button>
+        <div class="groupLeft">
+          <button class="btn subtle" aria-expanded="false" aria-controls="${gid}">
+            <span class="chev" aria-hidden="true">
+              <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12"></path><path d="M8 12l4 4 4-4"></path></svg>
+              <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12"></path><path d="M8 12l4 4 4-4"></path></svg>
+              <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12"></path><path d="M8 12l4 4 4-4"></path></svg>
+            </span>
+            <span style="display:inline-block;white-space:normal;word-break:break-word;">
+              ${pliego}
+            </span>
+          </button>
+        </div>
         ${infoBtnHTML}
       </div>`;
 
