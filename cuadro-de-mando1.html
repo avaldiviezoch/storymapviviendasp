@@ -5,35 +5,31 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Tabla MVCS — PIM/Devengado por Pliego y Unidad Ejecutora</title>
 <style>
-  /* ===== Reset mínimo + box-sizing ===== */
   *,*::before,*::after{box-sizing:border-box}
   :root{
     --bg:#ffffff; --ink:#0f172a; --muted:#6b7280; --line:#e5e7eb;
     --chip-ok:#16a34a; --chip-mid:#f59e0b; --chip-bad:#ef4444; --accent:#0ea5e9;
 
-    /* Anchos por columna (se ajustan en breakpoints) */
-    --w-name:280px;   /* PLIEGO/EJECUTORAS */
-    --w-num: 130px;   /* numéricas */
-    --w-pct: 110px;   /* % */
+    --w-name:280px;
+    --w-num:130px;
+    --w-pct:110px;
 
-    /* Tipografías base (se ajustan en breakpoints) */
     --fs-body:13.5px;
     --fs-head:14px;
   }
 
-  /* ===== Contención total (sin barra externa en Story) ===== */
   html,body{
     height:100%;
     margin:0;
     background:transparent;
     font-family:system-ui,Segoe UI,Roboto,Arial;
     color:var(--ink);
-    overflow:hidden;               /* quita barra del iframe/página */
+    overflow:hidden;
   }
 
   .wrap{
     height:100%;
-    overflow:hidden;               /* nada se sale del contenedor */
+    overflow:hidden;
   }
 
   .card{
@@ -47,20 +43,19 @@
     overflow:hidden;
     position:relative;
     display:flex;
-    flex-direction:column;         /* header + table-wrap (flex:1) + footer */
+    flex-direction:column;
   }
 
-  /* ===== Header compacto ===== */
   .header{
     flex:0 0 auto;
     text-align:center;
-    padding:8px 10px 6px;          /* más compacto */
+    padding:8px 10px 6px;
     border-bottom:1px solid var(--line)
   }
   .title{
     margin:0;
     font-weight:800;
-    font-size:clamp(15px,2vw,20px);/* más pequeño */
+    font-size:clamp(15px,2vw,20px);
     letter-spacing:.2px
   }
   .legend{
@@ -70,7 +65,6 @@
   }
   .legend .dot{width:.58rem;height:.58rem;border-radius:999px;display:inline-block;margin-right:.35rem}
 
-  /* Botón Excel */
   .btnCSV{
     position:absolute;top:8px;right:8px;
     display:inline-grid;place-items:center;
@@ -80,11 +74,10 @@
   .btnCSV:hover{opacity:1;color:#0f172a;border-color:#cbd5e1}
   .btnCSV:focus{outline:2px solid #bae6fd;outline-offset:2px}
 
-  /* ===== Tabla (scroll SOLO interno) ===== */
   .table-wrap{
     flex:1 1 auto;
-    min-height:0;                  /* evita overflow por flex */
-    overflow:auto;                 /* el único scroll permitido */
+    min-height:0;
+    overflow:auto;
     -webkit-overflow-scrolling:touch;
     max-width:100%;
   }
@@ -95,25 +88,30 @@
     font-size:var(--fs-body);
   }
 
-  /* Encabezados */
   thead th{
     position:sticky;top:0;z-index:40;
     background:linear-gradient(180deg,#111827 0%,#374151 100%);
     color:#fff;text-align:center;font-weight:800;
-    padding:8px 6px;               /* más compacto */
+    padding:8px 6px;
     border-bottom:2px solid #0b1220;
     font-size:var(--fs-head);
   }
 
-  /* Columna fija: PLIEGO/EJECUTORAS */
-  thead th:first-child{position:sticky;left:0;z-index:50}
+  thead th:first-child{position:sticky;left:0;z-index:50;text-align:left}
+
   tbody tr.group>th{
-    position:sticky;left:0;z-index:45;background:#f8fafc;text-align:left;
-    border-bottom:1px solid var(--line)
+    position:sticky;left:0;z-index:45;
+    background:#f8fafc;
+    border-bottom:1px solid var(--line);
+    text-align:left;
+    font-weight:800;
   }
   tbody tr.item>td:first-child{
-    position:sticky;left:0;z-index:44;background:#fff
+    position:sticky;left:0;z-index:44;
+    background:#fff;
+    text-align:left;
   }
+
   thead th:first-child,
   tbody tr.group>th,
   tbody tr.item>td:first-child{
@@ -123,25 +121,43 @@
   .table th+th,.table td+td{border-left:1px solid var(--line)}
   thead th, tbody td, tbody th{line-height:1.2}
   tbody td,tbody th{
-    padding:7px 6px;               /* filas más delgadas */
+    padding:7px 6px;
     border-bottom:1px solid var(--line);
-    background:#fff;box-sizing:border-box;vertical-align:middle
+    background:#fff;
+    box-sizing:border-box;
+    vertical-align:middle;
   }
 
-  /* Tipos de celda */
   .num{ text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
   .pct{ text-align:center; white-space:nowrap; font-variant-numeric:tabular-nums; }
-  .dot{display:inline-block;width:.58rem;height:.58rem;border-radius:999px;vertical-align:-.08rem;margin-right:.32rem}
-  .ok{background:var(--chip-ok)} .mid{background:var(--chip-mid)} .bad{background:var(--chip-bad)}
+  .dot{
+    display:inline-block;
+    width:.58rem;
+    height:.58rem;
+    border-radius:999px;
+    vertical-align:-.08rem;
+    margin-right:.32rem
+  }
+  .ok{background:var(--chip-ok)}
+  .mid{background:var(--chip-mid)}
+  .bad{background:var(--chip-bad)}
 
+  /* botón que expande/colapsa */
   .btn{
     border:0;
     background:transparent;
     font-weight:800;
     cursor:pointer;
-    padding:4px 6px;
+    padding:4px 0;
     border-radius:8px;
     text-align:left;
+    line-height:1.3;
+    color:var(--ink);
+    display:inline-flex;
+    align-items:flex-start;
+    gap:6px;
+    flex-wrap:nowrap;
+    max-width:100%;
   }
 
   /* contenedor de la celda del pliego:
@@ -149,11 +165,11 @@
   .groupHead{
     display:flex;
     align-items:flex-start;
-    gap:4px;
+    gap:6px;
     flex-wrap:nowrap;
   }
 
-  /* Botón "Más info" (StoryMap) */
+  /* Botón "Más info" */
   .infoBtn{
     flex:0 0 auto;
     display:inline-flex;
@@ -174,26 +190,27 @@
     background:#0284c7;
   }
 
-  /* Flecha (sin círculo) */
-  .btn .chev{
+  /* Flechitas animadas */
+  .chev{
     --chev-color:#ea580c;
     --chev-glow:rgba(234,88,12,.45);
-    width:1.3rem;height:1.3rem;
+    width:1.3rem;
+    height:1.3rem;
     position:relative;
     display:inline-grid;
     place-items:center;
-    margin-right:.35rem;
+    flex-shrink:0;
     color:var(--chev-color)
   }
-  .btn .chev .arrow{
+  .chev .arrow{
     position:absolute;
     width:16px;height:16px;
     opacity:0;
     filter:drop-shadow(0 5px 10px var(--chev-glow));
     animation:chevDrip 1.8s ease-in-out infinite
   }
-  .btn .chev .arrow:nth-child(2){animation-delay:.22s}
-  .btn .chev .arrow:nth-child(3){animation-delay:.44s}
+  .chev .arrow:nth-child(2){animation-delay:.22s}
+  .chev .arrow:nth-child(3){animation-delay:.44s}
   @keyframes chevDrip{
     0%{transform:translateY(-8px) scale(.95);opacity:0}
     20%{transform:translateY(-2px) scale(1);opacity:1}
@@ -209,16 +226,21 @@
     --chev-glow:rgba(14,165,233,.45)
   }
 
-  /* Footer compacto */
-  tfoot td{background:#f8fafc;font-weight:800;border-top:2px solid #94a3b8;padding:8px 10px}
+  tfoot td{
+    background:#f8fafc;
+    font-weight:800;
+    border-top:2px solid #94a3b8;
+    padding:8px 10px
+  }
   .footer{
     flex:0 0 auto;
     padding:8px 10px 10px;
-    font-size:11.5px;color:var(--muted);
-    border-top:1px solid var(--line);text-align:center
+    font-size:11.5px;
+    color:var(--muted);
+    border-top:1px solid var(--line);
+    text-align:center
   }
 
-  /* ===== Responsivo (encoge letras y columnas) ===== */
   @media (max-width:1200px){
     :root{--w-name:250px;--w-num:120px;--w-pct:102px;--fs-body:12.8px;--fs-head:13.2px}
     .legend{font-size:11.5px}
@@ -289,13 +311,12 @@
 const SERVICE="https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/OGEI/Mapa_Inversiones_MEF/FeatureServer/13/query";
 const BASE_WHERE="sector_nombre = 'VIVIENDA CONSTRUCCION Y SANEAMIENTO' AND ano_eje = 2025";
 
-/* 🔗 Aquí definimos qué pliegos tienen link adicional */
+/* Pliego con link adicional */
 const INFO_LINKS={
   "MINISTERIO DE VIVIENDA, CONSTRUCCION Y SANEAMIENTO":
     "https://pportalgis.vivienda.gob.pe/pportal/apps/storymaps/stories/750c7c6b13bf477287b8db07c865f1b1"
 };
 
-/* Utilidades */
 const fmt=new Intl.NumberFormat('es-PE');
 const pctStr=(r)=>isFinite(r)?(r*100).toFixed(2)+' %':'0.00 %';
 function chipClass(r){
@@ -306,7 +327,6 @@ function chipClass(r){
   return'ok';
 }
 
-/* Armado de parámetros para el query */
 function buildParams(extra){
   return new URLSearchParams({
     where:`${BASE_WHERE}${extra? ' AND '+extra:''}`,
@@ -367,7 +387,6 @@ function mergeStats(total,proy,act){
   return new Map([...byP.entries()].sort((a,b)=>a[0].localeCompare(b[0],'es')));
 }
 
-/* helper para crear filas */
 function addRow(tbody,cells,opts={}){
   const tr=document.createElement('tr');
   tr.className=opts.className||'';
@@ -380,7 +399,6 @@ function addRow(tbody,cells,opts={}){
   tbody.appendChild(tr);
 }
 
-/* Render principal */
 function renderTable(grouped){
   const tbody=document.getElementById('tbody');
   tbody.innerHTML='';
@@ -403,16 +421,16 @@ function renderTable(grouped){
     tot.pim_act+=s.pim_act;
     tot.dev_act+=s.dev_act;
 
-    const av =  s.pim>0        ? s.dev/s.pim               :0;
-    const avp=  s.pim_proy>0   ? s.dev_proy/s.pim_proy     :0;
-    const ava=  s.pim_act>0    ? s.dev_act/s.pim_act       :0;
+    const av   = s.pim>0      ? s.dev/s.pim           :0;
+    const avp  = s.pim_proy>0 ? s.dev_proy/s.pim_proy :0;
+    const ava  = s.pim_act>0  ? s.dev_act/s.pim_act   :0;
 
     const gid='g_'+Math.random().toString(36).slice(2,9);
 
-    /* Si este pliego tiene StoryMap, armamos el botoncito */
+    /* StoryMap solo para el Ministerio */
     let infoBtnHTML='';
     for(const key in INFO_LINKS){
-      if(pliego.toUpperCase().startsWith(key)){ // tolerante a pequeñas diferencias
+      if(pliego.toUpperCase().startsWith(key)){
         const href=INFO_LINKS[key];
         infoBtnHTML=
           `<a class="infoBtn" href="${href}" target="_blank" rel="noopener"
@@ -421,7 +439,7 @@ function renderTable(grouped){
       }
     }
 
-    /* celda del pliego + botón desplegar + botón info */
+    /* SIN 'EJECUTORAS' debajo, solo el nombre limpio */
     const groupCellHTML = `
       <div class="groupHead">
         <button class="btn subtle" aria-expanded="false" aria-controls="${gid}">
@@ -430,8 +448,9 @@ function renderTable(grouped){
             <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12"></path><path d="M8 12l4 4 4-4"></path></svg>
             <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12"></path><path d="M8 12l4 4 4-4"></path></svg>
           </span>
-          ${pliego}
-          <br/><small>EJECUTORAS</small>
+          <span style="display:inline-block;white-space:normal;word-break:break-word;max-width:calc(var(--w-name) - 40px);">
+            ${pliego}
+          </span>
         </button>
         ${infoBtnHTML}
       </div>`;
@@ -449,7 +468,7 @@ function renderTable(grouped){
       {html:`<span class="dot ${chipClass(ava)}"></span>${pctStr(ava)}`,cls:'pct'}
     ],{className:'group'});
 
-    /* filas hijas (ejecutorAs) */
+    /* filas hijas */
     for(const r of items){
       const av2   = r.pim>0        ? r.dev/r.pim             :0;
       const avp2  = r.pim_proy>0   ? r.dev_proy/r.pim_proy   :0;
@@ -460,7 +479,9 @@ function renderTable(grouped){
       tr.setAttribute('data-parent',gid);
       tr.style.display='none';
       tr.innerHTML=`
-        <td style="padding-left:20px;"><span class="subtle">${r.ejecutora}</span></td>
+        <td style="padding-left:20px;text-align:left;white-space:normal;word-break:break-word;">
+          ${r.ejecutora}
+        </td>
         <td class="num">${fmt.format(r.pim)}</td>
         <td class="num">${fmt.format(r.dev)}</td>
         <td class="pct"><span class="dot ${chipClass(av2)}"></span>${pctStr(av2)}</td>
@@ -476,9 +497,9 @@ function renderTable(grouped){
 
   /* Totales */
   const tfoot=document.getElementById('tfoot');
-  const tav =  tot.pim>0        ? tot.dev/tot.pim               :0;
-  const tavp=  tot.pim_proy>0   ? tot.dev_proy/tot.pim_proy     :0;
-  const tava=  tot.pim_act>0    ? tot.dev_act/tot.pim_act       :0;
+  const tav  = tot.pim>0        ? tot.dev/tot.pim               :0;
+  const tavp = tot.pim_proy>0   ? tot.dev_proy/tot.pim_proy     :0;
+  const tava = tot.pim_act>0    ? tot.dev_act/tot.pim_act       :0;
 
   tfoot.innerHTML=`
     <tr>
@@ -494,7 +515,7 @@ function renderTable(grouped){
       <td class="pct"><span class="dot ${chipClass(tava)}"></span>${pctStr(tava)}</td>
     </tr>`;
 
-  /* interacción expandir/colapsar */
+  /* expandir/colapsar ejecutoras */
   tbody.querySelectorAll('button[aria-controls]').forEach(btn=>{
     btn.addEventListener('click',()=>{
       const id=btn.getAttribute('aria-controls');
@@ -507,7 +528,7 @@ function renderTable(grouped){
   });
 }
 
-/* Exportación a Excel */
+/* Export a Excel */
 function exportTableToExcel(tableId='tbl', filename='ejecutoras_matriz.xls'){
   const table=document.getElementById(tableId); if(!table) return;
   const clone=table.cloneNode(true);
