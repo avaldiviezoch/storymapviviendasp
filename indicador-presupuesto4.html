@@ -13,61 +13,94 @@
 
   .stage{
     height:100vh;width:100vw;box-sizing:border-box;
-    display:grid;place-items:center;gap:clamp(22px,3vh,34px);
+    display:grid;place-items:center;
+    gap:clamp(22px,3vh,34px);
     padding:clamp(12px,3vw,36px);
   }
 
-  .hero{display:grid;justify-items:center;row-gap:8px}
-  .big{
-    font-weight:900;color:#043a36;line-height:1;letter-spacing:.01em;
-    font-size:clamp(64px,16vw,150px);
+  /* CONTENEDOR PRINCIPAL DE LAS TRES MÉTRICAS (vertical como antes) */
+  .metrics{
+    display:grid;
+    justify-items:center;
+    row-gap:clamp(18px,2.4vh,28px);
+    width:100%;
+    max-width:1100px;
+  }
+
+  /* Cada métrica flotante SIN tarjeta */
+  .metric{
+    display:grid;
+    justify-items:center;
     text-align:center;
-  }
-  .label{
-    text-align:center;font-weight:800;letter-spacing:.06em;
-    font-size:clamp(16px,2.6vw,28px);color:#0b3b38;
-  }
-
-  .cards{
-    display:grid;gap:clamp(16px,2.4vh,22px);
-    width:100%;max-width:1100px;
-  }
-
-  .card{
-    background:#fff;border:1px solid #e6ecea;border-radius:18px;
-    box-shadow:0 16px 36px rgba(2,6,23,.08);
-    padding:clamp(18px,2.8vh,28px) clamp(18px,4vw,28px);
-    display:grid;justify-items:center;row-gap:12px;
+    row-gap:8px;
+    background:transparent;
+    border:0;
+    box-shadow:none;
+    padding:0;
     margin-inline:auto;
     width:100%;
     box-sizing:border-box;
   }
 
-  .card .title{
-    font-size:clamp(12px,2vw,14px);
-    font-weight:900;letter-spacing:.18em;color:#0b3b38;
-    text-transform:uppercase;text-align:center;
+  /* Título de cada métrica */
+  .m-title{
+    font-weight:800;
+    letter-spacing:.06em;
+    color:#0b3b38;
+    text-align:center;
+    line-height:1.2;
+    font-size:clamp(16px,2.6vw,28px);
+  }
+
+  /* Subrayado sutil SOLO para PIM y Devengado como pediste */
+  .metric.pim .m-title,
+  .metric.dev .m-title{
+    border-bottom:2px solid rgba(11,59,56,.18);
+    padding-bottom:4px;
+  }
+
+  /* Valor grande principal */
+  .big,
+  .amount{
+    font-weight:900;
+    color:#043a36;
+    line-height:1.05;
+    white-space:nowrap;
+    text-align:center;
+  }
+
+  .big{
+    font-size:clamp(64px,16vw,150px);
+    letter-spacing:.01em;
   }
 
   .amount{
-    font-weight:900;color:#043a36;line-height:1.05;white-space:nowrap;
-    text-align:center;
     font-size:clamp(28px, min(9vw, 7.5vh), 92px);
   }
 
+  /* Porcentaje debajo de Devengado */
   .pct{
-    display:flex;align-items:center;gap:.6em;
-    font-weight:900;color:#0b3b38;
-    font-size:clamp(16px,2.8vw,26px);line-height:1;
+    display:flex;
+    align-items:center;
+    gap:.6em;
+    font-weight:900;
+    color:#0b3b38;
+    font-size:clamp(16px,2.8vw,26px);
+    line-height:1;
   }
   .pct .badge{
     display:grid;place-items:center;
     width:1.35em;height:1.35em;border-radius:999px;
-    font-size:.72em;font-weight:900;color:#eafffb;background:#0b3b38;
+    font-size:.72em;
+    font-weight:900;
+    color:#eafffb;
+    background:#0b3b38;
   }
 
+  /* Fuente y nota */
   .source{
-    text-align:center;color:#334155;
+    text-align:center;
+    color:#334155;
     font-size:clamp(11px,1.6vw,14px)
   }
   .source b{color:#0369a1}
@@ -80,36 +113,44 @@
     margin-top:4px;
   }
 
+  /* Animación fade-in */
   .fade{opacity:0;transform:translateY(8px);transition:.35s ease}
   .fade.on{opacity:1;transform:translateY(0)}
 </style>
 </head>
 <body>
   <main class="stage">
-    <div class="hero">
-      <div id="count" class="big fade">0</div>
-      <div class="label">Inversiones</div>
-    </div>
 
-    <div class="cards">
-      <section class="card">
-        <div class="title">Monto PIM</div>
+    <div class="metrics">
+
+      <!-- MÉTRICA: INVERSIONES -->
+      <section class="metric inv">
+        <div class="m-title">Inversiones</div>
+        <div id="count" class="big fade">0</div>
+      </section>
+
+      <!-- MÉTRICA: MONTO PIM (sin tarjeta, con subrayado suave en título) -->
+      <section class="metric pim">
+        <div class="m-title">Monto PIM</div>
         <div id="pim" class="amount fade">0</div>
       </section>
 
-      <section class="card">
-        <div class="title">Monto Devengado</div>
+      <!-- MÉTRICA: MONTO DEVENGADO (sin tarjeta, con subrayado suave en título) -->
+      <section class="metric dev">
+        <div class="m-title">Monto Devengado</div>
         <div id="dev" class="amount fade">0</div>
         <div id="pct" class="pct fade">
           <span class="badge">%</span><span id="pctv">0%</span>
         </div>
       </section>
+
     </div>
 
     <div class="source">
       <b>Fuente:</b> Ministerio de Economía y Finanzas — MEF · Portal de datos Abiertos · 
       <em id="lastUpdate">Actualizado al —</em>
     </div>
+
     <div class="note">Incluye inversiones cuyo PIM sea mayor a 0</div>
   </main>
 
@@ -138,32 +179,68 @@ function animate(el,target,ms=1600,fmt=fmtInt,suffix=""){
 
 /* === Fetch data === */
 async function fetchDistinctCount(){
-  const params=new URLSearchParams({where:WHERE_COUNT,outFields:"producto_proyecto",returnDistinctValues:"true",returnCountOnly:"true",f:"json"});
+  const params=new URLSearchParams({
+    where:WHERE_COUNT,
+    outFields:"producto_proyecto",
+    returnDistinctValues:"true",
+    returnCountOnly:"true",
+    f:"json"
+  });
   const r=await fetch(`${FS2_COUNT}?${params}`,{cache:"no-store"});
   const j=await r.json();
   return Number(j.count||0);
 }
+
 async function sumFromFS10(fieldAgg){
   const out=JSON.stringify([{statisticType:"sum",onStatisticField:fieldAgg,outStatisticFieldName:"v"}]);
-  const p=new URLSearchParams({where:WHERE_SECTOR,outStatistics:out,returnGeometry:"false",f:"json"});
+  const p=new URLSearchParams({
+    where:WHERE_SECTOR,
+    outStatistics:out,
+    returnGeometry:"false",
+    f:"json"
+  });
   const r=await fetch(`${FS10}?${p}`,{cache:"no-store"});
   const j=await r.json();
   return Number(j.features?.[0]?.attributes?.v||0);
 }
+
 async function sumFromFS13(fieldRaw){
   const out=JSON.stringify([{statisticType:"sum",onStatisticField:fieldRaw,outStatisticFieldName:"v"}]);
-  const p=new URLSearchParams({where:WHERE_SECTOR,outStatistics:out,returnGeometry:"false",f:"json"});
+  const p=new URLSearchParams({
+    where:WHERE_SECTOR,
+    outStatistics:out,
+    returnGeometry:"false",
+    f:"json"
+  });
   const r=await fetch(`${FS13}?${p}`,{cache:"no-store"});
   const j=await r.json();
   return Number(j.features?.[0]?.attributes?.v||0);
 }
-async function fetchPIM(){ try{return await sumFromFS10("sum_monto_pim");} catch{ return await sumFromFS13("monto_pim"); } }
-async function fetchDEV(){ try{return await sumFromFS10("sum_monto_devengado");} catch{ return await sumFromFS13("monto_devengado"); } }
+
+async function fetchPIM(){
+  try{
+    return await sumFromFS10("sum_monto_pim");
+  }catch{
+    return await sumFromFS13("monto_pim");
+  }
+}
+async function fetchDEV(){
+  try{
+    return await sumFromFS10("sum_monto_devengado");
+  }catch{
+    return await sumFromFS13("monto_devengado");
+  }
+}
 
 /* === Fecha más reciente (max fecha_proceso) === */
 async function fetchMaxDate(){
   const out=JSON.stringify([{statisticType:"max",onStatisticField:"fecha_proceso",outStatisticFieldName:"max_fp"}]);
-  const p=new URLSearchParams({where:WHERE_SECTOR,outStatistics:out,returnGeometry:"false",f:"json"});
+  const p=new URLSearchParams({
+    where:WHERE_SECTOR,
+    outStatistics:out,
+    returnGeometry:"false",
+    f:"json"
+  });
   const r=await fetch(`${FS13}?${p}`,{cache:"no-store"});
   const j=await r.json();
   return Number(j.features?.[0]?.attributes?.max_fp||0);
@@ -186,18 +263,29 @@ function formatEsDate(ts){
   const last=document.getElementById("lastUpdate");
 
   try{
-    const [n,pim,dev,lastTs]=await Promise.all([fetchDistinctCount(),fetchPIM(),fetchDEV(),fetchMaxDate()]);
+    const [n,pim,dev,lastTs]=await Promise.all([
+      fetchDistinctCount(),
+      fetchPIM(),
+      fetchDEV(),
+      fetchMaxDate()
+    ]);
+
     [elCount,elPim,elDev,elPct].forEach(el=>el.classList.add("fade","on"));
+
     animate(elCount,n,1400,fmtInt);
     animate(elPim,pim,1700,fmtMoney);
     animate(elDev,dev,1700,fmtMoney);
+
     const perc=(pim>0)?(dev/pim*100):0;
     animate(elPctv,perc,1700,fmtPct,"%");
 
     last.textContent="Actualizado al "+formatEsDate(lastTs);
   }catch(e){
     console.error(e);
-    elCount.textContent=elPim.textContent=elDev.textContent=elPctv.textContent="—";
+    elCount.textContent="—";
+    elPim.textContent="—";
+    elDev.textContent="—";
+    elPctv.textContent="—";
     last.textContent="Actualizado al —";
     [elCount,elPim,elDev,elPct].forEach(el=>el.classList.add("fade","on"));
   }
