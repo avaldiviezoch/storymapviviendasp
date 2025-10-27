@@ -14,26 +14,108 @@
             --ink:#0b2532; --muted:#64748b; --card:#fff; --g-dark:#0f3f3a; --g-2:#7da39e;
             --line:#e6ecea; --panel:#f7fbfa; --bar:#0b3b38;
         }
-        html,body{margin:0; height:100%; overflow:hidden; background:#eef5f3; color:var(--ink); font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial}
-        .shell{display:grid; grid-template-columns: 1fr min(40vw, 680px); height:100vh; width:100vw;}
-        #viewWrap{ position:sticky; top:0; height:100vh; overflow:hidden; }
-        #viewDiv{position:relative; width:100%; height:100%}
+        html,body{
+            margin:0;
+            height:100%;
+            overflow:hidden;
+            background:#eef5f3;
+            color:var(--ink);
+            font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial
+        }
+        .shell{
+            display:grid;
+            grid-template-columns: 1fr min(40vw, 680px);
+            height:100vh;
+            width:100vw;
+        }
+        #viewWrap{
+            position:sticky;
+            top:0;
+            height:100vh;
+            overflow:hidden;
+        }
+        #viewDiv{
+            position:relative;
+            width:100%;
+            height:100%
+        }
 
         /* ===== Filtros ===== */
-        .filters{position:absolute; left:14px; top:14px; z-index:6; width:min(360px, 92vw)}
-        .acc{background:#0b3b38;color:#e6fffb;border-radius:14px;box-shadow:0 12px 28px rgba(0,0,0,.18);}
-        .acc summary{list-style:none;cursor:pointer;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;font-weight:800}
+        .filters{
+            position:absolute;
+            left:14px;
+            top:14px;
+            z-index:6;
+            width:min(360px, 92vw)
+        }
+        .acc{
+            background:#0b3b38;
+            color:#e6fffb;
+            border-radius:14px;
+            box-shadow:0 12px 28px rgba(0,0,0,.18);
+        }
+        .acc summary{
+            list-style:none;
+            cursor:pointer;
+            padding:12px 14px;
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            font-weight:800
+        }
         .acc summary::-webkit-details-marker{display:none}
-        .acc .content{padding:12px 14px;display:grid;gap:10px}
-        .acc label{font-size:12px;color:#cbe8e5;font-weight:700}
-        .acc select{width:100%;border-radius:10px;padding:10px 12px;border:1px solid #155149;background:#0f2e29;color:#e6fffb; height:42px; box-sizing:border-box}
-        .hint{font-size:12px;color:#b9d5d1}
-        .rowBtns{display:flex;gap:10px;justify-content:flex-end}
-        .btn{background:#0b3b38;color:#ecfffb;border:1px solid #0e4a43;padding:8px 12px;border-radius:10px;font-weight:800;cursor:pointer; box-shadow:0 6px 16px rgba(2,6,23,.18)}
-        .btn.secondary{background:#114d46;border-color:#0d3a35}
+        .acc .content{
+            padding:12px 14px;
+            display:grid;
+            gap:10px
+        }
+        .acc label{
+            font-size:12px;
+            color:#cbe8e5;
+            font-weight:700
+        }
+        .acc select{
+            width:100%;
+            border-radius:10px;
+            padding:10px 12px;
+            border:1px solid #155149;
+            background:#0f2e29;
+            color:#e6fffb;
+            height:42px;
+            box-sizing:border-box
+        }
+        .hint{
+            font-size:12px;
+            color:#b9d5d1
+        }
+        .rowBtns{
+            display:flex;
+            gap:10px;
+            justify-content:flex-end
+        }
+        .btn{
+            background:#0b3b38;
+            color:#ecfffb;
+            border:1px solid #0e4a43;
+            padding:8px 12px;
+            border-radius:10px;
+            font-weight:800;
+            cursor:pointer;
+            box-shadow:0 6px 16px rgba(2,6,23,.18)
+        }
+        .btn.secondary{
+            background:#114d46;
+            border-color:#0d3a35
+        }
 
         /* ===== Panel lateral ===== */
-        .sidebar{background:var(--panel); border-left:1px solid var(--line); box-shadow:-6px 0 24px rgba(2,6,23,.06); padding:16px 16px 18px; box-sizing:border-box;}
+        .sidebar{
+            background:var(--panel);
+            border-left:1px solid var(--line);
+            box-shadow:-6px 0 24px rgba(2,6,23,.06);
+            padding:16px 16px 18px;
+            box-sizing:border-box;
+        }
 
         /* Línea corrido + número grande */
         .heroLine{
@@ -53,12 +135,12 @@
             vertical-align:-6px;
         }
 
-        /* ===== NUEVO: Duo de indicadores (PIM / Devengado) ===== */
+        /* Duo PIM / Devengado */
         .kpiDuo{
             display:grid;
             grid-template-columns: 1fr 1fr;
             gap:12px;
-            margin:8px 0 12px; /* separación respecto a hero y barra */
+            margin:8px 0 12px;
         }
         .mini{
             background:#fff;
@@ -84,64 +166,349 @@
             line-height:1;
         }
 
-        .bar{background:var(--bar); color:#e7fff9; font-weight:800; text-align:center; padding:10px 12px; border-radius:10px; margin:6px 0 12px; font-size:clamp(12px, 1.6vh, 14px);}
-        .kpiGrid{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
-        .kpiCard{display:flex; align-items:center; gap:12px; background:#fff; border:1px solid var(--line); border-radius:14px; padding:12px; box-shadow:0 10px 24px rgba(2,6,23,.06);}
-        .badge{flex:0 0 clamp(36px, 5vh, 46px); width:clamp(36px, 5vh, 46px); height:clamp(36px, 5vh, 46px); border-radius:50%; display:grid; place-items:center; background:var(--g-2); color:#fff; font-size:clamp(18px, 2.4vh, 22px); font-weight:900}
-        .metric{display:flex; flex-direction:column; align-items:flex-start}
-        .metric .val{font-size:clamp(28px, 4.6vh, 44px); font-weight:900; color:var(--g-dark); line-height:1}
-        .metric .lbl{font-size:clamp(12px, 1.8vh, 14px); font-weight:700; color:var(--muted); margin-top:6px}
-        .sep{height:1px;background:var(--line); margin:12px 0}
-        .grid8{display:grid; grid-template-columns: repeat(4, 1fr); gap:12px; margin-top:6px;}
-        .tile{background:#fff; border:1px solid var(--line); border-radius:14px; box-shadow:0 10px 24px rgba(2,6,23,.06); padding:12px; display:grid; justify-items:center; align-content:center; gap:6px; min-height:clamp(92px, 13vh, 120px);}
-        .tile .v{font-size:clamp(26px, 4.3vh, 40px); font-weight:900; color:var(--g-dark); line-height:1}
-        .tile .t{font-size:clamp(11px, 1.8vh, 13px); color:var(--muted); font-weight:800; text-align:center}
-
-        @media (max-width: 1100px){ .shell{grid-template-columns: 1fr min(50vw, 720px);} }
-        @media (max-width: 900px){
-            .shell{grid-template-columns:1fr;}
-            #viewWrap{position:relative; height:50vh;}
-            .kpiGrid{grid-template-columns:1fr}
-            .grid8{grid-template-columns: repeat(2, 1fr);}
-            .kpiDuo{grid-template-columns:1fr 1fr;}
+        .bar{
+            background:var(--bar);
+            color:#e7fff9;
+            font-weight:800;
+            text-align:center;
+            padding:10px 12px;
+            border-radius:10px;
+            margin:6px 0 12px;
+            font-size:clamp(12px, 1.6vh, 14px);
         }
-        @media (max-height: 760px){ .sep{margin:8px 0} .grid8{gap:10px} .kpiGrid{gap:10px} }
+
+        .kpiGrid{
+            display:grid;
+            grid-template-columns:1fr 1fr;
+            gap:12px;
+        }
+        .kpiCard{
+            display:flex;
+            align-items:center;
+            gap:12px;
+            background:#fff;
+            border:1px solid var(--line);
+            border-radius:14px;
+            padding:12px;
+            box-shadow:0 10px 24px rgba(2,6,23,.06);
+        }
+        .badge{
+            flex:0 0 clamp(36px, 5vh, 46px);
+            width:clamp(36px, 5vh, 46px);
+            height:clamp(36px, 5vh, 46px);
+            border-radius:50%;
+            display:grid;
+            place-items:center;
+            background:var(--g-2);
+            color:#fff;
+            font-size:clamp(18px, 2.4vh, 22px);
+            font-weight:900
+        }
+        .metric{
+            display:flex;
+            flex-direction:column;
+            align-items:flex-start
+        }
+        .metric .val{
+            font-size:clamp(28px, 4.6vh, 44px);
+            font-weight:900;
+            color:var(--g-dark);
+            line-height:1
+        }
+        .metric .lbl{
+            font-size:clamp(12px, 1.8vh, 14px);
+            font-weight:700;
+            color:var(--muted);
+            margin-top:6px
+        }
+
+        .sep{
+            height:1px;
+            background:var(--line);
+            margin:12px 0
+        }
+
+        .grid8{
+            display:grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap:12px;
+            margin-top:6px;
+        }
+        .tile{
+            background:#fff;
+            border:1px solid var(--line);
+            border-radius:14px;
+            box-shadow:0 10px 24px rgba(2,6,23,.06);
+            padding:12px;
+            display:grid;
+            justify-items:center;
+            align-content:center;
+            gap:6px;
+            min-height:clamp(92px, 13vh, 120px);
+        }
+        .tile .v{
+            font-size:clamp(26px, 4.3vh, 40px);
+            font-weight:900;
+            color:#0f3f3a;
+            line-height:1
+        }
+        .tile .t{
+            font-size:clamp(11px, 1.8vh, 13px);
+            color:#64748b;
+            font-weight:800;
+            text-align:center
+        }
+
+        @media (max-width: 1100px){
+            .shell{
+                grid-template-columns: 1fr min(50vw, 720px);
+            }
+        }
+        @media (max-width: 900px){
+            .shell{
+                grid-template-columns:1fr;
+            }
+            #viewWrap{
+                position:relative;
+                height:50vh;
+            }
+            .kpiGrid{
+                grid-template-columns:1fr;
+            }
+            .grid8{
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .kpiDuo{
+                grid-template-columns:1fr 1fr;
+            }
+        }
+
+        @media (max-height: 760px){
+            .sep{margin:8px 0}
+            .grid8{gap:10px}
+            .kpiGrid{gap:10px}
+        }
+
+        /* ===== súper compacto para pantallas MUY angostas ===== */
+        @media (max-width:600px){
+            /* Estados pasa a 1 columna y se miniaturiza */
+            .grid8{
+                grid-template-columns:1fr;
+                gap:8px;
+            }
+            .tile{
+                min-height:auto;
+                padding:8px 10px;
+                border-radius:10px;
+                box-shadow:0 6px 16px rgba(2,6,23,.06);
+                gap:4px;
+            }
+            .tile .v{
+                font-size:20px;
+                line-height:1.1;
+            }
+            .tile .t{
+                font-size:11px;
+                line-height:1.2;
+            }
+        }
 
         /* ===== POPUP ===== */
-        .pop-card{background:#ffffff; border:1px solid var(--line); border-radius:14px; box-shadow:0 12px 30px rgba(2,6,23,.12); overflow:hidden; min-width:min(360px, 78vw); max-width:min(520px, 86vw); color:#0b2532; font:12.5px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial;}
-        .pop-hdr{background:#0b3b38; color:#e6fffb; padding:10px 12px; font-weight:900; letter-spacing:.2px;}
-        .pop-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; padding:12px;}
-        .pop-grid .lbl{font-weight:800; color:#47606b; font-size:11.5px}
-        .pop-grid .val{font-weight:800; color:#0b2532}
-        .pop-chipwrap{display:flex; gap:8px; padding:0 12px 10px}
-        .chip{background:#e8f5f3; color:#0b3b38; border:1px solid #cfe7e3; padding:5px 8px; border-radius:999px; font-weight:900; font-size:11px;}
-        .pop-actions{display:flex; gap:8px; justify-content:flex-end; padding:10px 12px 12px; border-top:1px solid var(--line);}
-        .pop-btn{appearance:none; border:1px solid #0e4a43; background:#0b3b38; color:#e6fffb; padding:8px 10px; border-radius:10px; font-weight:800; text-decoration:none; display:inline-flex; align-items:center; gap:8px;}
-        .pop-btn:hover{filter:brightness(1.05)}
+        .pop-card{
+            background:#ffffff;
+            border:1px solid var(--line);
+            border-radius:14px;
+            box-shadow:0 12px 30px rgba(2,6,23,.12);
+            overflow:hidden;
+            min-width:min(360px, 78vw);
+            max-width:min(520px, 86vw);
+            color:#0b2532;
+            font:12.5px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial;
+        }
+        .pop-hdr{
+            background:#0b3b38;
+            color:#e6fffb;
+            padding:10px 12px;
+            font-weight:900;
+            letter-spacing:.2px;
+        }
+        .pop-grid{
+            display:grid;
+            grid-template-columns:1fr 1fr;
+            gap:8px 12px;
+            padding:12px;
+        }
+        .pop-grid .lbl{
+            font-weight:800;
+            color:#47606b;
+            font-size:11.5px
+        }
+        .pop-grid .val{
+            font-weight:800;
+            color:#0b2532
+        }
+        .pop-chipwrap{
+            display:flex;
+            gap:8px;
+            padding:0 12px 10px
+        }
+        .chip{
+            background:#e8f5f3;
+            color:#0b3b38;
+            border:1px solid #cfe7e3;
+            padding:5px 8px;
+            border-radius:999px;
+            font-weight:900;
+            font-size:11px;
+        }
+        .pop-actions{
+            display:flex;
+            gap:8px;
+            justify-content:flex-end;
+            padding:10px 12px 12px;
+            border-top:1px solid var(--line);
+        }
+        .pop-btn{
+            appearance:none;
+            border:1px solid #0e4a43;
+            background:#0b3b38;
+            color:#e6fffb;
+            padding:8px 10px;
+            border-radius:10px;
+            font-weight:800;
+            text-decoration:none;
+            display:inline-flex;
+            align-items:center;
+            gap:8px;
+        }
+        .pop-btn:hover{
+            filter:brightness(1.05)
+        }
         .link-ic{font-size:14px}
         .esri-popup__header{display:none !important;}
         .esri-popup__main-container{padding-top:0 !important;}
 
         /* ===== Multi-select Programas ===== */
         .custom-select { position: relative; width: 100%; }
-        .select-display { width: 100%; border-radius: 10px; padding: 10px 12px; border: 1px solid #155149; background: #0f2e29; color: #e6fffb; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 14px; box-sizing: border-box; height: 42px; }
+        .select-display {
+            width: 100%;
+            border-radius: 10px;
+            padding: 10px 12px;
+            border: 1px solid #155149;
+            background: #0f2e29;
+            color: #e6fffb;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+            box-sizing: border-box;
+            height: 42px;
+        }
         .select-display::after { content: '▾'; font-weight: 900; }
-        .dropdown-content { display: none; position: absolute; top: 100%; left: 0; width: 100%; max-height: 200px; overflow-y: auto; border: 1px solid #155149; border-radius: 10px; background: #0f2e29; z-index: 10; padding: 10px; box-sizing: border-box; }
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 100%;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #155149;
+            border-radius: 10px;
+            background: #0f2e29;
+            z-index: 10;
+            padding: 10px;
+            box-sizing: border-box;
+        }
         .dropdown-content.show { display: block; }
-        .dropdown-content label { display: flex; align-items: center; gap: 8px; color: #e6fffb; padding: 6px 8px; font-size: 12px; font-weight: 500; }
-        .dropdown-content input[type="checkbox"] { accent-color: #e6fffb; width: 16px; height: 16px; margin: 0; }
+        .dropdown-content label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #e6fffb;
+            padding: 6px 8px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .dropdown-content input[type="checkbox"] {
+            accent-color: #e6fffb;
+            width: 16px;
+            height: 16px;
+            margin: 0;
+        }
 
         /* ===== Búsqueda de proyectos ===== */
-        .search-wrap { position: absolute; top: 14px; right: 14px; z-index: 6; }
-        .search-btn { background: #0b3b38; color: #e6fffb; border: 1px solid #0e4a43; padding: 8px 12px; border-radius: 10px; font-weight: 800; cursor: pointer; box-shadow: 0 6px 16px rgba(2,6,23,.18); }
-        .search-content { display: none; position: absolute; top: 100%; right: 0; background: #fff; border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 10px 24px rgba(2,6,23,.06); padding: 10px; width: 320px; }
+        .search-wrap {
+            position: absolute;
+            top: 14px;
+            right: 14px;
+            z-index: 6;
+        }
+        .search-btn {
+            background: #0b3b38;
+            color: #e6fffb;
+            border: 1px solid #0e4a43;
+            padding: 8px 12px;
+            border-radius: 10px;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 0 6px 16px rgba(2,6,23,.18);
+        }
+        .search-content {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: #fff;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            box-shadow: 0 10px 24px rgba(2,6,23,.06);
+            padding: 10px;
+            width: 320px;
+        }
         .search-content.open{ display:block; }
-        .search-input-wrap{ display:flex; align-items:center; gap:8px; }
-        .search-input { flex:1; padding: 10px; border: 1px solid #d1d5db; border-radius: 10px; box-sizing: border-box; font-weight:700 }
-        .clear-btn{ border:none; background:#f3f4f6; border:1px solid #e5e7eb; width:36px; height:36px; border-radius:10px; cursor:pointer; font-size:18px; line-height:0; display:grid; place-items:center; }
+        .search-input-wrap{
+            display:flex;
+            align-items:center;
+            gap:8px;
+        }
+        .search-input {
+            flex:1;
+            padding: 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 10px;
+            box-sizing: border-box;
+            font-weight:700
+        }
+        .clear-btn{
+            border:none;
+            background:#f3f4f6;
+            border:1px solid #e5e7eb;
+            width:36px;
+            height:36px;
+            border-radius:10px;
+            cursor:pointer;
+            font-size:18px;
+            line-height:0;
+            display:grid;
+            place-items:center;
+        }
         .clear-btn:hover{ filter:brightness(0.98); }
-        .suggestions { list-style: none; padding: 6px 0 0; margin: 6px 0 0; max-height: 240px; overflow-y: auto; }
-        .suggestions li { padding: 8px 10px; cursor: pointer; border-bottom: 1px solid #f2f2f2; font-weight:700; color:#0b2532 }
+        .suggestions {
+            list-style: none;
+            padding: 6px 0 0;
+            margin: 6px 0 0;
+            max-height: 240px;
+            overflow-y: auto;
+        }
+        .suggestions li {
+            padding: 8px 10px;
+            cursor: pointer;
+            border-bottom: 1px solid #f2f2f2;
+            font-weight:700;
+            color:#0b2532
+        }
         .suggestions li:hover { background: #f0f7f6; }
 
     </style>
@@ -204,7 +571,7 @@
             A través de <span id="kpiCount" class="heroNum">—</span> inversiones
         </div>
 
-        <!-- ===== NUEVO: PIM / Devengado ===== -->
+        <!-- PIM / Devengado -->
         <div class="kpiDuo" aria-live="polite">
             <div class="mini">
                 <div class="miniLbl">PIM</div>
@@ -222,19 +589,31 @@
         <div class="kpiGrid">
             <div class="kpiCard" aria-live="polite">
                 <div class="badge">💧</div>
-                <div class="metric"><div class="val" id="kpiAgua">—</div><div class="lbl">Conexiones Nuevas de Agua</div></div>
+                <div class="metric">
+                    <div class="val" id="kpiAgua">—</div>
+                    <div class="lbl">Conexiones Nuevas de Agua</div>
+                </div>
             </div>
             <div class="kpiCard" aria-live="polite">
                 <div class="badge">🚰</div>
-                <div class="metric"><div class="val" id="kpiAlc">—</div><div class="lbl">Conexiones Nuevas de Alcantarillado</div></div>
+                <div class="metric">
+                    <div class="val" id="kpiAlc">—</div>
+                    <div class="lbl">Conexiones Nuevas de Alcantarillado</div>
+                </div>
             </div>
             <div class="kpiCard" aria-live="polite">
                 <div class="badge">🛣️</div>
-                <div class="metric"><div class="val" id="kpiPav">—</div><div class="lbl">M2 de Pavimento</div></div>
+                <div class="metric">
+                    <div class="val" id="kpiPav">—</div>
+                    <div class="lbl">M2 de Pavimento</div>
+                </div>
             </div>
             <div class="kpiCard" aria-live="polite">
                 <div class="badge">👷</div>
-                <div class="metric"><div class="val" id="kpiVer">—</div><div class="lbl">M2 de Vereda</div></div>
+                <div class="metric">
+                    <div class="val" id="kpiVer">—</div>
+                    <div class="lbl">M2 de Vereda</div>
+                </div>
             </div>
         </div>
 
@@ -245,14 +624,38 @@
 
         <!-- 8 indicadores -->
         <section class="grid8">
-            <div class="tile"><div class="v" id="kObrasConcluidas">—</div><div class="t">Obras Concluidas</div></div>
-            <div class="tile"><div class="v" id="kObrasEjec">—</div><div class="t">Obras en Ejecución</div></div>
-            <div class="tile"><div class="v" id="kObrasPorIniciar">—</div><div class="t">Obras por Iniciar</div></div>
-            <div class="tile"><div class="v" id="kObrasProcSel">—</div><div class="t">Obras en proceso de Selección</div></div>
-            <div class="tile"><div class="v" id="kExpConcluidos">—</div><div class="t">Exp. Concluidos</div></div>
-            <div class="tile"><div class="v" id="kExpElab">—</div><div class="t">Exp. en Elaboración</div></div>
-            <div class="tile"><div class="v" id="kExpProcSel">—</div><div class="t">Exp. en Proceso de Selección</div></div>
-            <div class="tile"><div class="v" id="kExpPorConvocar">—</div><div class="t">Exp. por Convocar</div></div>
+            <div class="tile">
+                <div class="v" id="kObrasConcluidas">—</div>
+                <div class="t">Obras Concluidas</div>
+            </div>
+            <div class="tile">
+                <div class="v" id="kObrasEjec">—</div>
+                <div class="t">Obras en Ejecución</div>
+            </div>
+            <div class="tile">
+                <div class="v" id="kObrasPorIniciar">—</div>
+                <div class="t">Obras por Iniciar</div>
+            </div>
+            <div class="tile">
+                <div class="v" id="kObrasProcSel">—</div>
+                <div class="t">Obras en proceso de Selección</div>
+            </div>
+            <div class="tile">
+                <div class="v" id="kExpConcluidos">—</div>
+                <div class="t">Exp. Concluidos</div>
+            </div>
+            <div class="tile">
+                <div class="v" id="kExpElab">—</div>
+                <div class="t">Exp. en Elaboración</div>
+            </div>
+            <div class="tile">
+                <div class="v" id="kExpProcSel">—</div>
+                <div class="t">Exp. en Proceso de Selección</div>
+            </div>
+            <div class="tile">
+                <div class="v" id="kExpPorConvocar">—</div>
+                <div class="t">Exp. por Convocar</div>
+            </div>
         </section>
     </aside>
 </div>
@@ -268,10 +671,24 @@ function safe(s){ return (s==null||s==="") ? "—" : String(s); }
 
 function esriPOST(url, paramsObj){
     const body = new URLSearchParams({ f:"json", returnGeometry:"false", ...paramsObj, __ts: cacheBust() });
-    return fetch(url, { method:"POST", headers:{ "Content-Type":"application/x-www-form-urlencoded;charset=UTF-8" }, body: body.toString(), cache:"no-store" })
-        .then(r => { if(!r.ok) throw new Error("HTTP "+r.status); return r.json(); })
-        .then(j => { if(j.error){ console.error("ArcGIS:", j.error); throw new Error(j.error.message||"ArcGIS"); } return j; })
-        .catch(()=>({})); // silencio si hay error
+    return fetch(url, {
+        method:"POST",
+        headers:{ "Content-Type":"application/x-www-form-urlencoded;charset=UTF-8" },
+        body: body.toString(),
+        cache:"no-store"
+    })
+    .then(r => {
+        if(!r.ok) throw new Error("HTTP "+r.status);
+        return r.json();
+    })
+    .then(j => {
+        if(j.error){
+            console.error("ArcGIS:", j.error);
+            throw new Error(j.error.message||"ArcGIS");
+        }
+        return j;
+    })
+    .catch(()=>({})); // silencio si hay error
 }
 
 async function loadDistinct(field, where){
@@ -285,7 +702,8 @@ async function loadDistinct(field, where){
             resultRecordCount: page,
             resultOffset: offset
         });
-        const rows = (j.features||[]).map(f => (f.attributes||{})[field]).filter(v => v!=null && v!=="");
+        const rows = (j.features||[]).map(f => (f.attributes||{})[field])
+            .filter(v => v!=null && v!=="");
         rows.forEach(v => vals.add(v));
         if (!j.exceededTransferLimit || rows.length < page) break;
         offset += page;
@@ -311,9 +729,7 @@ function buildWhereUbic(){
 async function updateKPIsTop(where){
     const totalProy = (await loadDistinct("producto_proyecto", where)).length;
 
-    // NUEVO: variables para PIM/Devengado
     let pim=0, dev=0;
-
     let agua=0, alc=0, pav=0, ver=0;
     try{
         const j = await esriPOST(FS_URL+"/query", {
@@ -323,23 +739,28 @@ async function updateKPIsTop(where){
                 { statisticType:"sum", onStatisticField:"cnx_nuevas_alcantarillado_dse", outStatisticFieldName:"sAlc" },
                 { statisticType:"sum", onStatisticField:"final_pavimento_m2_monitoreo", outStatisticFieldName:"sPav" },
                 { statisticType:"sum", onStatisticField:"final_vereda_m2_monitoreo", outStatisticFieldName:"sVer" },
-                /* ===== NUEVO: PIM / Devengado ===== */
                 { statisticType:"sum", onStatisticField:"monto_pim", outStatisticFieldName:"sPIM" },
                 { statisticType:"sum", onStatisticField:"monto_devengado", outStatisticFieldName:"sDEV" }
             ])
         });
         const a = (j.features?.[0]?.attributes) || {};
-        agua = Number(a.sAgua||0); alc = Number(a.sAlc||0); pav = Number(a.sPav||0); ver = Number(a.sVer||0);
-        pim = Number(a.sPIM||0);   dev = Number(a.sDEV||0);
-        if(agua===0 && alc===0 && pav===0 && ver===0 && pim===0 && dev===0) throw new Error("all-zero");
+        agua = Number(a.sAgua||0);
+        alc  = Number(a.sAlc||0);
+        pav  = Number(a.sPav||0);
+        ver  = Number(a.sVer||0);
+        pim  = Number(a.sPIM||0);
+        dev  = Number(a.sDEV||0);
+        if(agua===0 && alc===0 && pav===0 && ver===0 && pim===0 && dev===0)
+            throw new Error("all-zero");
     }catch(e){
-        // Fallback sum manual (incluye PIM y Devengado)
+        // fallback sum manual
         let offset=0, page=2000;
         while(true){
             const j2 = await esriPOST(FS_URL+"/query", {
                 where,
                 outFields:"cnx_nuevas_agua,cnx_nuevas_alcantarillado_dse,final_pavimento_m2_monitoreo,final_vereda_m2_monitoreo,monto_pim,monto_devengado",
-                resultRecordCount:page, resultOffset:offset
+                resultRecordCount:page,
+                resultOffset:offset
             });
             const feats = j2.features||[];
             for(const f of feats){
@@ -355,20 +776,21 @@ async function updateKPIsTop(where){
             offset += page;
         }
     }
-    // Actualizaciones
-    document.getElementById('kpiCount').textContent = fmt.format(totalProy);
-    document.getElementById('kpiAgua').textContent = fmt.format(agua);
-    document.getElementById('kpiAlc').textContent = fmt.format(alc);
-    document.getElementById('kpiPav').textContent = fmt.format(pav);
-    document.getElementById('kpiVer').textContent = fmt.format(ver);
 
-    // NUEVO: pintar PIM / Devengado
-    document.getElementById('kpiPIM').textContent = "S/. " + moneyFmt.format(pim);
-    document.getElementById('kpiDev').textContent = "S/. " + moneyFmt.format(dev);
+    document.getElementById('kpiCount').textContent = fmt.format(totalProy);
+    document.getElementById('kpiAgua').textContent  = fmt.format(agua);
+    document.getElementById('kpiAlc').textContent   = fmt.format(alc);
+    document.getElementById('kpiPav').textContent   = fmt.format(pav);
+    document.getElementById('kpiVer').textContent   = fmt.format(ver);
+
+    document.getElementById('kpiPIM').textContent   = "S/. " + moneyFmt.format(pim);
+    document.getElementById('kpiDev').textContent   = "S/. " + moneyFmt.format(dev);
 }
 
 function IN(list){ return list.map(v=>`'${esc(v)}'`).join(","); }
-async function countDistinctProducto(where){ return (await loadDistinct("producto_proyecto", where)).length; }
+async function countDistinctProducto(where){
+    return (await loadDistinct("producto_proyecto", where)).length;
+}
 
 async function updateBottom(whereBase){
     const OBRA = ["OBRA (SALDO)","OBRA"];
@@ -395,13 +817,13 @@ async function updateBottom(whereBase){
         countDistinctProducto(queries.expPorConvocar),
     ]);
     document.getElementById('kObrasConcluidas').textContent = fmt.format(n1);
-    document.getElementById('kExpConcluidos').textContent = fmt.format(n2);
-    document.getElementById('kObrasEjec').textContent = fmt.format(n3);
-    document.getElementById('kExpElab').textContent = fmt.format(n4);
+    document.getElementById('kExpConcluidos').textContent   = fmt.format(n2);
+    document.getElementById('kObrasEjec').textContent       = fmt.format(n3);
+    document.getElementById('kExpElab').textContent         = fmt.format(n4);
     document.getElementById('kObrasPorIniciar').textContent = fmt.format(n5);
-    document.getElementById('kExpProcSel').textContent = fmt.format(n6);
-    document.getElementById('kObrasProcSel').textContent = fmt.format(n7);
-    document.getElementById('kExpPorConvocar').textContent = fmt.format(n8);
+    document.getElementById('kExpProcSel').textContent      = fmt.format(n6);
+    document.getElementById('kObrasProcSel').textContent    = fmt.format(n7);
+    document.getElementById('kExpPorConvocar').textContent  = fmt.format(n8);
 }
 
 /* ========= Mapa ========= */
@@ -411,10 +833,26 @@ require([
 ], (Map,MapView,FeatureLayer,ScaleBar,BasemapToggle,Extent,GraphicsLayer,Graphic)=>{
 
     const map = new Map({ basemap:"satellite" });
-    const view = new MapView({ container:"viewDiv", map, center:[-75.2,-9.3], zoom:5, padding:{ left: 16, right: 6, top: 6, bottom: 6 } });
+    const view = new MapView({
+        container:"viewDiv",
+        map,
+        center:[-75.2,-9.3],
+        zoom:5,
+        padding:{ left: 16, right: 6, top: 6, bottom: 6 }
+    });
 
-    const peruExtent = new Extent({ xmin: -81.6, ymin: -18.5, xmax: -68.5, ymax: -0.03, spatialReference: { wkid: 4326 } });
-    async function fitPeru(tight=0.96){ try{ await view.goTo({ target: peruExtent.expand(tight) }, { duration: 0 }); }catch(e){} }
+    const peruExtent = new Extent({
+        xmin: -81.6,
+        ymin: -18.5,
+        xmax: -68.5,
+        ymax: -0.03,
+        spatialReference: { wkid: 4326 }
+    });
+    async function fitPeru(tight=0.96){
+        try{
+            await view.goTo({ target: peruExtent.expand(tight) }, { duration: 0 });
+        }catch(e){}
+    }
 
     // Widgets
     const toggle = new BasemapToggle({ view, nextBasemap: "osm" });
@@ -429,14 +867,31 @@ require([
     // Límites
     const limites = new FeatureLayer({
         url: "https://pportalgis.vivienda.gob.pe/pfdserver/rest/services/COES/Limites_Pol%C3%ADticos/MapServer/0",
-        title: "Límites políticos", popupEnabled: false, opacity: 1, listMode: "hide"
+        title: "Límites políticos",
+        popupEnabled: false,
+        opacity: 1,
+        listMode: "hide"
     });
     limites.when(() => {
         const gt = limites.geometryType;
         if (gt === "polygon") {
-            limites.renderer = { type: "simple", symbol: { type: "simple-fill", color: [0,0,0,0], outline: { color: [255,255,255,230], width: 1.2 } } };
+            limites.renderer = {
+                type: "simple",
+                symbol: {
+                    type: "simple-fill",
+                    color: [0,0,0,0],
+                    outline: { color: [255,255,255,230], width: 1.2 }
+                }
+            };
         } else if (gt === "polyline") {
-            limites.renderer = { type: "simple", symbol: { type: "simple-line", color: [255,255,255,230], width: 1.2 } };
+            limites.renderer = {
+                type: "simple",
+                symbol: {
+                    type: "simple-line",
+                    color: [255,255,255,230],
+                    width: 1.2
+                }
+            };
         }
     });
     map.add(limites);
@@ -449,7 +904,15 @@ require([
         url: FS_URL,
         outFields:["*"],
         title:"Proyectos MEF",
-        renderer:{ type:"simple", symbol:{ type:"simple-marker", color:[255,234,0,0.95], size:7, outline:{ color:[0,0,0,220], width:0.6 } } },
+        renderer:{
+            type:"simple",
+            symbol:{
+                type:"simple-marker",
+                color:[255,234,0,0.95],
+                size:7,
+                outline:{ color:[0,0,0,220], width:0.6 }
+            }
+        },
         popupEnabled:true,
         popupTemplate:{
             title:"",
@@ -490,7 +953,11 @@ require([
         try{ view.popup.visibleElements = { title:false }; }catch(_){}
         layerView = await view.whenLayerView(layer);
     });
-    view.on("resize", ()=>fitPeru(0.96));
+
+    /* IMPORTANTE:
+       Quitamos el auto-fit en cada resize para que NO haga zoom solo.
+       (Antes: view.on("resize", ()=>fitPeru(0.96));)
+    */
 
     /* ===== Filtros ===== */
     const progDisplay = document.getElementById('progDisplay');
@@ -513,14 +980,26 @@ require([
         else                           progDisplay.textContent = `${checked.length} seleccionados`;
         applyAll();
     }
-    progDisplay.addEventListener('click', () => { progDropdown.classList.toggle('show'); });
+    progDisplay.addEventListener('click', () => {
+        progDropdown.classList.toggle('show');
+    });
     document.addEventListener('click', (ev) => {
-        if (!document.getElementById('progSelect').contains(ev.target)) progDropdown.classList.remove('show');
+        if (!document.getElementById('progSelect').contains(ev.target))
+            progDropdown.classList.remove('show');
     });
 
-    async function refreshDep(){ selDep.innerHTML = `<option value="">(Todos)</option>`; (await loadDistinct("departamento")).forEach(v => selDep.insertAdjacentHTML("beforeend", `<option>${v}</option>`)); }
-    async function refreshProv(){ selProv.innerHTML = `<option value="">(Todos)</option>`; (await loadDistinct("provincia")).forEach(v => selProv.insertAdjacentHTML("beforeend", `<option>${v}</option>`)); }
-    async function refreshDist(){ selDist.innerHTML = `<option value="">(Todos)</option>`; (await loadDistinct("distrito")).forEach(v => selDist.insertAdjacentHTML("beforeend", `<option>${v}</option>`)); }
+    async function refreshDep(){
+        selDep.innerHTML = `<option value="">(Todos)</option>`;
+        (await loadDistinct("departamento")).forEach(v => selDep.insertAdjacentHTML("beforeend", `<option>${v}</option>`));
+    }
+    async function refreshProv(){
+        selProv.innerHTML = `<option value="">(Todos)</option>`;
+        (await loadDistinct("provincia")).forEach(v => selProv.insertAdjacentHTML("beforeend", `<option>${v}</option>`));
+    }
+    async function refreshDist(){
+        selDist.innerHTML = `<option value="">(Todos)</option>`;
+        (await loadDistinct("distrito")).forEach(v => selDist.insertAdjacentHTML("beforeend", `<option>${v}</option>`));
+    }
 
     async function applyAll(){
         const where = buildWhereUbic();
@@ -626,7 +1105,10 @@ require([
                         color: [255,255,0,0],
                         outline: { color: [255,255,0, opacity], width: Math.max(1, 2 - step*0.08) }
                     };
-                    if (step>14){ clearInterval(iv); fxLayer.remove(g); }
+                    if (step>14){
+                        clearInterval(iv);
+                        fxLayer.remove(g);
+                    }
                 }, 40);
             }, i*180);
         }
@@ -636,9 +1118,17 @@ require([
     let currentHighlight = null;
     function doHighlight(graphic){
         try{
-            if (currentHighlight) { currentHighlight.remove(); currentHighlight = null; }
+            if (currentHighlight) {
+                currentHighlight.remove();
+                currentHighlight = null;
+            }
             if (layerView) currentHighlight = layerView.highlight(graphic);
-            setTimeout(()=>{ if(currentHighlight){ currentHighlight.remove(); currentHighlight=null; } }, 5000);
+            setTimeout(()=>{
+                if(currentHighlight){
+                    currentHighlight.remove();
+                    currentHighlight=null;
+                }
+            }, 5000);
         }catch(_){}
     }
 
@@ -647,7 +1137,8 @@ require([
             const query = layer.createQuery();
             // Respetar filtros activos
             query.where = `(${layer.definitionExpression || "1=1"}) AND producto_proyecto_nombre = '${esc(name)}'`;
-            query.returnGeometry = true; query.outFields = ['*'];
+            query.returnGeometry = true;
+            query.outFields = ['*'];
             const results = await layer.queryFeatures(query);
             if ((results.features||[]).length > 0){
                 const f = results.features[0];
@@ -663,7 +1154,9 @@ require([
         try{
             const query = layer.createQuery();
             query.where = `(${layer.definitionExpression || "1=1"}) AND producto_proyecto_nombre LIKE '%${esc(text)}%'`;
-            query.returnGeometry = true; query.outFields = ['*']; query.num = 1; // primer match
+            query.returnGeometry = true;
+            query.outFields = ['*'];
+            query.num = 1; // primer match
             const results = await layer.queryFeatures(query);
             if ((results.features||[]).length > 0){
                 const f = results.features[0];
@@ -679,7 +1172,8 @@ require([
     (async function init(){
         try{
             // Catálogo de proyectos para sugerencias
-            allProjects = (await loadDistinct("producto_proyecto_nombre")).filter(v=>v && String(v).trim()!=="");
+            allProjects = (await loadDistinct("producto_proyecto_nombre"))
+                .filter(v=>v && String(v).trim()!=="");
             await Promise.all([refreshProg(), refreshDep(), refreshProv(), refreshDist()]);
             await applyAll();
             fitPeru(0.96);
