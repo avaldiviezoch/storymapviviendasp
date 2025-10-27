@@ -14,10 +14,12 @@
             --ink:#0b2532; --muted:#64748b; --card:#fff; --g-dark:#0f3f3a; --g-2:#7da39e;
             --line:#e6ecea; --panel:#f7fbfa; --bar:#0b3b38;
         }
+
+        /* ====== DESKTOP / DEFAULT (SIN CAMBIOS) ====== */
         html,body{
             margin:0;
             height:100%;
-            overflow:hidden;
+            overflow:hidden; /* OJO: esto se sobreescribe en mobile */
             background:#eef5f3;
             color:var(--ink);
             font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial
@@ -259,60 +261,6 @@
             text-align:center
         }
 
-        @media (max-width: 1100px){
-            .shell{
-                grid-template-columns: 1fr min(50vw, 720px);
-            }
-        }
-        @media (max-width: 900px){
-            .shell{
-                grid-template-columns:1fr;
-            }
-            #viewWrap{
-                position:relative;
-                height:50vh;
-            }
-            .kpiGrid{
-                grid-template-columns:1fr;
-            }
-            .grid8{
-                grid-template-columns: repeat(2, 1fr);
-            }
-            .kpiDuo{
-                grid-template-columns:1fr 1fr;
-            }
-        }
-
-        @media (max-height: 760px){
-            .sep{margin:8px 0}
-            .grid8{gap:10px}
-            .kpiGrid{gap:10px}
-        }
-
-        /* ===== súper compacto para pantallas MUY angostas ===== */
-        @media (max-width:600px){
-            /* Estados pasa a 1 columna y se miniaturiza */
-            .grid8{
-                grid-template-columns:1fr;
-                gap:8px;
-            }
-            .tile{
-                min-height:auto;
-                padding:8px 10px;
-                border-radius:10px;
-                box-shadow:0 6px 16px rgba(2,6,23,.06);
-                gap:4px;
-            }
-            .tile .v{
-                font-size:20px;
-                line-height:1.1;
-            }
-            .tile .t{
-                font-size:11px;
-                line-height:1.2;
-            }
-        }
-
         /* ===== POPUP ===== */
         .pop-card{
             background:#ffffff;
@@ -511,11 +459,181 @@
         }
         .suggestions li:hover { background: #f0f7f6; }
 
+
+        /* ======================================================
+           ====== RESPONSIVE / MODO PASTILLAS COMPACTAS 😎 ======
+           ====================================================== */
+
+        @media (max-width:1100px){
+            .shell{
+                grid-template-columns: 1fr min(50vw, 720px);
+            }
+        }
+
+        @media (max-width:900px){
+            /* 1) El layout pasa a columna (mapa arriba 50vh, indicadores abajo)
+                  y habilitamos scroll vertical general SOLO en este modo */
+            html, body{
+                height:auto;
+                min-height:100vh;
+                overflow-y:auto;    /* <--- scroll aparece solo en pantallas chicas */
+                overflow-x:hidden;
+            }
+
+            .shell{
+                grid-template-columns:1fr;
+                /* ya no forzamos height:100vh,
+                   dejamos que crezca en vertical */
+                height:auto;
+                min-height:100vh;
+            }
+
+            #viewWrap{
+                position:relative;
+                height:50vh;      /* mapa ocupa la mitad superior */
+                max-height:50vh;  /* evita que robe más altura */
+                overflow:hidden;
+            }
+
+            .sidebar{
+                /* que parezca una tarjeta apilada */
+                border-left:0;
+                box-shadow:0 -4px 24px rgba(2,6,23,.08);
+                border-top:1px solid var(--line);
+                border-radius:18px 18px 0 0;
+                padding:14px 14px 40px;
+            }
+
+            /* 2) Compactar todo visualmente tipo pastilla */
+            .heroLine{
+                font-size:14px;
+                line-height:1.2;
+                margin-bottom:8px;
+            }
+            .heroLine .heroNum{
+                font-size:32px;
+                line-height:1;
+                vertical-align:-4px;
+            }
+
+            /* KPIs de dinero arriba: más chiquitos */
+            .kpiDuo{
+                grid-template-columns:repeat(2,minmax(0,1fr));
+                gap:8px;
+                margin:6px 0 10px;
+            }
+            .mini{
+                border-radius:10px;
+                padding:8px 10px;
+                box-shadow:0 4px 12px rgba(2,6,23,.06);
+                gap:4px;
+            }
+            .miniLbl{
+                font-size:10px;
+                letter-spacing:.05em;
+            }
+            .miniVal{
+                font-size:18px;
+                line-height:1.1;
+            }
+
+            /* Barras título ("Se espera generar", "Estados"):
+               menos padding, tipografía menor */
+            .bar{
+                padding:8px 10px;
+                font-size:12px;
+                margin:4px 0 10px;
+                border-radius:8px;
+            }
+
+            /* KPIs de agua/alc/pav/ver en grilla más densa */
+            .kpiGrid{
+                grid-template-columns:repeat(2,minmax(0,1fr));
+                gap:8px;
+            }
+            .kpiCard{
+                border-radius:10px;
+                padding:8px 10px;
+                box-shadow:0 4px 12px rgba(2,6,23,.06);
+                gap:8px;
+            }
+            .badge{
+                flex:0 0 32px;
+                width:32px;
+                height:32px;
+                font-size:14px;
+                line-height:1;
+            }
+            .metric .val{
+                font-size:18px;
+                line-height:1.1;
+            }
+            .metric .lbl{
+                font-size:11px;
+                line-height:1.2;
+                margin-top:4px;
+            }
+
+            .sep{
+                margin:10px 0;
+            }
+
+            /* Estados en cuadrícula muy apretada.
+               Tratamos de mantener TODO visible sin hacer scroll lateral */
+            .grid8{
+                grid-template-columns:repeat(2,minmax(0,1fr));
+                gap:8px;
+                margin-top:4px;
+            }
+            .tile{
+                min-height:auto;
+                padding:8px 8px;
+                border-radius:10px;
+                box-shadow:0 4px 12px rgba(2,6,23,.06);
+                gap:4px;
+            }
+            .tile .v{
+                font-size:18px;
+                line-height:1.1;
+            }
+            .tile .t{
+                font-size:10px;
+                line-height:1.2;
+            }
+        }
+
+        /* Ultra angosto (teléfono muy chico) */
+        @media (max-width:600px){
+            .kpiGrid{
+                /* aún caben 2 columnas? si no, forzamos 2 igual
+                   para que no se vuelva una lista larguísima */
+                grid-template-columns:repeat(2,minmax(0,1fr));
+            }
+
+            .grid8{
+                grid-template-columns:repeat(2,minmax(0,1fr));
+                gap:6px;
+            }
+            .tile{
+                padding:6px 6px;
+                border-radius:8px;
+            }
+            .tile .v{
+                font-size:16px;
+            }
+            .tile .t{
+                font-size:10px;
+            }
+
+            .miniVal{
+                font-size:16px;
+            }
+        }
     </style>
 </head>
 <body>
 <div class="shell">
-    <!-- Mapa (izquierda) -->
+    <!-- Mapa (izquierda / arriba en responsive) -->
     <div id="viewWrap">
         <div id="viewDiv" aria-label="Mapa de proyectos MEF"></div>
 
@@ -564,7 +682,7 @@
         </div>
     </div>
 
-    <!-- Panel derecho -->
+    <!-- Panel derecho / abajo en responsive -->
     <aside class="sidebar">
         <!-- Texto corrido con número grande -->
         <div class="heroLine" aria-live="polite">
@@ -585,7 +703,7 @@
 
         <div class="bar">Se espera generar</div>
 
-        <!-- KPIs -->
+        <!-- KPIs principales -->
         <div class="kpiGrid">
             <div class="kpiCard" aria-live="polite">
                 <div class="badge">💧</div>
@@ -953,11 +1071,6 @@ require([
         try{ view.popup.visibleElements = { title:false }; }catch(_){}
         layerView = await view.whenLayerView(layer);
     });
-
-    /* IMPORTANTE:
-       Quitamos el auto-fit en cada resize para que NO haga zoom solo.
-       (Antes: view.on("resize", ()=>fitPeru(0.96));)
-    */
 
     /* ===== Filtros ===== */
     const progDisplay = document.getElementById('progDisplay');
