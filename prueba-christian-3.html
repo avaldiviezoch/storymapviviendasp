@@ -1,322 +1,462 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Bubble chart — Gasto vs Acceso Agua (agregado por MACROZONA)</title>
-  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
-  <style>
-    html,body{height:100%;margin:0;background:#fff;font-family:system-ui,Arial}
-    #chart{height:100vh;width:100vw}
-  </style>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Acceso a agua — por ámbito (pantalla completa)</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<style>
+  :root{ --ink:#111827; --muted:#6b7280; }
+
+  /* Pantalla completa y sin scroll interno */
+  html,body{height:100%;margin:0;background:transparent;color:var(--ink);
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; overflow:hidden}
+
+  /* Escena a pantalla completa: título + fuente + área de gráfico (1fr) */
+  .stage{
+    height:100vh;width:100vw;display:grid;
+    grid-template-rows:auto auto 1fr;
+    gap:8px;
+    padding:clamp(8px,2vw,20px);
+    box-sizing:border-box;
+    background:transparent; /* StoryMap es blanco, esto queda “incrustado” */
+  }
+
+  h1{
+    margin:0;text-align:center;font-weight:800;letter-spacing:.2px;
+    font-size:clamp(18px,2.8vw,32px)
+  }
+  .sub{
+    margin:0;text-align:center;color:var(--muted);
+    font-size:clamp(11px,1.6vw,13px)
+  }
+
+  /* El wrapper del chart ocupa el 1fr completo, sin bordes/sombras */
+  .chartWrap{position:relative;overflow:hidden;border:0;border-radius:0;background:transparent}
+  #chart{position:absolute;inset:0;width:100%;height:100%}
+  #loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    font-size:12px;color:#6b7280}
+  #err{position:absolute;left:0;right:0;bottom:8px;margin:auto;color:#b91c1c;
+    font-size:12px;white-space:pre-wrap;display:none;text-align:center}
+</style>
 </head>
 <body>
-<div id="chart"></div>
+  <div class="stage">
+    <h1>Porcentaje de población con acceso a servicio de agua, por ámbito</h1>
+    <p class="sub">Fuente: ENAPRES</p>
+
+    <div class="chartWrap">
+      <div id="chart"><div id="loading">Cargando datos…</div></div>
+      <div id="err"></div>
+    </div>
+  </div>
 
 <script>
-/* ======== Servicio y layers ======== */
-const SERVICE_BASE = "https://pportalgis.vivienda.gob.pe/phtserver/rest/services/Hosted/Mapa_coropletico_2/FeatureServer";
-const LYR_X    = 5; // eje X   (gasto S/)
-const LYR_Y    = 3; // eje Y   (población con acceso a agua)
-const LYR_SIZE = 4; // tamaño  (población ENAPRES, miles)
+(function(){
+  // ====== Servicio y constantes ======
+  const SERVICE = "https://pportalgis.vivienda.gob.pe/phtserver/rest/services/indicadores_saneamiento_ejec_storymap/MapServer";
+  const TARGET_TABLE_NAME = "tb_indicadores_serie";
+  const INDICADOR_ID = "Ind_18";
+  const D_VALORES = "CON ACCESO";
+  const REGION_TOTAL = "NACIONAL";
 
-const YEAR_START = 2011;
-const YEAR_END   = 2024;
+  const nf1 = new Intl.NumberFormat('es-PE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
-/* ======== Columnas por región (keys exactos del servicio) ======== */
-const REGION_COLS = [
-  { key:'amazonas', display:'Amazonas' },
-  { key:'ancash', display:'Áncash' },
-  { key:'apurimac', display:'Apurímac' },
-  { key:'arequipa', display:'Arequipa' },
-  { key:'ayacucho', display:'Ayacucho' },
-  { key:'cajamarca', display:'Cajamarca' },
-  { key:'provincia_constitucional_del_ca', display:'PROVINCIA CONSTITUCIONAL DEL CALLAO' },
-  { key:'cusco', display:'Cusco' },
-  { key:'huancavelica', display:'Huancavelica' },
-  { key:'huanuco', display:'Huánuco' },
-  { key:'ica', display:'Ica' },
-  { key:'junin', display:'Junín' },
-  { key:'la_libertad', display:'La Libertad' },
-  { key:'lambayeque', display:'Lambayeque' },
-  { key:'lima', display:'Lima' },
-  { key:'loreto', display:'Loreto' },
-  { key:'madre_de_dios', display:'Madre de Dios' },
-  { key:'moquegua', display:'Moquegua' },
-  { key:'pasco', display:'Pasco' },
-  { key:'piura', display:'Piura' },
-  { key:'puno', display:'Puno' },
-  { key:'san_martin', display:'San Martín' },
-  { key:'tacna', display:'Tacna' },
-  { key:'tumbes', display:'Tumbes' },
-  { key:'ucayali', display:'Ucayali' }
-];
-
-/* ======== Mapeo Región -> Macrozona (sumar por macrozona) ======== */
-/* Lo que no esté en esta lista caerá en "OTRAS" (ajústalo si quieres). */
-const MACROZONA_BY_DISPLAY = {
-  'Amazonas': 'NORTE',
-  'Áncash': 'CENTRO',
-  'Apurímac': 'SUR',
-  'Arequipa': 'SUR',
-  'Ayacucho': 'SUR',
-  'Cajamarca': 'NORTE',
-  'PROVINCIA CONSTITUCIONAL DEL CALLAO': 'LIMA Y CALLAO',
-  'Cusco': 'SUR',
-  'Huancavelica': 'SUR',
-  'Huánuco': 'CENTRO',
-  'Ica': 'SUR',
-  'Junín': 'CENTRO',
-  'La Libertad': 'NORTE',
-  'Lambayeque': 'NORTE',
-  'Lima': 'LIMA Y CALLAO',
-  'Loreto': 'NORTE',
-  'Madre de Dios': 'SUR',
-  'Moquegua': 'SUR',
-  'Pasco': 'CENTRO',
-  'Piura': 'NORTE',
-  // Sugerencias (ajústalas si corresponde):
-  'Puno': 'SUR',
-  'San Martín': 'NORTE',
-  'Tacna': 'SUR',
-  'Tumbes': 'NORTE',
-  'Ucayali': 'CENTRO' // muchas clasificaciones ponen Ucayali en Oriente; cámbialo si necesitas
-};
-
-const chart = echarts.init(document.getElementById('chart'));
-
-/* ======== Helpers ======== */
-function qs(url, params) {
-  return url + "?" + new URLSearchParams(params).toString();
-}
-async function fetchTable(layerId) {
-  const url = qs(`${SERVICE_BASE}/${layerId}/query`, {
-    where: "1=1",
-    outFields: "*",
-    returnGeometry: "false",
-    orderByFields: "anio ASC",
-    f: "json"
-  });
-  const res = await fetch(url, { cache: 'no-store' });
-  if (!res.ok) throw new Error(`HTTP ${res.status} al consultar layer ${layerId}`);
-  const json = await res.json();
-  if (json.error) throw new Error(json.error.message || `Error del servicio en layer ${layerId}`);
-  const feats = json.features || [];
-  const byYear = new Map();
-  for (const f of feats) {
-    const a = (f.attributes || {});
-    const yrRaw = a.anio;
-    const yr = typeof yrRaw === 'string' ? parseInt(yrRaw, 10) : Number(yrRaw);
-    if (Number.isFinite(yr)) byYear.set(yr, a);
-  }
-  return byYear;
-}
-function extent(arr) {
-  let min = +Infinity, max = -Infinity;
-  for (const v of arr) {
-    if (Number.isFinite(v)) { if (v < min) min = v; if (v > max) max = v; }
-  }
-  if (!Number.isFinite(min) || !Number.isFinite(max)) return [0,1];
-  if (min === max) return [0, max || 1];
-  return [min, max];
-}
-function makeSizeFn(values) {
-  const [, mx] = extent(values);
-  return function sizeFn(x) {
-    const v = Math.max(0, Number(x)||0);
-    const t = mx > 0 ? (v / mx) : 0;
-    return (Math.sqrt(t) + 0.10) * 70; // tamaño relativo de burbuja
-  };
-}
-
-/* ======== Run ======== */
-(async function run(){
-  try {
-    chart.showLoading({ text: 'Cargando datos…' });
-    const [xByYear, yByYear, sByYear] = await Promise.all([
-      fetchTable(LYR_X),    // gasto
-      fetchTable(LYR_Y),    // acceso agua
-      fetchTable(LYR_SIZE)  // ENAPRES (miles)
-    ]);
-
-    // Años
-    const years = [];
-    for (let y = YEAR_START; y <= YEAR_END; y++) years.push(y);
-
-    // Prepara tamaño (usar todas las sums por macrozona para escalar)
-    const allMacroSizes = [];
-
-    // Construye options del timeline, agregando por macrozona
-    const options = [];
-    for (const year of years) {
-      const rowX = xByYear.get(year) || {};
-      const rowY = yByYear.get(year) || {};
-      const rowS = sByYear.get(year) || {};
-
-      // Acumulador por macrozona
-      const acc = new Map(); // macro -> {xSum,ySum,sSum}
-      function addToMacro(macro, xVal, yVal, sVal) {
-        if (!acc.has(macro)) acc.set(macro, {x:0,y:0,s:0});
-        const obj = acc.get(macro);
-        obj.x += (Number(xVal) || 0);
-        obj.y += (Number(yVal) || 0);
-        obj.s += (Number(sVal) || 0);
-      }
-
-      // Recorre todas las regiones, agrega a su macrozona
-      for (const {key, display} of REGION_COLS) {
-        const macro = MACROZONA_BY_DISPLAY[display] || 'OTRAS';
-        const xVal = rowX[key];
-        const yVal = rowY[key];
-        const sVal = rowS[key];
-        // Si X y Y son números válidos, se toma el punto; (sVal puede ser 0)
-        if (Number.isFinite(Number(xVal)) && Number.isFinite(Number(yVal))) {
-          addToMacro(macro, xVal, yVal, sVal);
-        }
-      }
-
-      // Convierte acumulaciones a puntos [x,y,size,label]
-      const points = [];
-      for (const [macro, sums] of acc.entries()) {
-        points.push([sums.x, sums.y, sums.s, macro]);
-        allMacroSizes.push(sums.s);
-      }
-
-      options.push({
-        title: { show: true, text: String(year) },
-        series: [{
-          name: String(year),
-          type: 'scatter',
-          data: points,
-          itemStyle: { opacity: 0.9 },
-          symbolSize: function (val) { return sizeFn(val[2]); },
-          label: {
-            show: true,
-            formatter: p => p.value[3], // macrozona
-            position: 'right',
-            fontSize: 11,
-            color: '#111'
-          }
-        }]
-      });
+  // ====== Colores derivados (misma lógica) ======
+  const BASE_HEX = "#2F4858";
+  function hexToHsl(hex){
+    const m=hex.replace('#','');
+    const r=parseInt(m.slice(0,2),16)/255, g=parseInt(m.slice(2,4),16)/255, b=parseInt(m.slice(4,6),16)/255;
+    const max=Math.max(r,g,b), min=Math.min(r,g,b); let h,s,l=(max+min)/2;
+    if(max===min){h=s=0;} else {
+      const d=max-min; s=l>0.5? d/(2-max-min) : d/(max+min);
+      switch(max){case r:h=(g-b)/d+(g<b?6:0);break;case g:h=(b-r)/d+2;break;case b:h=(r-g)/d+4;break;}
+      h/=6;
     }
+    return {h:Math.round(h*360), s:Math.round(s*100), l:Math.round(l*100)};
+  }
+  const baseHSL = hexToHsl(BASE_HEX);
+  const hsl = (h,s,l,a=1)=>`hsla(${h} ${s}% ${l}% / ${a})`;
+  const normalizeAmb = (s)=> String(s||'').trim().toUpperCase();
+  const cleanFlag = (v)=> { const t = String(v==null?'':v).trim(); return t ? t : ''; };
 
-    // Función de tamaño usando todas las sums (para escala consistente)
-    const sizeFn = makeSizeFn(allMacroSizes);
+  // Recuento (en miles) con sufijo
+  function formatRecuento(vThousands){
+    if(vThousands == null || isNaN(vThousands)) return '';
+    const n = Number(vThousands), absT = Math.abs(n);
+    if(absT >= 1000){
+      const millions = absT / 1000;
+      return `${(n<0?'-':'')}${millions.toLocaleString('es-PE',{minimumFractionDigits:1,maximumFractionDigits:1})} millones`;
+    }else{
+      return `${(n<0?'-':'')}${absT.toLocaleString('es-PE',{minimumFractionDigits:1,maximumFractionDigits:1})} mil`;
+    }
+  }
 
-    // Colorear por macrozona
-    const macroCats = ['NORTE','CENTRO','SUR','LIMA Y CALLAO','OTRAS'];
-    const macroColors = {
-      'NORTE': '#2f7ed8',
-      'CENTRO': '#8bbc21',
-      'SUR': '#910000',
-      'LIMA Y CALLAO': '#1aadce',
-      'OTRAS': '#777777'
-    };
-    const colorList = macroCats.map(m => macroColors[m]);
+  // ====== DOM ======
+  const $err = document.getElementById('err');
+  const $loading = document.getElementById('loading');
 
-    const option = {
-      baseOption: {
-        timeline: {
-          axisType: 'category',
-          orient: 'vertical',
-          autoPlay: true,
-          inverse: true,
-          playInterval: 1200,
-          right: 0,
-          top: 20,
-          bottom: 20,
-          width: 55,
-          symbol: 'none',
-          checkpointStyle: { borderWidth: 2 },
-          controlStyle: { showNextBtn: false, showPrevBtn: false },
-          data: years
-        },
-        title: [
-          {
-            text: years[0],
-            textAlign: 'center',
-            left: '63%',
-            top: '55%',
-            textStyle: { fontSize: 72, fontWeight: 600, color: '#e5e7eb' }
-          },
-          {
-            text: 'Gasto (S/) vs Población con acceso a agua — tamaño: Población (miles) — agregado por MACROZONA',
-            left: 'center',
-            top: 8,
-            textStyle: { fontWeight: '600', fontSize: 16 }
-          }
-        ],
-        tooltip: {
-          padding: 6,
-          borderWidth: 1,
-          formatter: function (obj) {
-            const v = obj.value; // [x,y,s,macro]
-            return (
-              `<b>${v[3]}</b><br>` +
-              `Acceso a agua (suma): <b>${Number(v[1]).toLocaleString('es-PE')}</b><br>` +
-              `Gasto (S/) (suma): <b>${Number(v[0]).toLocaleString('es-PE')}</b><br>` +
-              `Población (miles) (suma): <b>${Number(v[2]).toLocaleString('es-PE')}</b>`
-            );
-          }
-        },
-        grid: { top: 80, left: 40, right: 110, bottom: 40, containLabel: true },
-        xAxis: {
-          type: 'log',
-          name: 'Gasto (S/)',
-          min: 300, max: 200000000, // ajusta si lo ves necesario
-          nameGap: 25,
-          nameLocation: 'middle',
-          nameTextStyle: { fontSize: 14 },
-          splitLine: { show: false },
-          axisLabel: { formatter: (v) => new Intl.NumberFormat('es-PE').format(v) }
-        },
-        yAxis: {
-          type: 'value',
-          name: 'Población con acceso al agua (suma)',
-          nameTextStyle: { fontSize: 14 },
-          splitLine: { show: true },
-          axisLabel: { formatter: (v) => new Intl.NumberFormat('es-PE').format(v) }
-        },
-        visualMap: [{
-          show: false,
-          dimension: 3,
-          categories: macroCats,
-          inRange: { color: colorList }
-        }],
-        series: [{
-          type: 'scatter',
-          data: [],
-          symbolSize: function (val) { return sizeFn(val[2]); },
-          label: {
-            show: true,
-            formatter: p => p.value[3],
-            position: 'right',
-            fontSize: 11,
-            color: '#111'
-          }
-        }],
-        animationDurationUpdate: 1000,
-        animationEasingUpdate: 'quinticInOut'
-      },
-      options
-    };
-
-    chart.hideLoading();
-    chart.setOption(option);
-    window.addEventListener('resize', () => chart.resize());
-
-  } catch (err) {
-    console.error(err);
-    chart.hideLoading();
-    chart.setOption({
-      title: { text:'Error al cargar datos', left:'center' },
-      graphic: {
-        type:'text', left:'center', top:'middle',
-        style:{ text: (err && err.message) ? err.message : 'Fallo de carga.\nRevisa URL, permisos (token) o campos.', fontSize: 14 }
-      }
+  // ====== util HTTP (JSONP para ArcGIS) ======
+  function qs(url, params){ return url + "?" + new URLSearchParams(params).toString(); }
+  function jsonp(url, params, timeoutMs=15000){
+    return new Promise((resolve, reject)=>{
+      const cb = "__arcgis_cb_" + Math.random().toString(36).slice(2);
+      params = { ...(params||{}), callback: cb };
+      const u = qs(url, params);
+      const s = document.createElement('script');
+      let settled=false;
+      const timer = setTimeout(()=>{ if(settled) return; settled=true; cleanup(); reject(new Error("Timeout JSONP: " + u)); }, timeoutMs);
+      function cleanup(){ clearTimeout(timer); if (s.parentNode) s.parentNode.removeChild(s); try{ delete window[cb]; }catch(_){ } }
+      window[cb] = (data)=>{ if(settled) return; settled=true; cleanup(); resolve({data, url:u}); };
+      s.src = u; s.onerror = ()=>{ if(settled) return; settled=true; cleanup(); reject(new Error("Error de script JSONP: " + u)); };
+      document.head.appendChild(s);
     });
   }
+  function resolveFieldName(layerMeta, candidates){
+    const fields = (layerMeta && layerMeta.fields) || [];
+    const wanted = candidates.map(s => String(s).toLowerCase());
+    for(const f of fields){
+      const n = (f.name||"").toLowerCase();
+      const a = (f.alias||"").toLowerCase();
+      if (wanted.includes(n) || (a && wanted.includes(a))) return f.name;
+    }
+    return null;
+  }
+
+  // ====== ECharts: pantalla completa y fondo transparente ======
+  const chart = echarts.init(document.getElementById('chart'), null, { renderer:'canvas' });
+  const baseOption = {
+    backgroundColor: 'transparent',
+    grid: { left: 88, right: 28, top: 52, bottom: 64, containLabel: true },
+    legend: {
+      top: 8, left: 'center', itemWidth: 18, itemHeight: 10, icon: 'roundRect',
+      textStyle: { fontSize: 12 },
+      formatter: (name)=> (String(name).toUpperCase()==="NACIONAL" ? "TOTAL" : name)
+    },
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'line' },
+      formatter: (params)=>{
+        const opt = chart.getOption();
+        const year = params?.[0]?.axisValue ?? '';
+        const lines = [`<b>${year}</b>`];
+        (params||[]).forEach(p=>{
+          const serOpt = opt.series[p.seriesIndex] || {};
+          const flagMap = serOpt._flagByYear || {};
+          const flagSuf = flagMap[String(year)] ? String(flagMap[String(year)]) : '';
+          const displayName = (String(p.seriesName).toUpperCase()==="NACIONAL") ? "TOTAL" : p.seriesName;
+          const vTxt = (p.value==null||isNaN(p.value)) ? '—' : `${nf1.format(+p.value)}%${flagSuf}`;
+          const recMap = serOpt._recByYear || {};
+          const rec = recMap[String(year)];
+          const recTxt = (rec==null || isNaN(rec)) ? '' : ` - ${formatRecuento(rec)}${flagSuf}`;
+          lines.push(`${p.marker} ${displayName}: <b>${vTxt}</b>${recTxt}`);
+        });
+        return lines.join('<br/>');
+      }
+    },
+    xAxis: { type:'category', boundaryGap:true, name:'Años', nameLocation:'middle', nameGap:28, axisTick:{alignWithLabel:true}, axisLabel:{margin:12}, animation:false, data:[] },
+    yAxis: { type:'value', name:'% Acceso a agua', axisLabel:{ formatter:v=>nf1.format(v), margin:10 }, splitLine:{show:true}, scale:true },
+    animation: true,
+    animationDuration: 1200,
+    animationDurationUpdate: 1200,
+    series: [],
+    graphic: []
+  };
+  chart.setOption(baseOption);
+
+  // Ajuste en vivo al tamaño de la ventana/panel sin crear scroll
+  const ro = new ResizeObserver(()=> chart.resize());
+  ro.observe(document.querySelector('.chartWrap'));
+  window.addEventListener('resize', ()=>chart.resize(), {passive:true});
+  window.addEventListener('orientationchange', ()=>chart.resize(), {passive:true});
+
+  let tableUrl = null;
+  let fields = {};
+
+  async function initMeta(){
+    const meta = await jsonp(SERVICE, { f: "pjson" });
+    const tables = (meta.data && meta.data.tables) || [];
+    const layers = (meta.data && meta.data.layers) || [];
+    const all = [...tables, ...layers];
+    const found =
+      all.find(t => t && t.name && String(t.name).toLowerCase().includes(TARGET_TABLE_NAME.toLowerCase())) ||
+      all.find(t => t && t.name && String(t.name).toLowerCase().includes("tb_indicadores_serie"));
+    if (!found) throw new Error("No se encontró la tabla objetivo en el servicio.");
+    tableUrl = SERVICE + "/" + found.id;
+
+    const info = await jsonp(tableUrl, { f:"pjson" });
+    fields = {
+      anio  : resolveFieldName(info.data, ["anio"]),
+      ambito: resolveFieldName(info.data, ["ambito"]),
+      valor : resolveFieldName(info.data, ["valor_porcentaje","valor porcentaje","valor_porcentual"]),
+      region: resolveFieldName(info.data, ["region"]),
+      ind   : resolveFieldName(info.data, ["id_indicador","indicador_id"]),
+      dvals : resolveFieldName(info.data, ["d_valores","d valores","descripcion_valor"]),
+      rec   : resolveFieldName(info.data, ["valor_recuento","valor recuento","recuento","conteo"]),
+      flag  : resolveFieldName(info.data, ["flag_coef_var","flag","coef_var_flag"])
+    };
+    if(!fields.anio || !fields.ambito || !fields.valor || !fields.region || !fields.ind || !fields.dvals){
+      throw new Error("Campos requeridos no hallados.");
+    }
+  }
+
+  function backGraphic(color, onClick){
+    return [{
+      type: 'group', left: 8, top: 8, z: 100, bounding: 'all', cursor: 'pointer', onclick: onClick,
+      children: [
+        {type:'circle', shape:{cx:16, cy:16, r:16}, style:{fill:'rgba(255,255,255,0.9)', stroke:color, lineWidth:2}},
+        {type:'polyline', shape:{points:[[20,8],[12,16],[20,24]]}, style:{stroke:color, lineWidth:3, lineCap:'round', lineJoin:'round'}}
+      ]
+    }];
+  }
+
+  async function loadLine(){
+    const {anio, ambito, valor, region, ind, dvals, rec, flag} = fields;
+
+    const where =
+      `UPPER(${region})='${REGION_TOTAL}' AND ` +
+      `UPPER(${ind})=UPPER('${INDICADOR_ID}') AND ` +
+      `UPPER(${dvals})=UPPER('${D_VALORES}')`;
+
+    const outFields = [anio,ambito,valor,rec].concat(flag?[flag]:[]).join(",");
+
+    const res = await jsonp(tableUrl + "/query", {
+      where, outFields, orderByFields: `${anio} ASC, ${ambito} ASC`, returnGeometry: "false", f: "json"
+    }, 20000);
+
+    const features = (res.data && res.data.features) || [];
+    if(!features.length) throw new Error("La consulta no devolvió filas.");
+
+    const raw = features.map(f=>f.attributes)
+      .filter(r => r && r[anio] != null && r[ambito] != null && r[valor] != null)
+      .map(r => ({
+        anio: Number(r[anio]),
+        ambito: normalizeAmb(r[ambito]),
+        valor: Number(r[valor]),
+        recuento: (r[rec]!=null ? Number(r[rec]) : null),
+        flag: flag ? cleanFlag(r[flag]) : ''
+      }));
+
+    // Escalar % si viene 0–1
+    const maxRaw = Math.max(...raw.map(r=>r.valor));
+    const scale = (maxRaw <= 1.5) ? 100 : 1;
+    raw.forEach(r => r.valor = r.valor * scale);
+
+    // Agregar por (ámbito, año)
+    const agg = new Map();
+    raw.forEach(r=>{
+      const key = r.ambito + "|" + r.anio;
+      const cur = agg.get(key) || { sum:0, count:0, rec:0, flags:new Set() };
+      cur.sum += r.valor; cur.count += 1;
+      if(r.recuento!=null && !isNaN(r.recuento)) cur.rec += r.recuento;
+      if(r.flag) cur.flags.add(r.flag);
+      agg.set(key, cur);
+    });
+    const rows = Array.from(agg.entries()).map(([key, o])=>{
+      const [amb, an] = key.split("|");
+      return { ambito: amb, anio: Number(an), valor: o.sum / o.count, recuento: o.rec, flag: Array.from(o.flags).join('') };
+    });
+
+    const years = Array.from(new Set(rows.map(r=>r.anio))).sort((a,b)=>a-b).map(String);
+    const byAmb = {};
+    rows.forEach(r => { (byAmb[r.ambito] ||= []).push(r); });
+
+    const seriesPrep = [];
+    Object.entries(byAmb).forEach(([amb, arr])=>{
+      const mVal = new Map(arr.map(o=>[String(o.anio), o.valor]));
+      const mRec = new Map(arr.map(o=>[String(o.anio), o.recuento]));
+      const mFlg = new Map(arr.map(o=>[String(o.anio), o.flag]));
+      const data = years.map(y => (mVal.has(y) ? Number(mVal.get(y)) : null));
+      const valid = data.filter(v=>v!=null);
+      const mean = valid.length ? valid.reduce((a,b)=>a+b,0)/valid.length : 0;
+      const recByYear = {}; years.forEach(y=>{ if(mRec.has(y)) recByYear[y] = Number(mRec.get(y)); });
+      const flagByYear= {}; years.forEach(y=>{ const fv = mFlg.get(y); if(fv) flagByYear[y] = fv; });
+      seriesPrep.push({ name: amb, data, mean, recByYear, flagByYear });
+    });
+
+    const prefer = ["NACIONAL","TOTAL","URBANO","RURAL"];
+    seriesPrep.sort((a,b)=>{
+      const ai = prefer.indexOf(a.name), bi = prefer.indexOf(b.name);
+      if(ai!==-1 || bi!==-1){ if(ai===-1) return 1; if(bi===-1) return -1; return ai-bi; }
+      return (b.mean||0)-(a.mean||0);
+    });
+
+    const n = Math.max(1, seriesPrep.length);
+    const minL = Math.max(18, baseHSL.l - 12);
+    const maxL = Math.min(85, baseHSL.l + 26);
+    const stepL = (i)=> Math.round(minL + (maxL - minL) * (i/(n-1 || 1)));
+
+    const series = seriesPrep.map((s,i)=>{
+      const col = hsl(baseHSL.h, baseHSL.s, stepL(i));
+      const isTotal  = (s.name==="TOTAL" || s.name==="NACIONAL");
+      const isUrbano = s.name==="URBANO";
+      const isRural  = s.name==="RURAL";
+      const lineType = isTotal ? 'solid' : (isUrbano ? 'dashed' : (isRural ? 'dotted' : 'solid'));
+      return {
+        name: s.name, type: 'line', smooth: true, showSymbol: true, symbol: 'circle', symbolSize: 6,
+        lineStyle: { width: 2, color: col, type: lineType }, itemStyle: { color: col },
+        emphasis: { focus: 'series', scale: false }, clip: true, data: s.data,
+        _color: col, _recByYear: s.recByYear, _flagByYear: s.flagByYear
+      };
+    });
+
+    const names = series.map(s=>s.name);
+    const legendData = [];
+    if (names.includes("NACIONAL")) legendData.push("NACIONAL");
+    else if (names.includes("TOTAL")) legendData.push("TOTAL");
+    if (names.includes("URBANO"))  legendData.push("URBANO");
+    if (names.includes("RURAL"))   legendData.push("RURAL");
+    names.forEach(n=>{ if(!legendData.includes(n)) legendData.push(n); });
+
+    const vals = series.flatMap(s=>s.data).filter(v=>v!=null && isFinite(v));
+    const min = Math.min(...vals), max = Math.max(...vals);
+    const pad = Math.max((max - min) * 0.10, 0.8);
+    const extraBottom = Math.max((max - min) * 0.03, 0.25);
+    const yMin = Math.floor((min - pad - extraBottom) * 10)/10;
+    const yMax = Math.ceil ((max + pad) * 10)/10;
+
+    chart.clear();
+    chart.setOption({
+      ...baseOption,
+      xAxis: { ...baseOption.xAxis, data: years },
+      yAxis: { ...baseOption.yAxis, min: yMin, max: yMax, name: '% Acceso a agua' },
+      legend: { ...baseOption.legend, data: legendData },
+      series,
+      graphic: []
+    });
+
+    // Etiquetas compactas
+    let labelsShown = false;
+    chart.off('finished');
+    chart.on('finished', ()=>{
+      if(labelsShown) return; labelsShown = true;
+      chart.setOption({
+        series: series.map(()=>({
+          label:{
+            show:true, position:'bottom', distance:4, fontSize:12, color:'#111827',
+            formatter:(p)=> (p.value==null||isNaN(p.value)) ? '' : `${nf1.format(+p.value)}%`,
+            backgroundColor: 'transparent'
+          },
+          labelLayout:{ hideOverlap: true }
+        }))
+      });
+    });
+
+    // Drilldown a barras
+    chart.off('click');
+    chart.on('click', (ev)=>{
+      if(ev.componentType==='series' && ev.seriesType==='line'){
+        const year = String(ev.name);
+        const amb  = normalizeAmb(ev.seriesName);
+        const color= (chart.getOption().series[ev.seriesIndex]._color) || '#3b82f6';
+        loadBars({year, amb, color}).catch(showErr);
+      }
+    });
+
+    chart.resize(); // asegurar ajuste inicial a 100vh/100vw
+  }
+
+  async function loadBars({year, amb, color}){
+    const {anio, ambito, valor, region, ind, dvals, rec, flag} = fields;
+
+    const where =
+      `UPPER(${ind})=UPPER('${INDICADOR_ID}') AND UPPER(${dvals})=UPPER('${D_VALORES}') AND ` +
+      `${anio}=${Number(year)} AND UPPER(${region})<>'${REGION_TOTAL}' AND UPPER(${ambito}) LIKE '%${amb}%'`;
+
+    const outFields = [region,valor,ambito,rec].concat(flag?[flag]:[]).join(",");
+
+    const res = await jsonp(tableUrl + "/query", {
+      where, outFields, orderByFields: `${region} ASC`, returnGeometry: "false", f: "json"
+    }, 20000);
+
+    const features = (res.data && res.data.features) || [];
+    if(!features.length) throw new Error(`Sin datos para ${amb} en ${year}.`);
+
+    const tmp = new Map();
+    features.forEach(f=>{
+      const r = f.attributes;
+      const reg = String(r[region]);
+      const v   = Number(r[valor]);
+      const rc  = (r[rec]!=null ? Number(r[rec]) : null);
+      const flg = flag ? cleanFlag(r[flag]) : '';
+      const it = tmp.get(reg) || { sum:0, c:0, rec:0, flags:new Set() };
+      it.sum += v; it.c += 1;
+      if(rc!=null && !isNaN(rc)) it.rec += rc;
+      if(flg) it.flags.add(flg);
+      tmp.set(reg, it);
+    });
+
+    let rows = Array.from(tmp.entries()).map(([reg, o])=>({
+      region: reg, valor: o.sum / o.c, recuento: o.rec, flag: Array.from(o.flags).join('')
+    }));
+
+    const maxRaw = Math.max(...rows.map(r=>r.valor));
+    const scale = (maxRaw <= 1.5) ? 100 : 1;
+    rows.forEach(r => r.valor = r.valor * scale);
+    rows.sort((a,b)=>b.valor-a.valor);
+
+    const x = rows.map(r=>r.region);
+    const y = rows.map(r=>r.valor);
+    const recs  = rows.map(r=>r.recuento);
+    const flags = rows.map(r=>r.flag||'');
+
+    chart.clear();
+    chart.setOption({
+      backgroundColor: 'transparent',
+      grid: { left: 88, right: 28, top: 52, bottom: 64, containLabel: true },
+      legend: { show:false },
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: { type:'shadow' },
+        formatter: (params)=>{
+          const p = params && params[0];
+          if(!p) return '';
+          const idx = p.dataIndex;
+          const flagSuf = flags[idx] ? String(flags[idx]) : '';
+          const recHere = recs[idx];
+          const recTxt = (recHere==null || isNaN(recHere)) ? '' : ` - ${formatRecuento(recHere)}${flagSuf}`;
+          const vTxt = `${nf1.format(+p.value)}%${flagSuf}`;
+          return `${p.axisValueLabel}<br><b>${vTxt}</b>${recTxt}`;
+        }
+      },
+      title: { left: 'center', top: 6, text: `Acceso a agua — ${amb} — ${year}` },
+      xAxis: { type:'category', data: x, axisLabel:{ interval:0, rotate: (x.length>18?40:(x.length>12?25:0)) } },
+      yAxis: { type:'value', name:'% Acceso a agua', axisLabel:{ formatter:v=>nf1.format(v) }, scale:true },
+      series: [{ name: 'Región', type: 'bar', data: y, itemStyle: { color: color }, label: { show:true, position:'top', formatter:(p)=>`${nf1.format(+p.value)}%` } }],
+      animation: true, animationDuration: 900,
+      graphic: [{
+        type:'group', left:8, top:8, z:100, cursor:'pointer',
+        onclick: async ()=>{ try{ await loadLine(); }catch(e){ showErr(e); } },
+        children:[
+          {type:'circle', shape:{cx:16,cy:16,r:16}, style:{fill:'rgba(255,255,255,0.9)', stroke:color, lineWidth:2}},
+          {type:'polyline', shape:{points:[[20,8],[12,16],[20,24]]}, style:{stroke:color, lineWidth:3, lineCap:'round', lineJoin:'round'}}
+        ]
+      }]
+    });
+
+    chart.resize();
+  }
+
+  // ====== Errores ======
+  function showErr(e){
+    $loading.style.display = 'none';
+    $err.style.display = 'block';
+    $err.textContent = "Error: " + (e && e.message ? e.message : e);
+    console.error(e);
+  }
+
+  // ====== Run ======
+  (async function run(){
+    try{
+      $loading.style.display = 'flex';
+      await initMeta();
+      await loadLine();
+      $loading.style.display = 'none';
+      $err.style.display = 'none';
+      $err.textContent = '';
+      chart.resize();
+    }catch(e){ showErr(e); }
+  })();
 })();
 </script>
 </body>
